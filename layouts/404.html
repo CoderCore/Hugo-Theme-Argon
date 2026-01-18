@@ -1,0 +1,10 @@
+{{ define "main" }}
+<div class="error-404 card bg-white shadow-sm border-0 text-center">
+    <div class="card-body" style="padding: 80px 20px;">
+        <h1 style="font-size: 120px; margin: 0;">404</h1>
+        <h2>页面未找到</h2>
+        <p>抱歉，您访问的页面不存在。</p>
+        <a href="{{ "/" | relURL }}" class="btn btn-primary">返回首页</a>
+    </div>
+</div>
+{{ end }}

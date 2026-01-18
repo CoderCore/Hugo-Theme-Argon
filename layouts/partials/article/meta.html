@@ -1,0 +1,41 @@
+{{- $metaList := split (default "time|categories|read|words|readingtime" .Site.Params.articleMeta) "|" -}}
+{{- range $index, $meta := $metaList }}
+    {{- if gt $index 0 }}
+    <div class="post-meta-devide">|</div>
+    {{- end }}
+    {{- if eq $meta "time" }}
+    <div class="post-meta-detail post-meta-detail-time">
+        <i class="fa fa-clock-o" aria-hidden="true"></i>
+        <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
+            {{ $.Date.Format "2006-01-02 15:04" }}
+        </time>
+    </div>
+    {{- else if eq $meta "edittime" }}
+    <div class="post-meta-detail post-meta-detail-edittime">
+        <i class="fa fa-clock-o" aria-hidden="true"></i>
+        <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
+            {{ $.Lastmod.Format "2006-01-02 15:04" }}
+        </time>
+    </div>
+    {{- else if eq $meta "categories" }}
+        {{- with $.Params.categories }}
+        <div class="post-meta-detail post-meta-detail-categories">
+            <i class="fa fa-bookmark-o" aria-hidden="true"></i>
+            {{- range $idx, $cat := . }}
+                {{- if gt $idx 0 }} , {{ end }}
+                <a href="{{ "categories/" | relURL }}{{ $cat | urlize }}" class="post-meta-detail-category">{{ $cat }}</a>
+            {{- end }}
+        </div>
+        {{- end }}
+    {{- else if eq $meta "words" }}
+    <div class="post-meta-detail post-meta-detail-words">
+        <i class="fa fa-file-word-o" aria-hidden="true"></i>
+        <span>{{ $.WordCount }} 字</span>
+    </div>
+    {{- else if eq $meta "readingtime" }}
+    <div class="post-meta-detail post-meta-detail-readingtime">
+        <i class="fa fa-clock-o" aria-hidden="true"></i>
+        <span>{{ $.ReadingTime }} 分钟</span>
+    </div>
+    {{- end }}
+{{- end }}

@@ -1,0 +1,59 @@
+{{- $hasThumbnail := false -}}
+{{- if .Params.image -}}
+    {{- $hasThumbnail = true -}}
+{{- else if and .Site.Params.firstImageAsThumbnail .Content -}}
+    {{- $hasThumbnail = true -}}
+{{- end -}}
+
+{{- $headerStyle := .Site.Params.articleHeaderStyle | default "default" -}}
+
+<article class="post post-full card bg-white shadow-sm border-0 article-header-style-{{ $headerStyle }}{{ if .Site.Params.enableIntoArticleAnimation }} post-preview{{ end }}">
+    <header class="post-header text-center{{ if $hasThumbnail }} post-header-with-thumbnail{{ end }}">
+        {{- if $hasThumbnail }}
+        {{- $thumbnail := .Params.image }}
+        <img class='post-thumbnail lazyload' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABBJREFUeNpi+P//PwNAgAEACPwC/tuiTRYAAAAASUVORK5CYII=' data-original='{{ $thumbnail | relURL }}' alt='thumbnail'></img>
+        <div class='post-header-text-container'>
+        {{- end }}
+        <h1 class="post-title">{{ .Title }}</h1>
+        <div class="post-meta">
+            {{- partial "article/meta.html" . -}}
+        </div>
+        {{- if $hasThumbnail }}
+        </div>
+        {{- end }}
+    </header>
+
+    <div id="post_content" class="post-content">
+        {{ .Content }}
+    </div>
+
+    {{- with .Site.Params.donateQrcodeUrl }}
+    <div class="post-donate">
+        <button class="btn donate-btn btn-danger">赞赏</button>
+        <div class="donate-qrcode card shadow-sm bg-white">
+            <img src="{{ . | relURL }}" alt="赞赏二维码">
+        </div>
+    </div>
+    {{- end }}
+
+    {{- with .Site.Params.additionalContentAfterPost }}
+    <div class="additional-content-after-post">
+        {{ . | safeHTML }}
+    </div>
+    {{- end }}
+
+    {{- if .Params.tags -}}
+    <div class="post-tags">
+        <i class="fa fa-tags" aria-hidden="true"></i>
+        {{- range .Params.tags }}
+        <a href="{{ "/tags/" | relLangURL }}{{ . | urlize }}" class="tag badge badge-secondary post-meta-detail-tag">{{ . }}</a>
+        {{- end }}
+    </div>
+    {{- end -}}
+</article>
+
+{{- partial "article/share.html" . -}}
+
+{{- partial "article/navigation.html" . -}}
+
+{{- partial "article/bottom.html" . -}}

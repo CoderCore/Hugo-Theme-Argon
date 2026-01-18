@@ -1,0 +1,52 @@
+{{- $authorImage := .Site.Params.sidebar.authorImage | default "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz48c3ZnIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgeD0iMHB4IiB5PSIwcHgiIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiB4bWw6c3BhY2U9InByZXNlcnZlIj48cmVjdCBmaWxsPSIjNUU3MkU0MjIiIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIi8+PGc+PGcgb3BhY2l0eT0iMC4zIj48cGF0aCBmaWxsPSIjNUU3MkU0IiBkPSJNNzQuMzksMzIuODZjLTAuOTgtMS43LTMuMzktMy4wOS01LjM1LTMuMDlINDUuNjJjLTEuOTYsMC00LjM3LDEuMzktNS4zNSwzLjA5TDI4LjU3LDUzLjE1Yy0wLjk4LDEuNy0wLjk4LDQuNDgsMCw2LjE3bDExLjcxLDIwLjI5YzAuOTgsMS43LDMuMzksMy4wOSw1LjM1LDMuMDloMjMuNDNjMS45NiwwLDQuMzctMS4zOSw1LjM1LTMuMDlMODYuMSw1OS4zMmMwLjk4LTEuNywwLjk4LTQuNDgsMC02LjE3TDc0LjM5LDMyLjg2eiIvPjwvZz48ZyBvcGFjaXR5PSIwLjgiPjxwYXRoIGZpbGw9IiM1RTcyRTQiIGQ9Ik02Mi4wNCwyMC4zOWMtMC45OC0xLjctMy4zOS0zLjA5LTUuMzUtMy4wOUgzMS43M2MtMS45NiwwLTQuMzcsMS4zOS01LjM1LDMuMDlMMTMuOSw0Mi4wMWMtMC45OCwxLjctMC45OCw0LjQ4LDAsNi4xN2wxMi40OSwyMS42MmMwLjk4LDEuNywzLjM5LDMuMDksNS4zNSwzLjA5aDI0Ljk3YzEuOTYsMCw0LjM3LTEuMzksNS4zNS0zLjA5bDEyLjQ5LTIxLjYyYzAuOTgtMS43LDAuOTgtNC40OCwwLTYuMTdMNjIuMDQsMjAuMzl6Ii8+PC9nPjwvZz48L3N2Zz4=" -}}
+<img id="leftbar_overview_author_image" src="{{ $authorImage | relURL }}" class="img-fluid rounded-circle shadow-sm" style="width: 100px;" alt="avatar">
+<h6 id="leftbar_overview_author_name">
+    {{- if .Site.Params.sidebar.authorName }}
+        {{ .Site.Params.sidebar.authorName }}
+    {{- else }}
+        {{ .Site.Title }}
+    {{- end }}
+</h6>
+<nav class="site-state">
+    <div class="site-state-item site-state-posts">
+        <a href="{{ "archives" | relURL }}">
+            <span class="site-state-item-count">{{ len (where .Site.RegularPages "Type" "in" .Site.Params.mainSections) }}</span>
+            <span class="site-state-item-name">文章</span>
+        </a>
+    </div>
+    <div class="site-state-item site-state-categories">
+        <a data-toggle="modal" data-target="#blog_categories">
+            <span class="site-state-item-count">{{ len .Site.Taxonomies.categories }}</span>
+            <span class="site-state-item-name">分类</span>
+        </a>
+    </div>      
+    <div class="site-state-item site-state-tags">
+        <a data-toggle="modal" data-target="#blog_tags">
+            <span class="site-state-item-count">{{ len .Site.Taxonomies.tags }}</span>
+            <span class="site-state-item-name">标签</span>
+        </a>
+    </div>
+</nav>
+{{- with .Site.Params.sidebar.authorLinks }}
+<div class="site-author-links">
+    {{- range . }}
+    <div class='site-author-links-item'>
+        <a href="{{ .url }}" rel='noopener' target='_blank'>{{ .name }}</a>
+    </div>
+    {{- end }}
+</div>
+{{- end }}
+{{- with .Site.Params.sidebar.friendLinks }}
+<div class='site-friend-links'>
+    <div class='site-friend-links-title'><i class='fa fa-fw fa-link'></i> Links</div>
+    <ul class='site-friend-links-ul'>
+        {{- range . }}
+        <li class='site-friend-links-item'>
+            <a href='{{ .url }}' rel='noopener' target='_blank'>{{ .name }}</a>
+        </li>
+        {{- end }}
+    </ul>
+</div>
+{{- else }}
+<div style="height: 20px;"></div>
+{{- end }}

@@ -1,0 +1,113 @@
+<div id="sidebar_mask"></div>
+<aside id="leftbar" class="leftbar widget-area" role="complementary">
+    {{- with .Site.Params.sidebar.announcement }}
+    <div id="leftbar_announcement" class="card bg-white shadow-sm border-0">
+        <div class="leftbar-announcement-body">
+            <div class="leftbar-announcement-title text-white">公告</div>
+            <div class="leftbar-announcement-content text-white">{{ . }}</div>
+        </div>
+    </div>
+    {{- end }}
+    <div id="leftbar_part1" class="widget widget_search card bg-white shadow-sm border-0">
+        <div class="leftbar-banner card-body">
+            <span class="leftbar-banner-title text-white">
+                {{- if .Site.Params.sidebar.bannerTitle }}
+                    {{ .Site.Params.sidebar.bannerTitle }}
+                {{- else }}
+                    {{ .Site.Title }}
+                {{- end }}
+            </span>
+            {{- with .Site.Params.sidebar.bannerSubtitle }}
+            <span class="leftbar-banner-subtitle text-white">
+                {{- if eq . "--hitokoto--" }}
+                    <span class='hitokoto'></span>
+                {{- else }}
+                    {{ . }}
+                {{- end }}
+            </span>
+            {{- end }}
+        </div>
+        {{- with .Site.Params.sidebar.menu }}
+        <ul id='leftbar_part1_menu' class='leftbar-menu'>
+            {{- range . }}
+            {{- $current := false }}
+            {{- if not .children }}
+                {{- $current = eq $.RelPermalink (.url | relURL) }}
+            {{- end }}
+            <li class='leftbar-menu-item{{ if .children }} leftbar-menu-item-haschildren{{ end }}{{ if $current }} current{{ end }}'>
+                <a{{ if not .children }} href='{{ .url | relURL }}'{{ end }}{{ if .children }} onclick='return false;'{{ end }}>{{ .name }}</a>
+                {{- if .children }}
+                <ul class='leftbar-menu-item leftbar-menu-subitem shadow-sm'>
+                    {{- range .children }}
+                    <li class='leftbar-menu-item'>
+                        <a href='{{ .url | relURL }}'>{{ .name }}</a>
+                    </li>
+                    {{- end }}
+                </ul>
+                {{- end }}
+            </li>
+            {{- end }}
+        </ul>
+        {{- end }}
+        <div class="card-body text-center leftbar-search-button">
+            <button id="leftbar_search" class="btn btn-secondary btn-lg active btn-sm btn-block border-0" role="button" data-toggle="modal" data-target="#argon_search_modal" >
+                <i class="menu-item-icon fa fa-search mr-0"></i> 搜索
+            </button>
+        </div>
+    </div>
+    <div id="leftbar_part2" class="widget widget_search card bg-white shadow-sm border-0">
+        <div id="leftbar_part2_inner" class="card-body">
+            {{- $nowActiveTab := 1 }}
+            {{- if .IsPage }}{{ $nowActiveTab = 0 }}{{ end }}
+            <div class="nav-wrapper" style="padding-top: 5px;{{ if not .IsPage }} display:none;{{ end }}">
+                <ul class="nav nav-pills nav-fill" role="tablist">
+                    {{- if .IsPage }}
+                    <li class="nav-item sidebar-tab-switcher">
+                        <a class="{{ if eq $nowActiveTab 0 }}active show{{ end }}" id="leftbar_tab_catalog_btn" data-toggle="tab" href="#leftbar_tab_catalog" role="tab" aria-controls="leftbar_tab_catalog">文章目录</a>
+                    </li>
+                    {{- end }}
+                    <li class="nav-item sidebar-tab-switcher">
+                        <a class="{{ if eq $nowActiveTab 1 }}active show{{ end }}" id="leftbar_tab_overview_btn" data-toggle="tab" href="#leftbar_tab_overview" role="tab" aria-controls="leftbar_tab_overview">站点概览</a>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <div class="tab-content" style="padding: 10px 10px 0 10px;">
+                    {{- if .IsPage }}
+                    <div class="tab-pane fade{{ if eq $nowActiveTab 0 }} active show{{ end }}" id="leftbar_tab_catalog" role="tabpanel" aria-labelledby="leftbar_tab_catalog_btn">
+                        <div id="leftbar_catalog"></div>
+                        <script type="text/javascript">
+                            $(function () {
+                                $(document).headIndex({
+                                    articleWrapSelector: '#post_content',
+                                    indexBoxSelector: '#leftbar_catalog',
+                                    subItemBoxClass: "index-subItem-box",
+                                    itemClass: "index-item",
+                                    linkClass: "index-link",
+                                    offset: 80,
+                                });
+                            })
+                        </script>
+                        {{- if .Site.Params.sidebar.showHeadindexNumber }}
+                        <style>
+                            #leftbar_catalog ul {
+                                counter-reset: blog_catalog_number;
+                            }
+                            #leftbar_catalog li.index-item > a:before {
+                                content: counters(blog_catalog_number, '.') " ";
+                                counter-increment: blog_catalog_number;
+                            }
+                        </style>
+                        {{- end }}
+                    </div>
+                    {{- end }}
+                    <div class="tab-pane fade text-center{{ if eq $nowActiveTab 1 }} active show{{ end }}" id="leftbar_tab_overview" role="tabpanel" aria-labelledby="leftbar_tab_overview_btn">
+                        {{- partial "sidebar/overview.html" . -}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>
+
+{{- partial "sidebar/modals.html" . -}}

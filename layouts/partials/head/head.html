@@ -1,0 +1,79 @@
+{{- $title := .Site.Title -}}
+{{- if .Title -}}
+    {{- $title = printf "%s - %s" .Title .Site.Title -}}
+{{- else if eq .Kind "taxonomy" -}}
+    {{- if eq .Type "tags" -}}
+        {{- $title = printf "标签 : %s - %s" .Title .Site.Title -}}
+    {{- else if eq .Type "categories" -}}
+        {{- $title = printf "分类 : %s - %s" .Title .Site.Title -}}
+    {{- end -}}
+{{- else if eq .Kind "section" -}}
+    {{- if eq .Type "archives" -}}
+        {{- $title = printf "归档 - %s" .Site.Title -}}
+    {{- end -}}
+{{- end -}}
+
+<title>{{ $title }}</title>
+<meta charset="utf-8">
+{{- if .Site.Params.enableMobileScale }}
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+{{- else }}
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+{{- end }}
+
+{{- partial "head/opengraph.html" . -}}
+
+<meta name="theme-color" content="{{ default "#5e72e4" .Site.Params.themeColor }}">
+<meta name="theme-color-origin" content="{{ default "#5e72e4" .Site.Params.themeColor }}">
+<meta name="argon-enable-custom-theme-color" content="{{ default true .Site.Params.showCustomizeThemeColorPicker }}">
+<meta name="theme-card-radius" content="{{ default 4 .Site.Params.cardRadius }}">
+<link rel="icon" href="/assets/img/favicon.ico" type="image/x-icon">
+<link rel="shortcut icon" href="/assets/img/favicon.ico" type="image/x-icon">
+
+{{- $cssOptions := (dict "targetPath" "assets/argon_css_merged.css" "outputStyle" "compressed") -}}
+<link rel="stylesheet" href="{{ "/assets/argon_css_merged.css" | relURL }}">
+<link rel="stylesheet" href="{{ "/style.css" | relURL }}">
+<link rel="stylesheet" href="{{ "/css/custom.css" | relURL }}">
+<link rel="stylesheet" href="//fonts.loli.net/css?family=Open+Sans:300,400,600,700|Noto+Serif+SC:300,600&display=swap">
+
+{{- /* 主题色 CSS 变量 - 使用动态计算而不是手动配置 */ -}}
+{{- partial "head/theme-color-calculator.html" . -}}
+
+<script src="{{ "/assets/argon_js_merged.js" | relURL }}"></script>
+<script src="{{ "/assets/js/argon.min.js" | relURL }}"></script>
+<script src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+<script>
+    var argonConfig = {
+        language: "{{ default "zh_CN" .Site.Language.Lang }}",
+        {{- if ne .Site.Params.enableZoomify false }}
+        zoomify: {
+            duration: {{ default 200 .Site.Params.zoomifyDuration }},
+            easing: "{{ default "cubic-bezier(0.4,0,0,1)" .Site.Params.zoomifyEasing }}",
+            scale: {{ default 0.9 .Site.Params.zoomifyScale }}
+        },
+        {{- else }}
+        zoomify: false,
+        {{- end }}
+        {{- if .Site.Params.enableFancybox }}
+        fancybox: true,
+        {{- else }}
+        fancybox: false,
+        {{- end }}
+        pangu: {{ default false .Site.Params.enablePangu }},
+        {{- if ne .Site.Params.enableLazyload false }}
+        lazyload: {
+            threshold: {{ default 800 .Site.Params.lazyloadThreshold }},
+            effect: "{{ default "fadeIn" .Site.Params.lazyloadEffect }}"
+        },
+        {{- else }}
+        lazyload: false,
+        {{- end }}
+        disable_pjax: {{ default false .Site.Params.pjaxDisabled }},
+        headroom: {{ default false .Site.Params.enableHeadroom }}
+    }
+</script>
+
+{{- partial "head/darkmode.html" . -}}
+{{- partial "head/themecolor.html" . -}}
+{{- partial "head/smoothscroll.html" . -}}

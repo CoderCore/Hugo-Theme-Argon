@@ -1,0 +1,145 @@
+# Example configuration for Argon Hugo theme
+
+baseURL: "https://example.com/"
+languageCode: "zh-cn"
+title: "My Hugo Site"
+theme: "Hugo-Theme-Argon"
+
+# Hugo 摘要设置
+summaryLength: 70  # 摘要字数（中文按字符计算）
+hasCJKLanguage: true  # 启用中文、日文、韩文支持
+
+params:
+  # 全局设置 - 还原为原始主题色，其他变体将自动计算
+  themeColor: '#f8b5ff'  # 主题色（十六进制）
+  showCustomizeThemeColorPicker: true
+  darkmodeAutoswitch: "system"  # false, alwayson, system, time
+  enableAmoledDark: false
+  cardRadius: 10
+  cardShadow: "default"  # small, big, or empty
+  pageLayout: "double" # double, single
+  articleListWaterflow: true
+  articleListLayout: "1"
+  font: "sans-serif"  # sans-serif, serif
+  enableHeadroom: false
+
+  # 顶栏
+  toolbar:
+    icon: ""
+    iconLink: ""
+    title: ""
+    blur: true
+    menu:
+      - name: "首页"
+        url: "/"
+      - name: "归档"
+        url: "/archives/"
+
+  # Banner
+  banner:
+    title: ""
+    enableTypingEffect: true
+    typingEffectInterval: 80
+    subtitle: "你在看什么喵？"
+    size: "fullscreen"   
+          # full (完整)  mini (迷你)  fullscreen (全屏)  hidden (隐藏)
+    backgroundUrl: ""
+    backgroundHideShapes: false
+    backgroundColorType: "shape-primary"
+
+  # 侧栏
+  sidebar:
+    bannerTitle: "FUFU Ltd."
+    bannerSubtitle: ""
+    announcement: ""
+    menu:
+      - name: "首页"
+        url: "/"
+      - name: "归档"
+        url: "/archives/"
+    authorImage: "https://blog.fufultd.asia/wp-content/uploads/head.jpg"
+    authorName: "jiang068"
+    authorDescription: ""
+    authorLinks:
+      - name: "GitHub"
+        url: "https://github.com"
+    friendLinks:
+      - name: "Friend 1"
+        url: "https://example.com"
+    showHeadindexNumber: false
+
+  # 文章
+  excerpt: true
+  excerptLength: 80  # 首页文章摘要长度（字符数），默认 175
+  firstImageAsThumbnail: true
+  articleMeta: "time|views|categories"
+  showReadingtime: true
+  readingSpeedCn: 300
+  readingSpeedEn: 160
+  showThumbnailInBannerInContentPage: false
+  showShareBtn: true
+  donateQrcodeUrl: ""
+  additionalContentAfterPost: ""
+  articleHeaderStyle: "2"  # default, 1, 2 - 样式2会在标题前显示彩色竖杠装饰
+
+  # 背景
+  pageBackgroundUrl: "https://blog.fufultd.asia/wp-content/uploads/25646.jpg"
+  pageBackgroundDarkUrl: ""
+  pageBackgroundOpacity: 1
+  transparentBanner: true
+  showToolbarMask: true
+
+  # 浮动操作按钮
+  fab:
+    showDarkmodeButton: false
+    showSettingsButton: true
+    showGotocommentButton: false
+
+  # 平滑滚动
+  smoothscroll: 1  # disabled, 1, 1-pulse, 2, 3
+
+  # Zoomify & Fancybox
+  enableFancybox: true
+  enableZoomify: false
+  zoomifyDuration: 200
+  zoomifyEasing: "cubic-bezier(0.4,0,0,1)"
+  zoomifyScale: 0.9
+
+  # Lazyload
+  enableLazyload: true
+  lazyloadThreshold: 800
+  lazyloadEffect: "fadeIn"
+  lazyloadLoadingStyle: 1  # 1-11, none
+
+  # Pangu.js
+  enablePangu: false
+
+  # 其他
+  pjaxDisabled: false
+  enableIntoArticleAnimation: true
+  enableMobileScale: false
+
+  # 页脚
+  footerHtml: "<span id=\"times\">载入运行时间...</span> \n<script language=\"javascript\"> \n var now = new Date();\n function createtime(){\n  var grt= new Date(\"12/08/2024 03:53:24\");/*---这里是网站的启用时间--*/\n  now.setTime(now.getTime()+250);\n  days = (now - grt ) / 1000 / 60 / 60 / 24;\n  dnum = Math.floor(days);\n  hours = (now - grt ) / 1000 / 60 / 60 - (24 * dnum);\n  hnum = Math.floor(hours);\n  if(String(hnum).length ==1 ){hnum = \"0\" + hnum;}\n  minutes = (now - grt ) / 1000 /60 - (24 * 60 * dnum) - (60 * hnum);\n  mnum = Math.floor(minutes);\n  if(String(mnum).length ==1 ){mnum = \"0\" + mnum;}\n  seconds = (now - grt ) / 1000 - (24 * 60 * 60 * dnum) - (60 * 60 * hnum) - (60 * mnum);\n  snum = Math.round(seconds);\n  if(String(snum).length ==1 ){snum = \"0\" + snum;}\n  document.getElementById(\"times\").innerHTML = \"已运行 \" + dnum + \" 天 \" + hnum + \" 小时 \" + mnum + \" 分 \" + snum + \" 秒 \";\n }\n setInterval(\"createtime()\",250); \n</script>\n<div style=\"text-align: center; font-size: 14px;\">\n  <span style=\"white-space: nowrap;\">\n    <a href=\"https://beian.miit.gov.cn/\" target=\"_blank\">皖ICP备2025075576号-1</a>&nbsp;|&nbsp;\n    <a href=\"https://blog.fufultd.asia/icp/\" target=\"_blank\" style=\"white-space: nowrap;\">\n      <img src=\"https://blog.fufultd.asia/icp/pic/ico64.png\"\n           alt=\"ico64\"\n           style=\"height: 20px; vertical-align: text-bottom; margin-right: 3px;\" />\n      芙ICP备2025083125号\n    </a>\n  </span>\n</div>\n"
+
+  # 数学公式
+  mathRender: "none"  # mathjax3, mathjax2, katex
+
+# 主题栏目配置
+mainSections:
+  - post
+
+# 分页
+pagination:
+  pagerSize: 10
+
+# 语言设置
+defaultContentLanguage: zh-cn
+
+# Markdown 设置
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+  highlight:
+    style: vs2015

@@ -1,0 +1,63 @@
+# 通用
+home: 首页
+archives: 归档
+categories: 分类
+tags: 标签
+search: 搜索
+about: 关于
+posts: 文章
+pages: 页面
+
+# 文章
+readMore: 阅读全文
+words: 字
+readingTime: 阅读时间
+minutes: 分钟
+publishedOn: 发布于
+updatedOn: 更新于
+prevPost: 上一篇
+nextPost: 下一篇
+relatedPosts: 相关文章
+tableOfContents: 文章目录
+
+# 评论
+comments: 评论
+noComments: 暂无评论
+leaveComment: 发表评论
+
+# 分页
+page: 页
+of: 共
+first: 首页
+last: 末页
+previous: 上一页
+next: 下一页
+
+# 搜索
+searchPlaceholder: 输入关键词搜索...
+searchResults: 搜索结果
+noResults: 没有找到结果
+
+# 侧边栏
+announcement: 公告
+overview: 站点概览
+catalog: 文章目录
+articlesCount: 文章数
+categoriesCount: 分类数
+tagsCount: 标签数
+visitors: 访客数
+
+# 404
+notFound: 页面未找到
+notFoundMessage: 抱歉，您访问的页面不存在
+backToHome: 返回首页
+
+# 其他
+darkMode: 夜间模式
+lightMode: 日间模式
+settings: 设置
+font: 字体
+shadow: 阴影
+filter: 滤镜
+borderRadius: 圆角
+themeColor: 主题色

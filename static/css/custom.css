@@ -1,0 +1,48 @@
+.banner-size-fullscreen {
+    height: 100vh;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.banner-is-fullscreen #content {
+    margin-top: 0 !important;
+}
+
+.banner-size-mini {
+    padding-top: 6rem !important;
+    padding-bottom: 6rem !important;
+}
+
+.banner-size-hidden {
+    display: none !important;
+}
+
+.banner-is-hidden #content {
+    margin-top: 80px !important;
+}
+
+.cover-scroll-down {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateX(-50%) translateY(0);
+    }
+    40% {
+        transform: translateX(-50%) translateY(-10px);
+    }
+    60% {
+        transform: translateX(-50%) translateY(-5px);
+    }
+}

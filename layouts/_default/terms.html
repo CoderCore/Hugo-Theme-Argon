@@ -1,0 +1,33 @@
+{{ define "information-card" }}
+<div class="information-card card bg-white shadow-sm border-0">
+    <div class="card-body">
+        <h2 class="information-card-title">
+            {{- if eq .Type "tags" }}
+                所有标签
+            {{- else if eq .Type "categories" }}
+                所有分类
+            {{- end }}
+        </h2>
+    </div>
+</div>
+{{ end }}
+
+{{ define "main" }}
+<div class="taxonomy-list card bg-white shadow-sm border-0">
+    <div class="card-body">
+        {{- if eq .Type "tags" }}
+            {{- range $name, $taxonomy := .Site.Taxonomies.tags }}
+            <a href="{{ "tags/" | relURL }}{{ $name | urlize }}" class="badge badge-primary tag">
+                {{ $name }} <span class="tag-num">({{ len $taxonomy }})</span>
+            </a>
+            {{- end }}
+        {{- else if eq .Type "categories" }}
+            {{- range $name, $taxonomy := .Site.Taxonomies.categories }}
+            <a href="{{ "categories/" | relURL }}{{ $name | urlize }}" class="badge badge-secondary tag">
+                {{ $name }} <span class="tag-num">({{ len $taxonomy }})</span>
+            </a>
+            {{- end }}
+        {{- end }}
+    </div>
+</div>
+{{ end }}

@@ -1,0 +1,71 @@
+{{- with .Site.Params.pageBackgroundUrl }}
+<style>
+    #content:before {
+        content: '';
+        display: block;
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: -2;
+        background: url({{ . | relURL }});
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        opacity: {{ default 1 $.Site.Params.pageBackgroundOpacity }};
+        transition: opacity .5s ease;
+    }
+    html.darkmode #content:before{
+        filter: brightness(0.65);
+    }
+    {{- with $.Site.Params.pageBackgroundDarkUrl }}
+    #content:after {
+        content: '';
+        display: block;
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: -2;
+        background: url({{ . | relURL }});
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        opacity: 0;
+        transition: opacity .5s ease;
+    }
+    html.darkmode #content:after {
+        opacity: {{ default 1 $.Site.Params.pageBackgroundOpacity }};
+    }
+    html.darkmode #content:before {
+        opacity: 0;
+    }
+    {{- end }}
+    {{- if $.Site.Params.transparentBanner }}
+    #banner, #banner .shape {
+        background: transparent !important;
+    }
+    {{- end }}
+</style>
+{{- end }}
+
+{{- if .Site.Params.showToolbarMask }}
+<style>
+    #banner:after {
+        content: '';
+        width: 100vw;
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 120px;
+        background: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.15) 35%, rgba(0,0,0,0) 100%);
+        display: block;
+        z-index: -1;
+    }
+    .banner-title {
+        text-shadow: 0 5px 15px rgba(0, 0, 0, .2);
+    }
+</style>
+{{- end }}

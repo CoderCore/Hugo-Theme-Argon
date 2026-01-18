@@ -1,0 +1,52 @@
+{{- $bannerTitle := .Site.Params.banner.title | default .Site.Title -}}
+{{- $enableTypingEffect := .Site.Params.banner.enableTypingEffect | default false -}}
+{{- $bannerSubtitle := .Site.Params.banner.subtitle -}}
+
+{{- /* --- START: BANNER LOGIC --- */ -}}
+{{- $bannerSize := "full" -}} {{- /* Default for all pages is 'full' */ -}}
+{{- if .IsHome -}}
+    {{- $bannerSize = .Site.Params.banner.size | default "full" -}} {{- /* On homepage, use config */ -}}
+{{- end -}}
+{{- /* --- END: BANNER LOGIC --- */ -}}
+
+<section id="banner" class="banner section section-lg section-shaped banner-size-{{ $bannerSize }}">
+    <div class="shape {{ if .Site.Params.banner.backgroundHideShapes }}{{ else }}shape-style-1{{ end }} {{ default "shape-primary" .Site.Params.banner.backgroundColorType }}">
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+
+    <div id="banner_container" class="banner-container container text-center">
+        {{- if not $enableTypingEffect }}
+        <div class="banner-title text-white"><span class="banner-title-inner">{{ $bannerTitle }}</span>
+        {{- else }}
+        <div class="banner-title text-white" data-text="{{ $bannerTitle }}" data-interval="{{ default 100 .Site.Params.banner.typingEffectInterval }}"><span class="banner-title-inner">&nbsp;</span>
+        {{- end }}
+        {{- with $bannerSubtitle }}
+        <span class="banner-subtitle d-block">{{ . }}</span>
+        {{- end }}
+        </div>
+    </div>
+
+    {{- if eq $bannerSize "fullscreen" }}
+    <div class="cover-scroll-down">
+        <i class="fa fa-angle-down" aria-hidden="true"></i>
+    </div>
+    {{- end }}
+
+    {{- with .Site.Params.banner.backgroundUrl }}
+    <style>
+        section.banner{
+            background-image: url({{ . | relURL }}) !important;
+        }
+    </style>
+    {{- end }}
+</section>
+
+{{- partial "header/page-background.html" . -}}

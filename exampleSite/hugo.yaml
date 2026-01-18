@@ -1,0 +1,146 @@
+baseURL: "https://example.com/"
+languageCode: "zh-cn"
+title: "Argon Hugo Theme 示例站点"
+theme: "Hugo-Theme-Argon"
+
+# Hugo 摘要设置
+summaryLength: 70  # 摘要字数（中文按字符计算）
+hasCJKLanguage: true  # 启用中文、日文、韩文支持
+
+params:
+  # 全局设置
+  themeColor: '#5e72e4'  # 主题色（十六进制）
+  themeColorRGB: '94, 114, 228'  # 主题色 RGB 值，用于半透明效果（需与 themeColor 对应）
+  showCustomizeThemeColorPicker: true
+  darkmodeAutoswitch: false
+  enableAmoledDark: false
+  cardRadius: 4
+  cardShadow: ""
+  font: "sans-serif"
+  enableHeadroom: false
+
+  # 顶栏
+  toolbar:
+    icon: ""
+    iconLink: ""
+    title: ""
+    menu:
+      - name: "首页"
+        url: "/"
+      - name: "归档"
+        url: "/archives/"
+      - name: "关于"
+        url: "/about/"
+
+  # Banner
+  banner:
+    title: "Argon Hugo Theme"
+    enableTypingEffect: false
+    typingEffectInterval: 100
+    subtitle: "简洁优雅的 Hugo 博客主题"
+    backgroundUrl: "/assets/img/banner.jpg"
+    backgroundHideShapes: false
+    backgroundColorType: "shape-primary"
+
+  # 侧栏
+  sidebar:
+    bannerTitle: "Argon"
+    bannerSubtitle: "优雅简洁"
+    announcement: "欢迎使用 Argon Hugo 主题！"
+    menu:
+      - name: "首页"
+        url: "/"
+      - name: "归档"
+        url: "/archives/"
+      - name: "关于"
+        url: "/about/"
+    authorImage: "/assets/img/auther.jpg"
+    authorName: "Argon"
+    authorLinks:
+      - name: "GitHub"
+        url: "https://github.com"
+      - name: "Twitter"
+        url: "https://twitter.com"
+    friendLinks:
+      - name: "Hugo"
+        url: "https://gohugo.io"
+      - name: "GitHub"
+        url: "https://github.com"
+    showHeadindexNumber: false
+
+  # 文章
+  excerpt: true
+  excerptLength: 120  # 首页文章摘要长度（字符数），默认 175
+  firstImageAsThumbnail: false
+  articleMeta: "time|categories|words|readingtime"
+  readingSpeedCn: 300
+  readingSpeedEn: 160
+  donateQrcodeUrl: ""
+  additionalContentAfterPost: ""
+  articleHeaderStyle: "2"  # default, 1, 2 - 样式2会在标题前显示彩色竖杠装饰
+
+  # 背景
+  pageBackgroundUrl: ""
+  pageBackgroundDarkUrl: ""
+  pageBackgroundOpacity: 1
+  transparentBanner: false
+  showToolbarMask: false
+
+  # 浮动操作按钮
+  fab:
+    showDarkmodeButton: true
+    showSettingsButton: true
+    showGotocommentButton: false
+
+  # 平滑滚动
+  smoothscroll: 1
+
+  # Zoomify
+  enableZoomify: true
+  zoomifyDuration: 200
+  zoomifyEasing: "cubic-bezier(0.4,0,0,1)"
+  zoomifyScale: 0.9
+
+  # Lazyload
+  enableLazyload: true
+  lazyloadThreshold: 800
+  lazyloadEffect: "fadeIn"
+  lazyloadLoadingStyle: 1
+
+  # Pangu.js
+  enablePangu: false
+
+  # 其他
+  pjaxDisabled: false
+  enableIntoArticleAnimation: false
+  enableMobileScale: false
+
+  # 页脚
+  footerHtml: '<p>© 2024 Argon Hugo Theme. All rights reserved.</p>'
+
+  # 数学公式
+  mathRender: ""
+
+# 主题栏目配置
+mainSections:
+  - post
+
+# 分页
+pagination:
+  pagerSize: 10
+
+# 语言设置
+defaultContentLanguage: zh-cn
+
+# 分类和标签
+taxonomies:
+  category: categories
+  tag: tags
+
+# Markdown 设置
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+  highlight:
+    style: monokai

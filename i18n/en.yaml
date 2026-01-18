@@ -1,0 +1,63 @@
+# Common
+home: Home
+archives: Archives
+categories: Categories
+tags: Tags
+search: Search
+about: About
+posts: Posts
+pages: Pages
+
+# Article
+readMore: Read More
+words: Words
+readingTime: Reading Time
+minutes: Minutes
+publishedOn: Published on
+updatedOn: Updated on
+prevPost: Previous Post
+nextPost: Next Post
+relatedPosts: Related Posts
+tableOfContents: Table of Contents
+
+# Comments
+comments: Comments
+noComments: No comments yet
+leaveComment: Leave a comment
+
+# Pagination
+page: Page
+of: of
+first: First
+last: Last
+previous: Previous
+next: Next
+
+# Search
+searchPlaceholder: Enter keywords to search...
+searchResults: Search Results
+noResults: No results found
+
+# Sidebar
+announcement: Announcement
+overview: Site Overview
+catalog: Table of Contents
+articlesCount: Articles
+categoriesCount: Categories
+tagsCount: Tags
+visitors: Visitors
+
+# 404
+notFound: Page Not Found
+notFoundMessage: Sorry, the page you are looking for does not exist
+backToHome: Back to Home
+
+# Others
+darkMode: Dark Mode
+lightMode: Light Mode
+settings: Settings
+font: Font
+shadow: Shadow
+filter: Filter
+borderRadius: Border Radius
+themeColor: Theme Color

@@ -1,0 +1,21 @@
+{{- define "main" -}}
+<!-- 首页 - 文章列表 -->
+<div class="card-list">
+    {{- $paginator := .Paginate .Site.RegularPages -}}
+    
+    {{- if gt (len $paginator.Pages) 0 -}}
+        {{- range $paginator.Pages -}}
+            {{- partial "article/preview.html" . -}}
+        {{- end -}}
+        
+        {{- partial "pagination.html" . -}}
+    {{- else -}}
+        <div class="card bg-white shadow-sm border-0">
+            <div class="card-body text-center py-5">
+                <h3>{{ T "no_posts" }}</h3>
+                <p class="text-muted">{{ T "no_posts_desc" }}</p>
+            </div>
+        </div>
+    {{- end -}}
+</div>
+{{- end -}}

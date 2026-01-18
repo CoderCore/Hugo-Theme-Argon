@@ -1,0 +1,75 @@
+{{- $thumbnail := "" -}}
+{{- if .Params.thumbnail -}}
+    {{- $thumbnail = .Params.thumbnail -}}
+{{- else if .Site.Params.firstImageAsThumbnail -}}
+    {{- $firstImage := "" -}}
+    {{- $images := .Resources.ByType "image" -}}
+    {{- if $images -}}
+        {{- with $images.GetMatch "*" -}}
+            {{- $firstImage = .RelPermalink -}}
+        {{- end -}}
+    {{- else -}}
+        {{- $matches := findRE `<img[^>]+>` .Content -}}
+        {{- range $matches -}}
+            {{- if eq $firstImage "" -}} {{/* Stop after finding the first valid image */}}
+                {{- $imgTag := . -}}
+                {{- $dataOriginalMatch := findRE `data-original="([^"]+)"` $imgTag 1 -}}
+                {{- if $dataOriginalMatch -}}
+                    {{- $firstImage = index $dataOriginalMatch 0 | replaceRE `data-original="([^"]+)"` "$1" -}}
+                {{- else -}}
+                    {{- $srcMatch := findRE `src="([^"]+)"` $imgTag 1 -}}
+                    {{- if $srcMatch -}}
+                        {{- $imgSrc := index $srcMatch 0 | replaceRE `src="([^"]+)"` "$1" -}}
+                        {{- if not (strings.HasPrefix $imgSrc "data:") -}}
+                            {{- $firstImage = $imgSrc -}}
+                        {{- end -}}
+                    {{- end -}}
+                {{- end -}}
+            {{- end -}}
+        {{- end -}}
+    {{- end -}}
+    {{- if $firstImage -}}
+        {{- $thumbnail = $firstImage -}}
+    {{- end -}}
+{{- end -}}
+
+{{- $hasThumbnail := ne $thumbnail "" -}}
+
+<article class="post card bg-white shadow-sm border-0 {{ if .Site.Params.enableIntoArticleAnimation }}post-preview{{ end }}">
+    <header class="post-header text-center{{ if $hasThumbnail }} post-header-with-thumbnail{{ end }}">
+        {{- if $hasThumbnail }}
+        <img class='post-thumbnail lazyload' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABBJREFUeNpi+P//PwNAgAEACPwC/tuiTRYAAAAASUVORK5CYII=' data-original='{{ $thumbnail | relURL }}' alt='thumbnail'></img>
+        <div class='post-header-text-container'>
+        {{- end }}
+        <a class="post-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
+        <div class="post-meta">
+            {{- partial "article/meta.html" . -}}
+        </div>
+        {{- if $hasThumbnail }}
+        </div>
+        {{- end }}
+    </header>
+
+    <div class="post-content">
+        {{- $excerptLength := .Site.Params.excerptLength | default 175 -}}
+        {{- if .Description -}}
+            {{/* 优先使用 front matter 中的 description - 纯文本 */}}
+            {{ .Description }}
+        {{- else if .Truncated -}}
+            {{/* 如果有 <!--more--> 标记，使用 Summary 的纯文本 */}}
+            {{ .Summary | plainify | truncate $excerptLength "..." }}
+        {{- else -}}
+            {{/* 默认：截取纯文本，去掉所有 HTML 标签和格式 */}}
+            {{ .Plain | truncate $excerptLength "..." }}
+        {{- end -}}
+    </div>
+
+    {{- if .Params.tags -}}
+    <div class="post-tags">
+        <i class="fa fa-tags" aria-hidden="true"></i>
+        {{- range .Params.tags }}
+        <a href="{{ "/tags/" | relLangURL }}{{ . | urlize }}" class="tag badge badge-secondary post-meta-detail-tag">{{ . }}</a>
+        {{- end }}
+    </div>
+    {{- end -}}
+</article>
