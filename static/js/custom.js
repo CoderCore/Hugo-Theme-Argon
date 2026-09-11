@@ -85,7 +85,11 @@ document.addEventListener('argon:page-ready', function(event) {
             if (typeof config.key === 'string' && config.key) {
                 headers['X-View-Counter-Key'] = config.key;
             }
-            var response = await fetch(endpoint, {
+            var requestUrl = endpoint;
+            if (!increment) {
+                requestUrl += (endpoint.indexOf('?') === -1 ? '?' : '&') + 'id=' + encodeURIComponent(id);
+            }
+            var response = await fetch(requestUrl, {
                 method: increment ? 'POST' : 'GET',
                 headers: headers,
                 body: increment ? JSON.stringify({id: id}) : undefined,
