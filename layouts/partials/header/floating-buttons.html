@@ -1,3 +1,9 @@
+{{- $fab := dict -}}
+{{- with .Site.Params.fab -}}
+    {{- if reflect.IsMap . -}}
+        {{- $fab = . -}}
+    {{- end -}}
+{{- end -}}
 <div id="float_action_buttons" class="float-action-buttons fabtns-unloaded">
     <button id="fabtn_toggle_sides" class="btn btn-icon btn-neutral fabtn shadow-sm" type="button" aria-hidden="true" tooltip-move-to-left="移至左侧" tooltip-move-to-right="移至右侧">
         <span class="btn-inner--icon fabtn-show-on-right"><i class="fa fa-caret-left"></i></span>
@@ -6,13 +12,13 @@
     <button id="fabtn_back_to_top" class="btn btn-icon btn-neutral fabtn shadow-sm" type="button" aria-label="Back To Top" tooltip="回到顶部">
         <span class="btn-inner--icon"><i class="fa fa-angle-up"></i></span>
     </button>
-    <button id="fabtn_go_to_comment" class="btn btn-icon btn-neutral fabtn shadow-sm d-none" type="button" {{ if not .Site.Params.fab.showGotocommentButton }}style='display: none;'{{ end }} aria-label="Comment" tooltip="评论">
+    <button id="fabtn_go_to_comment" class="btn btn-icon btn-neutral fabtn shadow-sm d-none" type="button" {{ if not (index $fab "showGotocommentButton") }}style='display: none;'{{ end }} aria-label="Comment" tooltip="评论">
         <span class="btn-inner--icon"><i class="fa fa-comment-o"></i></span>
     </button>
-    <button id="fabtn_toggle_darkmode" class="btn btn-icon btn-neutral fabtn shadow-sm" type="button" {{ if not .Site.Params.fab.showDarkmodeButton }}style='display: none;'{{ end }} aria-label="Toggle Darkmode" tooltip-darkmode="夜间模式" tooltip-blackmode="暗黑模式" tooltip-lightmode="日间模式">
+    <button id="fabtn_toggle_darkmode" class="btn btn-icon btn-neutral fabtn shadow-sm" type="button" {{ if not (index $fab "showDarkmodeButton") }}style='display: none;'{{ end }} aria-label="Toggle Darkmode" tooltip-darkmode="夜间模式" tooltip-blackmode="暗黑模式" tooltip-lightmode="日间模式">
         <span class="btn-inner--icon"><i class="fa fa-moon-o"></i><i class='fa fa-lightbulb-o'></i></span>
     </button>
-    <button id="fabtn_toggle_blog_settings_popup" class="btn btn-icon btn-neutral fabtn shadow-sm" type="button" {{ if not .Site.Params.fab.showSettingsButton }}style='display: none;'{{ end }} aria-label="Open Blog Settings Menu" tooltip="设置">
+    <button id="fabtn_toggle_blog_settings_popup" class="btn btn-icon btn-neutral fabtn shadow-sm" type="button" {{ if not (index $fab "showSettingsButton") }}style='display: none;'{{ end }} aria-label="Open Blog Settings Menu" tooltip="设置">
         <span class="btn-inner--icon"><i class="fa fa-cog"></i></span>
     </button>
     <div id="fabtn_blog_settings_popup" class="card shadow-sm" style="opacity: 0;" aria-hidden="true">

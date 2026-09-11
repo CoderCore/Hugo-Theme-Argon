@@ -1,27 +1,41 @@
-# Hugo
+# Hugo generated output
 /public/
 /resources/_gen/
 /.hugo_build.lock
+/hugo_stats.json
+/.hugo-test-public/
 
-# OS
+# Cloudflare / local secrets
+**/.wrangler/
+**/.dev.vars
+**/.env
+**/.env.*
+!**/.env.example
+!**/.dev.vars.example
+
+# Node tooling and logs
+/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor files
 .DS_Store
 Thumbs.db
-
-# Editor
+Desktop.ini
+.Spotlight-V100/
+.Trashes/
+._*
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 *~
 
 # Temporary files
 *.tmp
 *.bak
-
-# Node modules (if using npm for asset processing)
-node_modules/
-package-lock.json
-yarn.lock
-
-# Logs
 *.log

@@ -1,4 +1,38 @@
 {{- $title := .Site.Title -}}
+{{- $viewCounter := dict -}}
+{{- with .Site.Params.viewCounter -}}
+    {{- if reflect.IsMap . -}}
+        {{- $viewCounter = . -}}
+    {{- end -}}
+{{- end -}}
+{{- $viewCounterEnabled := false -}}
+{{- if eq (index $viewCounter "enabled") true -}}
+    {{- $viewCounterEnabled = true -}}
+{{- end -}}
+{{- $viewCounterEndpoint := "" -}}
+{{- with (index $viewCounter "endpoint") -}}
+    {{- if eq (printf "%T" .) "string" -}}
+        {{- $viewCounterEndpoint = . -}}
+    {{- end -}}
+{{- end -}}
+{{- $viewCounterKey := "" -}}
+{{- with (index $viewCounter "key") -}}
+    {{- if eq (printf "%T" .) "string" -}}
+        {{- $viewCounterKey = . -}}
+    {{- end -}}
+{{- end -}}
+{{- $viewCounterShowOnPreview := true -}}
+{{- if eq (index $viewCounter "showOnPreview") false -}}
+    {{- $viewCounterShowOnPreview = false -}}
+{{- end -}}
+{{- $viewCounterTimeout := 4000 -}}
+{{- $viewCounterTimeout = default 4000 (index $viewCounter "requestTimeout") -}}
+{{- if $viewCounterEndpoint }}
+<meta name="argon-view-counter-endpoint-b64" content="{{ base64Encode $viewCounterEndpoint }}">
+{{- end }}
+{{- if $viewCounterKey }}
+<meta name="argon-view-counter-key-b64" content="{{ base64Encode $viewCounterKey }}">
+{{- end }}
 {{- if .Title -}}
     {{- $title = printf "%s - %s" .Title .Site.Title -}}
 {{- else if eq .Kind "taxonomy" -}}
@@ -34,6 +68,10 @@
 <link rel="stylesheet" href="{{ "/assets/argon_css_merged.css" | relURL }}">
 <link rel="stylesheet" href="{{ "/style.css" | relURL }}">
 <link rel="stylesheet" href="{{ "/css/custom.css" | relURL }}">
+{{- if ne .Site.Params.enableCodeHighlight false }}
+{{- $codeHighlightStyle := default "vs2015" .Site.Params.codeHighlightStyle -}}
+<link rel="stylesheet" href="{{ printf "/assets/vendor/highlight/styles/%s.css" $codeHighlightStyle | relURL }}">
+{{- end }}
 <link rel="stylesheet" href="//fonts.loli.net/css?family=Open+Sans:300,400,600,700|Noto+Serif+SC:300,600&display=swap">
 
 {{- /* 主题色 CSS 变量 - 使用动态计算而不是手动配置 */ -}}
@@ -72,6 +110,14 @@
         disable_pjax: {{ default false .Site.Params.pjaxDisabled }},
         headroom: {{ default false .Site.Params.enableHeadroom }}
     }
+    var argonEnableCodeHighlight = {{ if eq .Site.Params.enableCodeHighlight false }}false{{ else }}true{{ end }};
+    var argonViewCounterConfig = {
+        enabled: {{ if $viewCounterEnabled }}true{{ else }}false{{ end }},
+        endpoint: "",
+        key: "",
+        showOnPreview: {{ if $viewCounterShowOnPreview }}true{{ else }}false{{ end }},
+        requestTimeout: {{ $viewCounterTimeout }}
+    };
 </script>
 
 {{- partial "head/darkmode.html" . -}}

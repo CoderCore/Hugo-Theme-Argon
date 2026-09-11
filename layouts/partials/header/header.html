@@ -1,9 +1,15 @@
+{{- $toolbar := dict -}}
+{{- with .Site.Params.toolbar -}}
+    {{- if reflect.IsMap . -}}
+        {{- $toolbar = . -}}
+    {{- end -}}
+{{- end -}}
 <div id="toolbar">
     <header class="header-global">
-        <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg navbar-transparent navbar-light bg-primary headroom--not-bottom headroom--not-top headroom--pinned{{ if .Site.Params.toolbar.blur }} navbar-blur{{ end }}">
+        <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg navbar-transparent navbar-light bg-primary headroom--not-bottom headroom--not-top headroom--pinned{{ if index $toolbar "blur" }} navbar-blur{{ end }}">
             <div class="container">
-                {{- with .Site.Params.toolbar.icon }}
-                <a class="navbar-brand navbar-icon mr-lg-5" href="{{ $.Site.Params.toolbar.iconLink | default "/" | relURL }}">
+                {{- with (index $toolbar "icon") }}
+                <a class="navbar-brand navbar-icon mr-lg-5" href="{{ index $toolbar "iconLink" | default "/" | relURL }}">
                     <img src="{{ . | relURL }}">
                 </a>
                 {{- end }}
@@ -11,8 +17,8 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <a class="navbar-brand" href="{{ "/" | relURL }}">
-                    {{- if .Site.Params.toolbar.title }}
-                        {{ .Site.Params.toolbar.title }}
+                    {{- if index $toolbar "title" }}
+                        {{ index $toolbar "title" }}
                     {{- else }}
                         {{ .Site.Title }}
                     {{- end }}
@@ -37,7 +43,8 @@
                             </a>
                         </li>
                     </ul>
-                    {{- with .Site.Params.toolbar.menu }}
+                    {{- with (index $toolbar "menu") }}
+                    {{- if reflect.IsSlice . }}
                     <ul class='navbar-nav navbar-nav-hover align-items-lg-center'>
                         {{- range . }}
                         <li class='nav-item{{ if .children }} dropdown{{ end }}'>
@@ -56,6 +63,7 @@
                         {{- end }}
                     </ul>
                     {{- end }}
+                    {{- end }}
                     <ul class="navbar-nav align-items-lg-center ml-lg-auto">
                         <li class="nav-item" data-toggle="modal" data-target="#argon_search_modal" id="navbar_search_btn_pc">
                             <a class="nav-link nav-link-icon">
@@ -65,8 +73,8 @@
                         </li>
                     </ul>
                 </div>
-                {{- with .Site.Params.toolbar.icon }}
-                <a class="navbar-brand navbar-icon-mobile" href="{{ $.Site.Params.toolbar.iconLink | default "/" | relURL }}">
+                {{- with (index $toolbar "icon") }}
+                <a class="navbar-brand navbar-icon-mobile" href="{{ index $toolbar "iconLink" | default "/" | relURL }}">
                     <img src="{{ . | relURL }}">
                 </a>
                 {{- end }}

@@ -1,4 +1,14 @@
 {{- $metaList := split (default "time|categories|read|words|readingtime" .Site.Params.articleMeta) "|" -}}
+{{- $viewCounter := dict -}}
+{{- with .Site.Params.viewCounter -}}
+    {{- if reflect.IsMap . -}}
+        {{- $viewCounter = . -}}
+    {{- end -}}
+{{- end -}}
+{{- $showViews := false -}}
+{{- if and (eq (index $viewCounter "enabled") true) (eq (printf "%T" (index $viewCounter "endpoint")) "string") (ne (index $viewCounter "endpoint") "") -}}
+    {{- $showViews = true -}}
+{{- end -}}
 {{- range $index, $meta := $metaList }}
     {{- if gt $index 0 }}
     <div class="post-meta-devide">|</div>
@@ -27,6 +37,16 @@
             {{- end }}
         </div>
         {{- end }}
+    {{- else if and (eq $meta "views") $showViews }}
+    <div class="post-meta-detail post-meta-detail-views d-none" data-view-count data-view-id="{{ $.RelPermalink }}" hidden aria-hidden="true">
+        <i class="fa fa-eye" aria-hidden="true"></i>
+        <span class="argon-view-count-value"></span>
+    </div>
+    {{- else if eq $meta "read" }}
+    <div class="post-meta-detail post-meta-detail-words">
+        <i class="fa fa-book" aria-hidden="true"></i>
+        <span>阅读次数</span>
+    </div>
     {{- else if eq $meta "words" }}
     <div class="post-meta-detail post-meta-detail-words">
         <i class="fa fa-file-word-o" aria-hidden="true"></i>

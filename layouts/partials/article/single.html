@@ -1,24 +1,23 @@
-{{- $hasThumbnail := false -}}
-{{- if .Params.image -}}
-    {{- $hasThumbnail = true -}}
-{{- else if and .Site.Params.firstImageAsThumbnail .Content -}}
-    {{- $hasThumbnail = true -}}
-{{- end -}}
+{{- $thumbnail := partial "article/thumbnail.html" . -}}
+{{- $hasThumbnail := ne $thumbnail "" -}}
+{{- $thumbnailInBanner := eq .Site.Params.showThumbnailInBannerInContentPage true -}}
 
 {{- $headerStyle := .Site.Params.articleHeaderStyle | default "default" -}}
 
 <article class="post post-full card bg-white shadow-sm border-0 article-header-style-{{ $headerStyle }}{{ if .Site.Params.enableIntoArticleAnimation }} post-preview{{ end }}">
-    <header class="post-header text-center{{ if $hasThumbnail }} post-header-with-thumbnail{{ end }}">
-        {{- if $hasThumbnail }}
-        {{- $thumbnail := .Params.image }}
-        <img class='post-thumbnail lazyload' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABBJREFUeNpi+P//PwNAgAEACPwC/tuiTRYAAAAASUVORK5CYII=' data-original='{{ $thumbnail | relURL }}' alt='thumbnail'></img>
+    <header class="post-header text-center{{ if and $hasThumbnail (not $thumbnailInBanner) }} post-header-with-thumbnail{{ end }}">
+        {{- if and $hasThumbnail (not $thumbnailInBanner) }}
+        <img class='post-thumbnail' src='{{ $thumbnail | relURL }}' decoding='async' alt='thumbnail'>
         <div class='post-header-text-container'>
+        {{- end }}
+        {{- if and $hasThumbnail $thumbnailInBanner }}
+        <style>body section.banner { background-image: url("{{ $thumbnail | relURL }}") !important; }</style>
         {{- end }}
         <h1 class="post-title">{{ .Title }}</h1>
         <div class="post-meta">
             {{- partial "article/meta.html" . -}}
         </div>
-        {{- if $hasThumbnail }}
+        {{- if and $hasThumbnail (not $thumbnailInBanner) }}
         </div>
         {{- end }}
     </header>

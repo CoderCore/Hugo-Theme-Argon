@@ -1,0 +1,25 @@
+{{ define "main" }}
+    {{- $pages := where .Site.RegularPages "Type" "in" .Site.Params.mainSections -}}
+    <article class="post card bg-white shadow-sm border-0 archive-page">
+        <header class="post-header text-center">
+            <h1 class="post-title">{{ .Title }}</h1>
+            <div class="post-meta">{{ len $pages }} 篇文章</div>
+        </header>
+
+        <div class="archive-list">
+            {{- range $pages.GroupByDate "2006" -}}
+            <section class="archive-year">
+                <h2>{{ .Key }}</h2>
+                <div class="archive-year-list">
+                    {{- range .Pages -}}
+                    <a class="archive-post" href="{{ .RelPermalink }}">
+                        <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "01-02" }}</time>
+                        <span>{{ .Title }}</span>
+                    </a>
+                    {{- end -}}
+                </div>
+            </section>
+            {{- end -}}
+        </div>
+    </article>
+{{ end }}

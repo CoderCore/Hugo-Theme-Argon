@@ -304,43 +304,56 @@ $(document).on("keydown" , "#leftbar_search_input" , function(e){
 });
 
 /* 左侧栏随页面滚动浮动 */
-!function(){
-	let $leftbarPart1 = $('#leftbar_part1');
-	let $leftbarPart2 = $('#leftbar_part2');
+let argonLeftbarStickyObserver = null;
+let argonLeftbarStickyBound = false;
+function changeLeftbarStickyStatus(){
 	let leftbarPart1 = document.getElementById('leftbar_part1');
 	let leftbarPart2 = document.getElementById('leftbar_part2');
-
-	let part1OffsetTop = $('#leftbar_part1').offset().top;
-	let part1OuterHeight = $('#leftbar_part1').outerHeight();
-
-	function changeLeftbarStickyStatus(){
-		let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-		if( part1OffsetTop + part1OuterHeight + 10 - scrollTop <= 90 ){
-			// 滚动条在页面中间浮动状态
-			leftbarPart2.classList.add('sticky');
-		}else{
-			// 滚动条在顶部 不浮动状态
-			leftbarPart2.classList.remove('sticky');
-		}
-		if( part1OffsetTop + part1OuterHeight + 10 - scrollTop <= 20 ){// 侧栏下部分是否可以随 Headroom 一起向上移动
-			document.body.classList.add('leftbar-can-headroom');
-		}else{
-			document.body.classList.remove('leftbar-can-headroom');
-		}
+	if (!leftbarPart1 || !leftbarPart2){
+		document.body.classList.remove('leftbar-can-headroom');
+		return;
+	}
+	let part1Offset = $(leftbarPart1).offset();
+	if (!part1Offset){
+		leftbarPart2.classList.remove('sticky');
+		document.body.classList.remove('leftbar-can-headroom');
+		return;
+	}
+	let part1OffsetTop = part1Offset.top;
+	let part1OuterHeight = $(leftbarPart1).outerHeight();
+	let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+	if (part1OffsetTop + part1OuterHeight + 10 - scrollTop <= 90){
+		// 滚动条在页面中间浮动状态
+		leftbarPart2.classList.add('sticky');
+	}else{
+		// 滚动条在顶部不浮动状态
+		leftbarPart2.classList.remove('sticky');
+	}
+	if (part1OffsetTop + part1OuterHeight + 10 - scrollTop <= 20){
+		// 侧栏下部分是否可以随 Headroom 一起向上移动
+		document.body.classList.add('leftbar-can-headroom');
+	}else{
+		document.body.classList.remove('leftbar-can-headroom');
+	}
+}
+function leftbarStickyInit(){
+	if (!argonLeftbarStickyBound){
+		document.addEventListener("scroll", changeLeftbarStickyStatus, {passive: true});
+		$(window).on("resize.argonLeftbarSticky", changeLeftbarStickyStatus);
+		argonLeftbarStickyBound = true;
+	}
+	if (argonLeftbarStickyObserver){
+		argonLeftbarStickyObserver.disconnect();
+		argonLeftbarStickyObserver = null;
+	}
+	let leftbarPart1 = document.getElementById('leftbar_part1');
+	if (leftbarPart1){
+		argonLeftbarStickyObserver = new MutationObserver(changeLeftbarStickyStatus);
+		argonLeftbarStickyObserver.observe(leftbarPart1, {attributes: true, childList: true, subtree: true});
 	}
 	changeLeftbarStickyStatus();
-	document.addEventListener("scroll", changeLeftbarStickyStatus, {passive: true});
-	$(window).resize(function(){
-		part1OffsetTop = $('#leftbar_part1').offset().top;
-		part1OuterHeight = $('#leftbar_part1').outerHeight();
-		changeLeftbarStickyStatus();
-	});
-	new MutationObserver(function(){
-		part1OffsetTop = $('#leftbar_part1').offset().top;
-		part1OuterHeight = $('#leftbar_part1').outerHeight();
-		changeLeftbarStickyStatus();
-	}).observe(leftbarPart1, {attributes: true, childList: true, subtree: true});
-}();
+}
+leftbarStickyInit();
 
 /* Headroom */
 if (argonConfig.headroom){
@@ -597,7 +610,12 @@ function zoomifyInit(){
 	if (argonConfig.zoomify == false){
 		return;
 	}
-	$("article img").zoomify(argonConfig.zoomify);
+	$("article img").filter(function(){
+		return $(this).data("argon-zoomify-initialized") != true;
+	}).each(function(){
+		$(this).zoomify(argonConfig.zoomify);
+		$(this).data("argon-zoomify-initialized", true);
+	});
 }
 zoomifyInit();
 
@@ -609,15 +627,29 @@ function lazyloadInit(){
 	if (argonConfig.lazyload.effect == "none"){
 		delete argonConfig.lazyload.effect;
 	}
-	$("article img.lazyload:not(.lazyload-loaded) , .post-thumbnail.lazyload:not(.lazyload-loaded) , .related-post-thumbnail.lazyload:not(.lazyload-loaded)").lazyload(Object.assign(argonConfig.lazyload, {load: function(){$(this).addClass("lazyload-loaded")}}));
-	$(".comment-item-text .comment-sticker.lazyload").lazyload(Object.assign(argonConfig.lazyload, {load: function(){$(this).removeClass("lazyload")}}));
+	let images = $("article img.lazyload:not(.lazyload-loaded) , .post-thumbnail.lazyload:not(.lazyload-loaded) , .related-post-thumbnail.lazyload:not(.lazyload-loaded)").filter(function(){
+		return $(this).data("argon-lazyload-initialized") != true;
+	});
+	if (images.length > 0){
+		images.data("argon-lazyload-initialized", true);
+		images.lazyload(Object.assign(argonConfig.lazyload, {load: function(){$(this).addClass("lazyload-loaded")}}));
+	}
+	let stickers = $(".comment-item-text .comment-sticker.lazyload").filter(function(){
+		return $(this).data("argon-lazyload-initialized") != true;
+	});
+	if (stickers.length > 0){
+		stickers.data("argon-lazyload-initialized", true);
+		stickers.lazyload(Object.assign(argonConfig.lazyload, {load: function(){$(this).removeClass("lazyload")}}));
+	}
 }
 lazyloadInit();
 
 /* Pangu.js */
 function panguInit(){
-	if (argonConfig.pangu == true){
+	let article = document.getElementById('post_content');
+	if (argonConfig.pangu == true && article && article.getAttribute('data-argon-pangu-initialized') != 'true'){
 		pangu.spacingElementById('post_content');
+		article.setAttribute('data-argon-pangu-initialized', 'true');
 	}
 }
 panguInit();
@@ -625,12 +657,17 @@ panguInit();
 /* Clamp.js */
 function clampInit(){
 	$(".clamp").each(function(index, dom) {
+		if (dom.getAttribute('data-argon-clamp-initialized') == 'true'){
+			return;
+		}
 		$clamp(dom, {clamp: dom.getAttribute("clamp-line")});
+		dom.setAttribute('data-argon-clamp-initialized', 'true');
 	});
 }
 clampInit();
 
-/* Pjax */
+/* 旧版多容器 PJAX 已由 static/js/navigation.js 接管，保留代码仅作兼容参考。 */
+if (false){
 $.pjax.defaults.timeout = 10000;
 $.pjax.defaults.container = ['#primary', '#leftbar_part1_menu', '#leftbar_part2_inner', '.page-information-card-container', '#wpadminbar'];
 $.pjax.defaults.fragment = ['#primary', '#leftbar_part1_menu', '#leftbar_part2_inner', '.page-information-card-container', '#wpadminbar'];
@@ -707,6 +744,183 @@ $(document).pjax("a[href]:not([no-pjax]):not(.no-pjax):not([target='_blank']):no
 }).on('pjax:end', function() {
 	lazyloadInit();
 });
+}
+
+/* 页面生命周期：由 navigation.js 在首次加载和跨路径替换后统一调用。 */
+function argonInitHeadIndex(){
+	let catalog = document.getElementById('leftbar_catalog');
+	let article = document.getElementById('post_content');
+	let tabs = document.getElementById('leftbar_page_tabs');
+	let catalogButton = document.getElementById('leftbar_tab_catalog_btn');
+	let overviewButton = document.getElementById('leftbar_tab_overview_btn');
+	let catalogPane = document.getElementById('leftbar_tab_catalog');
+	let overviewPane = document.getElementById('leftbar_tab_overview');
+	if (!catalog || !tabs || !catalogButton || !overviewButton || !catalogPane || !overviewPane){
+		return;
+	}
+
+	let hasHeadings = !!(article && article.querySelector('h1,h2,h3,h4,h5,h6'));
+	tabs.style.display = hasHeadings ? '' : 'none';
+	catalogButton.classList.toggle('active', hasHeadings);
+	catalogButton.classList.toggle('show', hasHeadings);
+	overviewButton.classList.toggle('active', !hasHeadings);
+	overviewButton.classList.toggle('show', !hasHeadings);
+	catalogPane.classList.toggle('active', hasHeadings);
+	catalogPane.classList.toggle('show', hasHeadings);
+	overviewPane.classList.toggle('active', !hasHeadings);
+	overviewPane.classList.toggle('show', !hasHeadings);
+
+	let headIndex = $(document).data('headIndex');
+	if (headIndex && headIndex.indexBox){
+		headIndex.indexBox.off('.headindex').off('.argonHeadIndex');
+	}
+	catalog.replaceChildren();
+	if (!headIndex && hasHeadings && typeof($.fn.headIndex) == 'function'){
+		$(document).headIndex({
+			articleWrapSelector: '#post_content',
+			indexBoxSelector: '#leftbar_catalog',
+			subItemBoxClass: 'index-subItem-box',
+			itemClass: 'index-item',
+			linkClass: 'index-link',
+			offset: 80
+		});
+		return;
+	}
+	if (!headIndex){
+		return;
+	}
+
+	headIndex.articleWrap = article ? $(article) : $();
+	headIndex.headerList = headIndex.articleWrap.find(':header');
+	headIndex.indexBox = $(catalog);
+	headIndex.scrollBody = $(headIndex.settings.scrollSelector);
+	headIndex.manual = false;
+	headIndex.autoId = 1;
+	headIndex.initHeader();
+	if (hasHeadings){
+		let manualValTimer = null;
+		headIndex.indexBox.on('click.argonHeadIndex', function(event){
+			let target = $(event.target);
+			if (!target.hasClass(headIndex.settings.linkClass)){
+				return;
+			}
+			event.preventDefault();
+			let indexItem = target.parent('.' + headIndex.settings.itemClass);
+			headIndex.manual = true;
+			if (manualValTimer){
+				clearTimeout(manualValTimer);
+			}
+			manualValTimer = setTimeout(function(){headIndex.manual = false;}, 300);
+			headIndex.current(indexItem);
+			headIndex.scrollTo(event.target.getAttribute('href'));
+		});
+		headIndex.updateCurrent();
+	}
+}
+
+function argonInitShare(root){
+	if (!root || typeof(root.querySelector) != 'function'){
+		return;
+	}
+	let share = root.querySelector('#share');
+	if (!share || share.getAttribute('data-initialized') == 'true' || typeof(socialShare) != 'function'){
+		return;
+	}
+	socialShare('#share', {
+		title: share.getAttribute('data-share-title') || document.title,
+		description: share.getAttribute('data-share-description') || '',
+		wechatQrcodeTitle: '分享到微信',
+		wechatQrcodeHelper: '微信扫描二维码',
+		source: share.getAttribute('data-share-source') || window.location.href
+	});
+	share.setAttribute('data-initialized', 'true');
+}
+
+function argonShowCopyToast(success){
+	if (typeof(iziToast) == 'undefined'){
+		return;
+	}
+	iziToast.show({
+		title: success ? '链接已复制' : '复制失败',
+		message: success ? '链接已复制到剪贴板' : '请手动复制链接',
+		class: 'shadow',
+		position: 'topRight',
+		backgroundColor: success ? '#2dce89' : '#f5365c',
+		titleColor: '#ffffff',
+		messageColor: '#ffffff',
+		iconColor: '#ffffff',
+		progressBarColor: '#ffffff',
+		icon: success ? 'fa fa-check' : 'fa fa-close',
+		timeout: 5000
+	});
+}
+
+$(document).on('click.argonShare', '#share_show', function(){
+	$(this).closest('#share_container').addClass('opened');
+});
+$(document).on('click.argonShare', '#share_copy_link', function(event){
+	event.preventDefault();
+	let input = document.createElement('input');
+	document.body.appendChild(input);
+	input.setAttribute('value', window.location.href);
+	input.setAttribute('readonly', 'readonly');
+	input.style.opacity = '0';
+	input.style.pointerEvents = 'none';
+	input.select();
+	let success = false;
+	try{
+		success = document.execCommand('copy');
+	}catch (err){}
+	document.body.removeChild(input);
+	argonShowCopyToast(success);
+});
+
+function argonRenderMath(root){
+	try{
+		if (window.MathJax && typeof(window.MathJax.typesetPromise) == 'function'){
+			window.MathJax.typesetPromise([root || document]).catch(function(){});
+		}else if (window.MathJax && window.MathJax.Hub && typeof(window.MathJax.Hub.Queue) == 'function'){
+			window.MathJax.Hub.Queue(['Typeset', window.MathJax.Hub, root || document]);
+		}else if (typeof(renderMathInElement) == 'function'){
+			renderMathInElement(root || document, {
+				delimiters: [
+					{left: '$$', right: '$$', display: true},
+					{left: '$', right: '$', display: false},
+					{left: '\\\\(', right: '\\\\)', display: false}
+				]
+			});
+		}
+	}catch (err){
+		console.error('Argon math rendering failed', err);
+	}
+}
+
+function argonInitPage(root){
+	root = root || document;
+	bannerInit();
+	lazyloadInit();
+	zoomifyInit();
+	highlightJsRender();
+	panguInit();
+	clampInit();
+	leftbarStickyInit();
+	hitokotoInit();
+	argonInitHeadIndex();
+	argonInitShare(root);
+	searchInit();
+	getGithubInfoCardContent();
+	showPostOutdateToast();
+	calcHumanTimesOnPage();
+	argonRenderMath(root);
+	if (typeof(window.pjaxLoaded) == 'function'){
+		try{
+			window.pjaxLoaded();
+		}catch (err){
+			console.error(err);
+		}
+	}
+}
+window.argonInitPage = argonInitPage;
 
 
 /* Tags Dialog pjax 加载后自动关闭 */
@@ -759,17 +973,21 @@ function getGithubInfoCardContent(){
 				$(".github-info-card-forks" , $this).html($this.attr("data-forks"));
 				return;
 			}
+			if ($this.attr("data-argon-github-initialized") == "true"){
+				return;
+			}
+			$this.attr("data-argon-github-initialized", "true");
 			$(".github-info-card-description" , $this).html("Loading...");
 			$(".github-info-card-stars" , $this).html("-");
 			$(".github-info-card-forks" , $this).html("-");
-			author = $this.attr("data-author");
-			project = $this.attr("data-project");
+			let author = $this.attr("data-author");
+			let project = $this.attr("data-project");
 			$.ajax({
 				url : "https://api.github.com/repos/" + author + "/" + project,
 				type : "GET",
 				dataType : "json",
 				success : function(result){
-					description = result.description;
+					let description = result.description;
 					if (result.homepage != ""){
 						description += " <a href='" + result.homepage + "' target='_blank' no-pjax>" + result.homepage + "</a>"
 					}
@@ -1003,6 +1221,12 @@ function updateThemeColor(color, save){
 	let themecolor_light = rgb2hex(RGB_light['R'],RGB_light['G'],RGB_light['B']);
 
 	document.documentElement.style.setProperty('--themecolor', themecolor);
+	document.documentElement.style.setProperty('--themecolor-R', RGB['R']);
+	document.documentElement.style.setProperty('--themecolor-G', RGB['G']);
+	document.documentElement.style.setProperty('--themecolor-B', RGB['B']);
+	document.documentElement.style.setProperty('--themecolor-H', Math.round(HSL['h'] * 360));
+	document.documentElement.style.setProperty('--themecolor-S', Math.round(HSL['s'] * 100));
+	document.documentElement.style.setProperty('--themecolor-L', Math.round(HSL['l'] * 100));
 	document.documentElement.style.setProperty('--themecolor-dark0', themecolor_dark0);
 	document.documentElement.style.setProperty('--themecolor-dark', themecolor_dark);
 	document.documentElement.style.setProperty('--themecolor-dark2', themecolor_dark2);
@@ -1072,26 +1296,40 @@ function typeEffect(element, text, now, interval){
 	element.innerText = text.substring(0, now);
 	setTimeout(function(){typeEffect(element, text, now + 1, interval)}, interval);
 }
-!function(){
-	$bannerTitle = $(".banner-title");
-	if ($bannerTitle.data("text") != undefined){
-		typeEffect($(".banner-title-inner")[0], $bannerTitle.data("text"), 0, $bannerTitle.data("interval"));
+function bannerInit(){
+	let bannerTitle = $(".banner-title").first();
+	let bannerInner = bannerTitle.find(".banner-title-inner")[0];
+	if (!bannerTitle.length || !bannerInner || bannerTitle.attr('data-argon-typing-initialized') == 'true'){
+		return;
 	}
-}();
+	bannerTitle.attr('data-argon-typing-initialized', 'true');
+	if (bannerTitle.data("text") != undefined){
+		typeEffect(bannerInner, bannerTitle.data("text"), 0, bannerTitle.data("interval"));
+	}
+}
+bannerInit();
 
 /* 一言 */
-if ($(".hitokoto").length > 0){
-	$.ajax({
-		type: 'GET',
-		url: "https://v1.hitokoto.cn",
-		success: function(result){
-			$(".hitokoto").text(result.hitokoto);
-		},
-		error: function(result){
-			$(".hitokoto").text(__("Hitokoto 获取失败"));
+function hitokotoInit(){
+	$(".hitokoto").each(function(){
+		let $this = $(this);
+		if ($this.attr('data-argon-hitokoto-initialized') == 'true'){
+			return;
 		}
+		$this.attr('data-argon-hitokoto-initialized', 'true');
+		$.ajax({
+			type: 'GET',
+			url: "https://v1.hitokoto.cn",
+			success: function(result){
+				$this.text(result.hitokoto);
+			},
+			error: function(result){
+				$this.text(__("Hitokoto 获取失败"));
+			}
+		});
 	});
 }
+hitokotoInit();
 
 /* Highlight.js */
 function randomString(len) {
@@ -1132,10 +1370,15 @@ function highlightJsRender(){
 		if ($(block).hasClass("no-hljs")){
 			return;
 		}
-		$(block).html("<code>" + $(block).html() + "</code>");
+		if ($(block).children("code").length == 0){
+			$(block).html("<code>" + $(block).html() + "</code>");
+		}
 	});
 	$("article pre > code").each(function(index, block) {
 		if ($(block).hasClass("no-hljs")){
+			return;
+		}
+		if ($(block).parent().attr('data-argon-highlighted') == 'true'){
 			return;
 		}
 		$(block).parent().attr("id", randomString());
@@ -1143,6 +1386,7 @@ function highlightJsRender(){
 		hljs.lineNumbersBlock(block, {singleLine: true});
 		$(block).parent().addClass("hljs-codeblock");
 		$(block).attr("hljs-codeblock-inner", "");
+		$(block).parent().attr('data-argon-highlighted', 'true');
 		let copyBtnID = "copy_btn_" + randomString();
 		$(block).parent().append(`<div class="hljs-control hljs-title">
 				<div class="hljs-control-btn hljs-control-toggle-linenumber" tooltip-hide-linenumber="` + __("隐藏行号") + `" tooltip-show-linenumber="` + __("显示行号") + `">
@@ -1308,9 +1552,10 @@ var searchFunc = function(path, search_id, content_id) {
 				};
 			}).get();
 			var $input = document.getElementById(search_id);
-			if (!$input) return;
 			var $resultContent = document.getElementById(content_id);
-			if ($("#local-search-input").length > 0) {
+			if (!$input || !$resultContent) return;
+			$input.setAttribute('data-argon-search-initialized', 'true');
+			if ($input) {
 				$input.addEventListener('input', function () {
 					var str = '<ul class=\"search-result-list\">';
 					var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
@@ -1325,7 +1570,7 @@ var searchFunc = function(path, search_id, content_id) {
 							data.title = "Untitled";
 						}
 						var data_title = data.title.trim().toLowerCase();
-						var data_content = data.content.trim().replace(/<[^>]+>/g, "").toLowerCase();
+						var data_content = (data.content || "").trim().replace(/<[^>]+>/g, "").toLowerCase();
 						var data_url = data.url;
 						var index_title = -1;
 						var index_content = -1;
@@ -1351,7 +1596,7 @@ var searchFunc = function(path, search_id, content_id) {
 						}
 						if (isMatch) {
 							str += "<li><a href='" + data_url + "' class='search-result-title'>" + data_title + "</a>";
-							var content = data.content.trim().replace(/<[^>]+>/g, "");
+							var content = (data.content || "").trim().replace(/<[^>]+>/g, "");
 							if (first_occur >= 0) {
 								var start = first_occur - 20;
 								var end = first_occur + 80;
@@ -1381,11 +1626,21 @@ var searchFunc = function(path, search_id, content_id) {
 		}
 	});
 }
-var search_path = $("#local-search-input").data("search.path");
-if (search_path.length == 0) {
-	search_path = "search.xml";
+function searchInit(){
+	var input = document.getElementById('local-search-input');
+	if (!input || input.getAttribute('data-argon-search-initialized') == 'true' || input.getAttribute('data-argon-search-loading') == 'true'){
+		return;
+	}
+	var searchPath = $(input).data('search.path') || 'search.xml';
+	var root = $(input).data('config.root') || '';
+	var result = document.getElementById('search-results') || document.getElementById('local-search-result');
+	if (!result){
+		return;
+	}
+	input.setAttribute('data-argon-search-loading', 'true');
+	searchFunc(root + searchPath, input.id, result.id);
 }
-searchFunc($("#local-search-input").data("config.root") + search_path, 'local-search-input', 'local-search-result');
+searchInit();
 
 $(document).on("click" , ".search-result-title" , function(){
 	$("#argon_search_modal button[data-dismiss='modal']").click();

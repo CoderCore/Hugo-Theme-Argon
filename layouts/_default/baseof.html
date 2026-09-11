@@ -1,7 +1,16 @@
 <!DOCTYPE html>
+{{- $banner := dict -}}
+{{- with .Site.Params.banner -}}
+    {{- if reflect.IsMap . -}}
+        {{- $banner = . -}}
+    {{- end -}}
+{{- end -}}
 {{- $htmlClasses := "" -}}
 {{- if .Site.Params.enableAmoledDark -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "amoled-dark " -}}
+{{- end -}}
+{{- if .Site.Params.enableImmersionColor -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "immersion-color " -}}
 {{- end -}}
 {{- if eq .Site.Params.cardShadow "big" -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "use-big-shadow " -}}
@@ -19,7 +28,7 @@
 {{- /* --- START: BANNER LOGIC --- */ -}}
 {{- $finalBannerSize := "full" -}} {{- /* Default for all pages is 'full' */ -}}
 {{- if .IsHome -}}
-    {{- $finalBannerSize = .Site.Params.banner.size | default "full" -}} {{- /* On homepage, use config */ -}}
+    {{- $finalBannerSize = index $banner "size" | default "full" -}} {{- /* On homepage, use config */ -}}
 {{- end -}}
 
 {{- if eq $finalBannerSize "fullscreen" -}}
@@ -36,24 +45,25 @@
     {{- block "head" . -}}{{ end }}
 </head>
 <body>
-    {{- partial "head/colorScheme.html" . -}}
-    
     {{- partial "header/header.html" . -}}
-    
-    <div class="page-information-card-container">
-        {{- block "information-card" . -}}{{ end }}
-    </div>
-    
-    {{- partial "sidebar/sidebar.html" . -}}
-    
-    <div id="primary" class="content-area">
-        <main id="main" class="site-main" role="main">
-            {{- block "main" . }}{{- end }}
-            
-            {{- partial "footer/footer.html" . -}}
-        </main>
+
+    <div id="content" class="site-content">
+      <div id="page-view">
+        <div class="page-information-card-container">
+            {{- block "information-card" . -}}{{ end }}
+        </div>
+
+        {{- partial "sidebar/sidebar.html" . -}}
+
+        <div id="primary" class="content-area">
+            <main id="main" class="site-main" role="main">
+                {{- block "main" . }}{{- end }}
+
+                {{- partial "footer/footer.html" . -}}
+            </main>
+        </div>
+      </div>
     </div>
     {{- partial "footer/include.html" . -}}
-    <script src="{{ "/js/custom.js" | relURL }}"></script>
 </body>
 </html>

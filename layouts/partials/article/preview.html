@@ -1,44 +1,11 @@
-{{- $thumbnail := "" -}}
-{{- if .Params.thumbnail -}}
-    {{- $thumbnail = .Params.thumbnail -}}
-{{- else if .Site.Params.firstImageAsThumbnail -}}
-    {{- $firstImage := "" -}}
-    {{- $images := .Resources.ByType "image" -}}
-    {{- if $images -}}
-        {{- with $images.GetMatch "*" -}}
-            {{- $firstImage = .RelPermalink -}}
-        {{- end -}}
-    {{- else -}}
-        {{- $matches := findRE `<img[^>]+>` .Content -}}
-        {{- range $matches -}}
-            {{- if eq $firstImage "" -}} {{/* Stop after finding the first valid image */}}
-                {{- $imgTag := . -}}
-                {{- $dataOriginalMatch := findRE `data-original="([^"]+)"` $imgTag 1 -}}
-                {{- if $dataOriginalMatch -}}
-                    {{- $firstImage = index $dataOriginalMatch 0 | replaceRE `data-original="([^"]+)"` "$1" -}}
-                {{- else -}}
-                    {{- $srcMatch := findRE `src="([^"]+)"` $imgTag 1 -}}
-                    {{- if $srcMatch -}}
-                        {{- $imgSrc := index $srcMatch 0 | replaceRE `src="([^"]+)"` "$1" -}}
-                        {{- if not (strings.HasPrefix $imgSrc "data:") -}}
-                            {{- $firstImage = $imgSrc -}}
-                        {{- end -}}
-                    {{- end -}}
-                {{- end -}}
-            {{- end -}}
-        {{- end -}}
-    {{- end -}}
-    {{- if $firstImage -}}
-        {{- $thumbnail = $firstImage -}}
-    {{- end -}}
-{{- end -}}
+{{- $thumbnail := partial "article/thumbnail.html" . -}}
 
 {{- $hasThumbnail := ne $thumbnail "" -}}
 
 <article class="post card bg-white shadow-sm border-0 {{ if .Site.Params.enableIntoArticleAnimation }}post-preview{{ end }}">
     <header class="post-header text-center{{ if $hasThumbnail }} post-header-with-thumbnail{{ end }}">
         {{- if $hasThumbnail }}
-        <img class='post-thumbnail lazyload' src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABBJREFUeNpi+P//PwNAgAEACPwC/tuiTRYAAAAASUVORK5CYII=' data-original='{{ $thumbnail | relURL }}' alt='thumbnail'></img>
+        <img class='post-thumbnail' src='{{ $thumbnail | relURL }}' decoding='async' alt='thumbnail'>
         <div class='post-header-text-container'>
         {{- end }}
         <a class="post-title" href="{{ .RelPermalink }}">{{ .Title }}</a>

@@ -6,87 +6,87 @@
 
 {{- $themeColor := default "#5e72e4" .Site.Params.themeColor -}}
 
-{{- /* Helper function to convert hex to rgb */ -}}
-{{- $hexColor := strings.TrimPrefix $themeColor "#" -}}
+{{- /* Parse hexadecimal pairs explicitly; Hugo's int function does not parse 0x-prefixed strings. */ -}}
+{{- $hexColor := lower (strings.TrimPrefix "#" $themeColor) -}}
 {{- $r := 0 -}}
 {{- $g := 0 -}}
 {{- $b := 0 -}}
 
 {{- if eq (len $hexColor) 6 -}}
-    {{- $r = int (printf "0x%s" (substr $hexColor 0 2)) -}}
-    {{- $g = int (printf "0x%s" (substr $hexColor 2 2)) -}}
-    {{- $b = int (printf "0x%s" (substr $hexColor 4 2)) -}}
+    {{- $hexDigits := dict "0" 0 "1" 1 "2" 2 "3" 3 "4" 4 "5" 5 "6" 6 "7" 7 "8" 8 "9" 9 "a" 10 "b" 11 "c" 12 "d" 13 "e" 14 "f" 15 -}}
+    {{- $rHigh := index $hexDigits (substr $hexColor 0 1) -}}
+    {{- $rLow := index $hexDigits (substr $hexColor 1 1) -}}
+    {{- $gHigh := index $hexDigits (substr $hexColor 2 1) -}}
+    {{- $gLow := index $hexDigits (substr $hexColor 3 1) -}}
+    {{- $bHigh := index $hexDigits (substr $hexColor 4 1) -}}
+    {{- $bLow := index $hexDigits (substr $hexColor 5 1) -}}
+    {{- $r = add (mul $rHigh 16) $rLow -}}
+    {{- $g = add (mul $gHigh 16) $gLow -}}
+    {{- $b = add (mul $bHigh 16) $bLow -}}
 {{- end -}}
 
-{{- /* Calculate RGB string for transparency effects */ -}}
 {{- $rgbStr := printf "%d, %d, %d" $r $g $b -}}
 
-{{- /* Simple lightness adjustments (approximation of HSL calculations) */ -}}
-{{- $factor1 := 0.9 -}}  {{- /* slightly darker */ -}}
-{{- $factor2 := 0.8 -}}  {{- /* darker */ -}}
-{{- $factor3 := 0.7 -}}  {{- /* much darker */ -}}
-{{- $factor4 := 0.6 -}}  {{- /* darkest */ -}}
-{{- $factorLight := 1.3 -}} {{- /* lighter */ -}}
-
-{{- $rDark0 := int (mul $r $factor1) -}}
-{{- $gDark0 := int (mul $g $factor1) -}}
-{{- $bDark0 := int (mul $b $factor1) -}}
-
-{{- $rDark := int (mul $r $factor2) -}}
-{{- $gDark := int (mul $g $factor2) -}}
-{{- $bDark := int (mul $b $factor2) -}}
-
-{{- $rDark2 := int (mul $r $factor3) -}}
-{{- $gDark2 := int (mul $g $factor3) -}}
-{{- $bDark2 := int (mul $b $factor3) -}}
-
-{{- $rDark3 := int (mul $r $factor4) -}}
-{{- $gDark3 := int (mul $g $factor4) -}}
-{{- $bDark3 := int (mul $b $factor4) -}}
-
-{{- /* For lighter variant, ensure we don't exceed 255 */ -}}
-{{- $rLight := cond (gt (mul $r $factorLight) 255) 255 (int (mul $r $factorLight)) -}}
-{{- $gLight := cond (gt (mul $g $factorLight) 255) 255 (int (mul $g $factorLight)) -}}
-{{- $bLight := cond (gt (mul $b $factorLight) 255) 255 (int (mul $b $factorLight)) -}}
-
-{{- /* Convert back to hex */ -}}
-{{- $themeColorDark0 := printf "#%02x%02x%02x" $rDark0 $gDark0 $bDark0 -}}
-{{- $themeColorDark := printf "#%02x%02x%02x" $rDark $gDark $bDark -}}
-{{- $themeColorDark2 := printf "#%02x%02x%02x" $rDark2 $gDark2 $bDark2 -}}
-{{- $themeColorDark3 := printf "#%02x%02x%02x" $rDark3 $gDark3 $bDark3 -}}
-{{- $themeColorLight := printf "#%02x%02x%02x" $rLight $gLight $bLight -}}
+{{- /* Match Argon's runtime HSL color math for the first paint as well. */ -}}
+{{- $rf := div (mul $r 1.0) 255.0 -}}
+{{- $gf := div (mul $g 1.0) 255.0 -}}
+{{- $bf := div (mul $b 1.0) 255.0 -}}
+{{- $max := math.Max $rf $gf $bf -}}
+{{- $min := math.Min $rf $gf $bf -}}
+{{- $delta := sub $max $min -}}
+{{- $h := 0.0 -}}
+{{- $s := 0.0 -}}
+{{- $l := div (add $max $min) 2.0 -}}
+{{- if gt $delta 0.0 -}}
+    {{- if lt $l 0.5 -}}
+        {{- $s = div $delta (add $max $min) -}}
+    {{- else -}}
+        {{- $s = div $delta (sub 2.0 $max $min) -}}
+    {{- end -}}
+    {{- $delR := div (add (div (sub $max $rf) 6.0) (div $delta 2.0)) $delta -}}
+    {{- $delG := div (add (div (sub $max $gf) 6.0) (div $delta 2.0)) $delta -}}
+    {{- $delB := div (add (div (sub $max $bf) 6.0) (div $delta 2.0)) $delta -}}
+    {{- if eq $rf $max -}}
+        {{- $h = sub $delB $delG -}}
+    {{- else if eq $gf $max -}}
+        {{- $h = add (sub (div 1.0 3.0) $delB) $delR -}}
+    {{- else -}}
+        {{- $h = add (sub (div 2.0 3.0) $delR) $delG -}}
+    {{- end -}}
+    {{- if lt $h 0.0 -}}{{- $h = add $h 1.0 -}}{{- end -}}
+    {{- if gt $h 1.0 -}}{{- $h = sub $h 1.0 -}}{{- end -}}
+{{- end -}}
+{{- $hDegrees := int (math.Round (mul $h 360.0)) -}}
+{{- $sPercent := int (math.Round (mul $s 100.0)) -}}
+{{- $lPercent := int (math.Round (mul $l 100.0)) -}}
 
 <style id="themecolor_css">
 	:root {
 		--themecolor: {{ $themeColor }};
+		--themecolor-R: {{ $r }};
+		--themecolor-G: {{ $g }};
+		--themecolor-B: {{ $b }};
+		--themecolor-H: {{ $hDegrees }};
+		--themecolor-S: {{ $sPercent }};
+		--themecolor-L: {{ $lPercent }};
 		--themecolor-rgbstr: {{ $rgbStr }};
-		--themecolor-dark0: {{ $themeColorDark0 }};
-		--themecolor-dark: {{ $themeColorDark }};
-		--themecolor-dark2: {{ $themeColorDark2 }};
-		--themecolor-dark3: {{ $themeColorDark3 }};
-		--themecolor-light: {{ $themeColorLight }};
-		--themecolor-gradient: linear-gradient(150deg, {{ $themeColorLight }} 15%, {{ $themeColor }} 70%, {{ $themeColorDark0 }} 94%);
+		--themecolor-dark0: hsl(var(--themecolor-H), calc(var(--themecolor-S) * 1%), max(calc(var(--themecolor-L) * 1% - 2.5%), 0%));
+		--themecolor-dark: hsl(var(--themecolor-H), calc(var(--themecolor-S) * 1%), max(calc(var(--themecolor-L) * 1% - 5%), 0%));
+		--themecolor-dark2: hsl(var(--themecolor-H), calc(var(--themecolor-S) * 1%), max(calc(var(--themecolor-L) * 1% - 10%), 0%));
+		--themecolor-dark3: hsl(var(--themecolor-H), calc(var(--themecolor-S) * 1%), max(calc(var(--themecolor-L) * 1% - 15%), 0%));
+		--themecolor-light: hsl(var(--themecolor-H), calc(var(--themecolor-S) * 1%), min(calc(var(--themecolor-L) * 1% + 10%), 100%));
+		--themecolor-gradient: linear-gradient(150deg, var(--themecolor-light) 15%, var(--themecolor) 70%, var(--themecolor-dark0) 94%);
+		--color-tint-70: calc(var(--themecolor-R) + (255 - var(--themecolor-R)) * 0.7), calc(var(--themecolor-G) + (255 - var(--themecolor-G)) * 0.7), calc(var(--themecolor-B) + (255 - var(--themecolor-B)) * 0.7);
+		--color-tint-78: calc(var(--themecolor-R) + (255 - var(--themecolor-R)) * 0.78), calc(var(--themecolor-G) + (255 - var(--themecolor-G)) * 0.78), calc(var(--themecolor-B) + (255 - var(--themecolor-B)) * 0.78);
+		--color-tint-80: calc(var(--themecolor-R) + (255 - var(--themecolor-R)) * 0.8), calc(var(--themecolor-G) + (255 - var(--themecolor-G)) * 0.8), calc(var(--themecolor-B) + (255 - var(--themecolor-B)) * 0.8);
+		--color-shade-70: calc(30 * 0.7 + var(--themecolor-R) * 0.3), calc(30 * 0.7 + var(--themecolor-G) * 0.3), calc(30 * 0.7 + var(--themecolor-B) * 0.3);
+		--color-shade-80: calc(30 * 0.8 + var(--themecolor-R) * 0.2), calc(30 * 0.8 + var(--themecolor-G) * 0.2), calc(30 * 0.8 + var(--themecolor-B) * 0.2);
+		--color-selection: rgb(var(--color-tint-70));
+		--color-selection-rgbstr: var(--color-tint-70);
 		--card-radius: {{ default 4 .Site.Params.cardRadius }}px;
 	}
-	
-	/* 全局卡片主题色蒙版 */
-	.bg-white, .card {
-		position: relative;
-	}
-	.bg-white::before, .card::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: rgba(var(--themecolor-rgbstr), 0.05);
-		pointer-events: none;
-		border-radius: inherit;
-		z-index: 0;
-	}
-	.bg-white > *, .card > * {
-		position: relative;
-		z-index: 1;
+	html.darkmode body {
+		--color-selection: rgb(var(--color-shade-70));
+		--color-selection-rgbstr: var(--color-shade-70);
 	}
 </style>

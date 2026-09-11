@@ -1,16 +1,22 @@
-{{- $bannerTitle := .Site.Params.banner.title | default .Site.Title -}}
-{{- $enableTypingEffect := .Site.Params.banner.enableTypingEffect | default false -}}
-{{- $bannerSubtitle := .Site.Params.banner.subtitle -}}
+{{- $banner := dict -}}
+{{- with .Site.Params.banner -}}
+    {{- if reflect.IsMap . -}}
+        {{- $banner = . -}}
+    {{- end -}}
+{{- end -}}
+{{- $bannerTitle := index $banner "title" | default .Site.Title -}}
+{{- $enableTypingEffect := index $banner "enableTypingEffect" | default false -}}
+{{- $bannerSubtitle := index $banner "subtitle" -}}
 
 {{- /* --- START: BANNER LOGIC --- */ -}}
 {{- $bannerSize := "full" -}} {{- /* Default for all pages is 'full' */ -}}
 {{- if .IsHome -}}
-    {{- $bannerSize = .Site.Params.banner.size | default "full" -}} {{- /* On homepage, use config */ -}}
+    {{- $bannerSize = index $banner "size" | default "full" -}} {{- /* On homepage, use config */ -}}
 {{- end -}}
 {{- /* --- END: BANNER LOGIC --- */ -}}
 
 <section id="banner" class="banner section section-lg section-shaped banner-size-{{ $bannerSize }}">
-    <div class="shape {{ if .Site.Params.banner.backgroundHideShapes }}{{ else }}shape-style-1{{ end }} {{ default "shape-primary" .Site.Params.banner.backgroundColorType }}">
+    <div class="shape {{ if index $banner "backgroundHideShapes" }}{{ else }}shape-style-1{{ end }} {{ default "shape-primary" (index $banner "backgroundColorType") }}">
         <span></span>
         <span></span>
         <span></span>
@@ -26,7 +32,7 @@
         {{- if not $enableTypingEffect }}
         <div class="banner-title text-white"><span class="banner-title-inner">{{ $bannerTitle }}</span>
         {{- else }}
-        <div class="banner-title text-white" data-text="{{ $bannerTitle }}" data-interval="{{ default 100 .Site.Params.banner.typingEffectInterval }}"><span class="banner-title-inner">&nbsp;</span>
+        <div class="banner-title text-white" data-text="{{ $bannerTitle }}" data-interval="{{ default 100 (index $banner "typingEffectInterval") }}"><span class="banner-title-inner">&nbsp;</span>
         {{- end }}
         {{- with $bannerSubtitle }}
         <span class="banner-subtitle d-block">{{ . }}</span>
@@ -40,7 +46,7 @@
     </div>
     {{- end }}
 
-    {{- with .Site.Params.banner.backgroundUrl }}
+    {{- with (index $banner "backgroundUrl") }}
     <style>
         section.banner{
             background-image: url({{ . | relURL }}) !important;

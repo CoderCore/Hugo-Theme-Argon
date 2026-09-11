@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search>
+{{- range .Site.RegularPages }}
+  <entry>
+    <title>{{ htmlEscape (htmlUnescape (htmlUnescape .Title)) }}</title>
+    <content>{{ htmlEscape (htmlUnescape (htmlUnescape .Plain)) }}</content>
+    <url>{{ htmlEscape .RelPermalink }}</url>
+  </entry>
+{{- end }}
+</search>

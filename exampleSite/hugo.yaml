@@ -1,4 +1,4 @@
-baseURL: "https://example.com/"
+baseURL: ""
 languageCode: "zh-cn"
 title: "Argon Hugo Theme 示例站点"
 theme: "Hugo-Theme-Argon"
@@ -84,7 +84,6 @@ params:
   pageBackgroundDarkUrl: ""
   pageBackgroundOpacity: 1
   transparentBanner: false
-  showToolbarMask: false
 
   # 浮动操作按钮
   fab:

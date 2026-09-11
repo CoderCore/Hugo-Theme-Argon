@@ -1,6 +1,6 @@
 # Example configuration for Argon Hugo theme
 
-baseURL: "https://example.com/"
+baseURL: ""
 languageCode: "zh-cn"
 title: "My Hugo Site"
 theme: "Hugo-Theme-Argon"
@@ -15,6 +15,7 @@ params:
   showCustomizeThemeColorPicker: true
   darkmodeAutoswitch: "system"  # false, alwayson, system, time
   enableAmoledDark: false
+  enableImmersionColor: false
   cardRadius: 10
   cardShadow: "default"  # small, big, or empty
   pageLayout: "double" # double, single
@@ -22,6 +23,8 @@ params:
   articleListLayout: "1"
   font: "sans-serif"  # sans-serif, serif
   enableHeadroom: false
+  enableCodeHighlight: true
+  codeHighlightStyle: "vs2015"
 
   # 顶栏
   toolbar:
@@ -49,7 +52,7 @@ params:
 
   # 侧栏
   sidebar:
-    bannerTitle: "FUFU Ltd."
+    bannerTitle: "My Site"
     bannerSubtitle: ""
     announcement: ""
     menu:
@@ -57,15 +60,13 @@ params:
         url: "/"
       - name: "归档"
         url: "/archives/"
-    authorImage: "https://blog.fufultd.asia/wp-content/uploads/head.jpg"
-    authorName: "jiang068"
+    authorImage: ""
+    authorName: "Author"
     authorDescription: ""
     authorLinks:
       - name: "GitHub"
-        url: "https://github.com"
-    friendLinks:
-      - name: "Friend 1"
-        url: "https://example.com"
+        url: "https://github.com/"
+    friendLinks: []
     showHeadindexNumber: false
 
   # 文章
@@ -81,13 +82,19 @@ params:
   donateQrcodeUrl: ""
   additionalContentAfterPost: ""
   articleHeaderStyle: "2"  # default, 1, 2 - 样式2会在标题前显示彩色竖杠装饰
+  # Cloudflare Worker + D1 阅读量服务；endpoint 留空时不显示阅读量
+  viewCounter:
+    enabled: false
+    endpoint: ""
+    key: ""
+    showOnPreview: true
+    requestTimeout: 4000
 
   # 背景
-  pageBackgroundUrl: "https://blog.fufultd.asia/wp-content/uploads/25646.jpg"
+  pageBackgroundUrl: ""
   pageBackgroundDarkUrl: ""
   pageBackgroundOpacity: 1
   transparentBanner: true
-  showToolbarMask: true
 
   # 浮动操作按钮
   fab:
@@ -120,7 +127,7 @@ params:
   enableMobileScale: false
 
   # 页脚
-  footerHtml: "<span id=\"times\">载入运行时间...</span> \n<script language=\"javascript\"> \n var now = new Date();\n function createtime(){\n  var grt= new Date(\"12/08/2024 03:53:24\");/*---这里是网站的启用时间--*/\n  now.setTime(now.getTime()+250);\n  days = (now - grt ) / 1000 / 60 / 60 / 24;\n  dnum = Math.floor(days);\n  hours = (now - grt ) / 1000 / 60 / 60 - (24 * dnum);\n  hnum = Math.floor(hours);\n  if(String(hnum).length ==1 ){hnum = \"0\" + hnum;}\n  minutes = (now - grt ) / 1000 /60 - (24 * 60 * dnum) - (60 * hnum);\n  mnum = Math.floor(minutes);\n  if(String(mnum).length ==1 ){mnum = \"0\" + mnum;}\n  seconds = (now - grt ) / 1000 - (24 * 60 * 60 * dnum) - (60 * 60 * hnum) - (60 * mnum);\n  snum = Math.round(seconds);\n  if(String(snum).length ==1 ){snum = \"0\" + snum;}\n  document.getElementById(\"times\").innerHTML = \"已运行 \" + dnum + \" 天 \" + hnum + \" 小时 \" + mnum + \" 分 \" + snum + \" 秒 \";\n }\n setInterval(\"createtime()\",250); \n</script>\n<div style=\"text-align: center; font-size: 14px;\">\n  <span style=\"white-space: nowrap;\">\n    <a href=\"https://beian.miit.gov.cn/\" target=\"_blank\">皖ICP备2025075576号-1</a>&nbsp;|&nbsp;\n    <a href=\"https://blog.fufultd.asia/icp/\" target=\"_blank\" style=\"white-space: nowrap;\">\n      <img src=\"https://blog.fufultd.asia/icp/pic/ico64.png\"\n           alt=\"ico64\"\n           style=\"height: 20px; vertical-align: text-bottom; margin-right: 3px;\" />\n      芙ICP备2025083125号\n    </a>\n  </span>\n</div>\n"
+  footerHtml: ""
 
   # 数学公式
   mathRender: "none"  # mathjax3, mathjax2, katex
