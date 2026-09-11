@@ -7,10 +7,10 @@
     {
       "binding": "DB",
       "database_name": "argon-views",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "c9681f5e-9811-419c-aeb9-68024d655753"
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://example.com,http://127.0.0.1:1313,http://localhost:1313"
+    "ALLOWED_ORIGINS": "https://fufu.blog,https://www.fufu.blog,https://jiang068.github.io,http://127.0.0.1:1313,http://localhost:1313"
   }
 }
