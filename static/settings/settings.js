@@ -138,35 +138,120 @@
         return value;
     }
 
-    function parseYaml(text) {
-        var root = {};
-        var stack = [{indent: -1, value: root}];
-        var lines = String(text || '').split(/\r?\n/);
-        lines.forEach(function (line, lineIndex) {
-            if (!line.trim() || /^\s*#/.test(line)) return;
-            if (/\t/.test(line)) throw new Error('第 ' + (lineIndex + 1) + ' 行请使用空格缩进');
-            var match = line.match(/^(\s*)([^:]+):(.*)$/);
-            if (!match) throw new Error('第 ' + (lineIndex + 1) + ' 行不是 key: value 格式');
-            var indent = match[1].length;
-            var key = match[2].trim();
-            if (!key) throw new Error('第 ' + (lineIndex + 1) + ' 行缺少字段名');
-            while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
-            var parent = stack[stack.length - 1].value;
-            if (!parent || typeof parent !== 'object' || Array.isArray(parent)) throw new Error('第 ' + (lineIndex + 1) + ' 行缩进层级错误');
-            var raw = match[3].trim();
-            if (!raw) {
-                parent[key] = {};
-                stack.push({indent: indent, value: parent[key]});
-            } else {
-                parent[key] = parseScalar(raw);
+    function stripYamlComment(value) {
+        var quote = '';
+        var escaped = false;
+        for (var index = 0; index < value.length; index += 1) {
+            var character = value.charAt(index);
+            if (quote === '"' && escaped) { escaped = false; continue; }
+            if (quote === '"' && character === '\\') { escaped = true; continue; }
+            if (character === '"' || character === "'") {
+                if (!quote) quote = character;
+                else if (quote === character) quote = '';
+            } else if (character === '#' && !quote && (index === 0 || /\s/.test(value.charAt(index - 1)))) {
+                return value.slice(0, index).trim();
             }
+        }
+        return value.trim();
+    }
+
+    function yamlKeyValue(value, lineNumber) {
+        var quote = '';
+        var escaped = false;
+        for (var index = 0; index < value.length; index += 1) {
+            var character = value.charAt(index);
+            if (quote === '"' && escaped) { escaped = false; continue; }
+            if (quote === '"' && character === '\\') { escaped = true; continue; }
+            if (character === '"' || character === "'") {
+                if (!quote) quote = character;
+                else if (quote === character) quote = '';
+            } else if (character === ':' && !quote && (index + 1 === value.length || /\s/.test(value.charAt(index + 1)))) {
+                var key = value.slice(0, index).trim();
+                if (!key) throw new Error('第 ' + lineNumber + ' 行缺少字段名');
+                return {key: key, raw: value.slice(index + 1).trim()};
+            }
+        }
+        throw new Error('第 ' + lineNumber + ' 行不是 key: value 格式');
+    }
+
+    function parseYaml(text) {
+        var lines = [];
+        String(text || '').split(/\r?\n/).forEach(function (line, index) {
+            if (/\t/.test(line)) throw new Error('第 ' + (index + 1) + ' 行请使用空格缩进');
+            var content = stripYamlComment(line.replace(/^\s*/, ''));
+            if (!content) return;
+            var indent = line.length - line.replace(/^\s*/, '').length;
+            lines.push({indent: indent, content: content, lineNumber: index + 1});
         });
-        return root;
+
+        function parseBlock(start, indent) {
+            if (start >= lines.length || lines[start].indent !== indent) return {value: {}, next: start};
+            var list = /^-(?:\s|$)/.test(lines[start].content);
+            var value = list ? [] : {};
+            var index = start;
+            while (index < lines.length && lines[index].indent === indent) {
+                var line = lines[index];
+                if (list !== /^-(?:\s|$)/.test(line.content)) break;
+                if (list) {
+                    var itemText = line.content.slice(1).trim();
+                    index += 1;
+                    if (!itemText) {
+                        if (index < lines.length && lines[index].indent > indent) {
+                            var child = parseBlock(index, lines[index].indent);
+                            value.push(child.value);
+                            index = child.next;
+                        } else value.push(null);
+                        continue;
+                    }
+                    if (/:\s|:$/.test(itemText)) {
+                        var item = {};
+                        var first = yamlKeyValue(itemText, line.lineNumber);
+                        if (first.raw) item[first.key] = parseScalar(first.raw);
+                        else if (index < lines.length && lines[index].indent > indent) {
+                            var firstChild = parseBlock(index, lines[index].indent);
+                            item[first.key] = firstChild.value;
+                            index = firstChild.next;
+                        } else item[first.key] = null;
+                        if (index < lines.length && lines[index].indent > indent) {
+                            var continuation = parseBlock(index, lines[index].indent);
+                            if (!continuation.value || typeof continuation.value !== 'object' || Array.isArray(continuation.value)) {
+                                throw new Error('第 ' + lines[index].lineNumber + ' 行列表项结构错误');
+                            }
+                            item = mergeSettings(item, continuation.value);
+                            index = continuation.next;
+                        }
+                        value.push(item);
+                    } else {
+                        value.push(parseScalar(itemText));
+                        if (index < lines.length && lines[index].indent > indent) {
+                            throw new Error('第 ' + lines[index].lineNumber + ' 行列表缩进层级错误');
+                        }
+                    }
+                } else {
+                    var entry = yamlKeyValue(line.content, line.lineNumber);
+                    index += 1;
+                    if (entry.raw) value[entry.key] = parseScalar(entry.raw);
+                    else if (index < lines.length && lines[index].indent > indent) {
+                        var nested = parseBlock(index, lines[index].indent);
+                        value[entry.key] = nested.value;
+                        index = nested.next;
+                    } else value[entry.key] = null;
+                }
+            }
+            return {value: value, next: index};
+        }
+
+        if (!lines.length) return {};
+        var parsed = parseBlock(0, lines[0].indent);
+        if (parsed.next !== lines.length) throw new Error('第 ' + lines[parsed.next].lineNumber + ' 行缩进层级错误');
+        return parsed.value;
     }
 
     function scalarText(value) {
         if (typeof value === 'string') return JSON.stringify(value);
         if (value === null) return 'null';
+        if (Array.isArray(value)) return JSON.stringify(value);
+        if (typeof value === 'undefined') return 'null';
         return String(value);
     }
 
@@ -302,11 +387,21 @@
         document.querySelectorAll('[data-range-output]').forEach(function(output) { updateRangeOutput(output.getAttribute('data-range-output')); });
     }
 
-    function collectFormSettings() {
-        var settings = {};
+    function deleteSetting(settings, path) {
+        var parts = path.split('.');
+        var target = settings;
+        for (var index = 0; index < parts.length - 1; index += 1) {
+            if (!target || typeof target !== 'object' || !Object.prototype.hasOwnProperty.call(target, parts[index])) return;
+            target = target[parts[index]];
+        }
+        if (target && typeof target === 'object') delete target[parts[parts.length - 1]];
+    }
+
+    function collectFormSettings(existing) {
+        var settings = mergeSettings({}, existing && typeof existing === 'object' ? existing : {});
         document.querySelectorAll('[data-setting-toggle]').forEach(function(toggle) {
-            if (!toggle.checked) return;
             var path = toggle.getAttribute('data-setting-toggle');
+            if (!toggle.checked) { deleteSetting(settings, path); return; }
             var input = settingInput(path);
             if (!input) return;
             var value = input.type === 'checkbox' ? input.checked : input.value;
@@ -324,7 +419,8 @@
     }
 
     function generateYamlFromForm() {
-        var settings = collectFormSettings();
+        var overrides = collectFormSettings(state.settings);
+        var settings = mergeSettings(state.defaults, overrides);
         var text = formatYaml(settings, '  ');
         byId('settings-yaml').value = text ? 'params:\n' + text + '\n' : defaultYaml;
         return settings;
@@ -578,7 +674,7 @@
 
     async function saveSettings() {
         try {
-            var settings = collectFormSettings();
+            var settings = collectFormSettings(state.settings);
             state.settings = settings;
             cacheAppearanceSettings(state.settings);
             renderSettings(state.settings);
@@ -623,6 +719,7 @@
             var settings = parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params)
                 ? parsed.params
                 : parsed;
+            state.settings = mergeSettings({}, settings);
             setFormSettings(state.defaults, settings);
             setMessage('appearance-message', 'YAML 已载入表单；检查后点击“保存本机设置”。', 'success');
         } catch (error) {

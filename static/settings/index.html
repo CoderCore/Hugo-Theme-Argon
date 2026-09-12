@@ -173,7 +173,7 @@
             <p id="appearance-message" class="message" role="status" aria-live="polite"></p>
             <details id="advanced-settings" class="field-help">
                 <summary>高级：查看、粘贴或导出 YAML</summary>
-                <p class="advanced-intro">下方是可直接合并到 <code>hugo.yaml</code> 的 <code>params</code> 配置片段。粘贴后先点击“应用 YAML 到表单”，再保存本机设置。</p>
+                <p class="advanced-intro">下方会保留当前站点发现的全部 <code>params</code> 字段，并把表单修改合并进去；菜单、链接和其他高级字段不会再被丢弃。可以粘贴完整 <code>hugo.yaml</code> 或只粘贴 <code>params:</code> 片段，点击“应用 YAML 到表单”后再保存。</p>
                 <label for="settings-yaml">params.yaml</label>
                 <textarea id="settings-yaml" rows="15" spellcheck="false"></textarea>
                 <div class="button-row">
@@ -182,32 +182,12 @@
                     <button id="copy-yaml-settings" class="button button-quiet" type="button">复制 YAML</button>
                     <button id="download-yaml-settings" class="button button-quiet" type="button">下载 YAML</button>
                 </div>
-                <pre>params:
-  title: "站点标题"
-  themeColor: "#f8b5ff"
-  pageBackgroundUrl: "https://…"
-  pageBackgroundDarkUrl: ""
-  pageBackgroundOpacity: 1
-  cardRadius: 4
-  cardShadow: "default"
-  font: "sans-serif"
-  transparentBanner: true
-  banner:
-    title: "横幅标题"
-    subtitle: "横幅副标题"
-    backgroundUrl: "https://…"
-    size: "full"
-    backgroundColorType: "shape-primary"
-    backgroundHideShapes: false
-  sidebar:
-    bannerTitle: "侧栏标题"
-    bannerSubtitle: ""
-    authorName: ""
-    authorImage: "https://…"
-    authorDescription: ""
+                <pre># 导出结果会包含当前站点的全部 params；数组也可直接被 Hugo 读取。
+params:
   toolbar:
-    title: ""
-    blur: true</pre>
+    menu: [{"name":"首页","url":"/"}]
+  sidebar:
+    authorLinks: [{"name":"GitHub","url":"https://github.com/"}]</pre>
             </details>
         </section>
 
@@ -247,6 +227,6 @@
         <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
     </footer>
 </main>
-<script src="/settings/settings.js?v=settings-3" defer></script>
+<script src="/settings/settings.js?v=settings-4" defer></script>
 </body>
 </html>
