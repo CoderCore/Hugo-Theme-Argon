@@ -8,16 +8,13 @@ const MAX_VIEWS = 2147483647;
 
 // D1 is the only persistent state used by this Worker. The reserved row keeps
 // the site-wide total in the same table as the article counters.
-const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS view_counts (
-  slug TEXT PRIMARY KEY,
-  views INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at
-  ON view_counts(updated_at);
-INSERT OR IGNORE INTO view_counts (slug, views)
-  VALUES ('${TOTAL_SLUG}', COALESCE((SELECT SUM(views) FROM view_counts WHERE slug <> '${TOTAL_SLUG}'), 0));`;
+// D1 exec() accepts multiple queries separated by newlines. Keep each query
+// on one line so the API does not split a multiline CREATE statement midway.
+const SCHEMA_SQL = [
+  "CREATE TABLE IF NOT EXISTS view_counts (slug TEXT PRIMARY KEY, views INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);",
+  "CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at ON view_counts(updated_at);",
+  `INSERT OR IGNORE INTO view_counts (slug, views) VALUES ('${TOTAL_SLUG}', COALESCE((SELECT SUM(views) FROM view_counts WHERE slug <> '${TOTAL_SLUG}'), 0));`,
+].join("\n");
 
 // Keep one initialization promise per D1 binding. This makes first-request
 // setup safe when several authorized requests arrive at the same time, while
