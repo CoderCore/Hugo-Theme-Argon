@@ -80,7 +80,7 @@
         if (defaultsText) {
             try {
                 var parsedDefaults = JSON.parse(defaultsText);
-                if (parsedDefaults && typeof parsedDefaults === 'object') state.defaults = parsedDefaults;
+                if (parsedDefaults && typeof parsedDefaults === 'object') state.defaults = normalizeSettingKeys(parsedDefaults);
             } catch (error) {
                 throw new Error('首页的 hugo.yaml 默认值格式错误');
             }
@@ -317,6 +317,28 @@
         return document.querySelector('[data-setting-input="' + path + '"]');
     }
 
+    function canonicalSettingKey(path) {
+        var canonical = path;
+        document.querySelectorAll('[data-setting-toggle]').forEach(function(toggle) {
+            var candidate = toggle.getAttribute('data-setting-toggle');
+            if (candidate && candidate.toLowerCase() === path.toLowerCase()) canonical = candidate;
+        });
+        return canonical.split('.').pop();
+    }
+
+    function normalizeSettingKeys(value, prefix) {
+        if (Array.isArray(value)) return value.map(function(item) { return normalizeSettingKeys(item, prefix); });
+        if (!value || typeof value !== 'object') return value;
+        var result = {};
+        Object.keys(value).forEach(function(key) {
+            var path = prefix ? prefix + '.' + key : key;
+            var canonical = canonicalSettingKey(path);
+            var childPrefix = prefix ? prefix + '.' + canonical : canonical;
+            result[canonical] = normalizeSettingKeys(value[key], childPrefix);
+        });
+        return result;
+    }
+
     function settingToggle(path) {
         return document.querySelector('[data-setting-toggle="' + path + '"]');
     }
@@ -352,8 +374,8 @@
     }
 
     function setFormSettings(defaults, overrides) {
-        var baseline = defaults && typeof defaults === 'object' ? defaults : {};
-        var overrideSource = overrides && typeof overrides === 'object' ? overrides : {};
+        var baseline = normalizeSettingKeys(defaults && typeof defaults === 'object' ? defaults : {});
+        var overrideSource = normalizeSettingKeys(overrides && typeof overrides === 'object' ? overrides : {});
         var source = mergeSettings(baseline, overrideSource);
         document.querySelectorAll('[data-setting-toggle]').forEach(function(toggle) {
             var path = toggle.getAttribute('data-setting-toggle');
@@ -487,7 +509,7 @@
                 }
                 break;
             }
-            state.settings = settings;
+            state.settings = normalizeSettingKeys(settings);
         } catch (error) {
             state.settings = {};
         }
@@ -719,8 +741,8 @@
             var settings = parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params)
                 ? parsed.params
                 : parsed;
-            state.settings = mergeSettings({}, settings);
-            setFormSettings(state.defaults, settings);
+            state.settings = normalizeSettingKeys(settings);
+            setFormSettings(state.defaults, state.settings);
             setMessage('appearance-message', 'YAML 已载入表单；检查后点击“保存本机设置”。', 'success');
         } catch (error) {
             setMessage('appearance-message', 'YAML 格式错误：' + error.message, 'error');
