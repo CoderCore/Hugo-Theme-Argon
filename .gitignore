@@ -4,9 +4,11 @@
 /.hugo_build.lock
 /hugo_stats.json
 /.hugo-test-public/
+/.nav-build-check/
 
 # Cloudflare / local secrets
 **/.wrangler/
+**/.xdg-config/
 **/.dev.vars
 **/.env
 **/.env.*
@@ -24,6 +26,7 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 Desktop.ini
+ehthumbs.db
 .Spotlight-V100/
 .Trashes/
 ._*

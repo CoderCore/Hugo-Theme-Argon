@@ -1,5 +1,9 @@
-{{- with .Site.Params.pageBackgroundUrl }}
 <style>
+    #content {
+        --argon-runtime-bg: {{ with .Site.Params.pageBackgroundUrl }}url({{ . | safeCSS }}){{ else }}none{{ end }};
+        --argon-runtime-bg-dark: {{ with .Site.Params.pageBackgroundDarkUrl }}url({{ . | safeCSS }}){{ else }}none{{ end }};
+        --argon-runtime-bg-opacity: {{ default 1 .Site.Params.pageBackgroundOpacity }};
+    }
     #content:before {
         content: '';
         display: block;
@@ -9,17 +13,18 @@
         top: 0;
         bottom: 0;
         z-index: -2;
-        background: url({{ . | relURL }});
+        background: var(--argon-runtime-bg);
         background-position: center;
         background-size: cover;
         background-repeat: no-repeat;
-        opacity: {{ default 1 $.Site.Params.pageBackgroundOpacity }};
+        pointer-events: none;
+        opacity: var(--argon-runtime-bg-opacity);
         transition: opacity .5s ease;
     }
     html.darkmode #content:before{
         filter: brightness(0.65);
+        opacity: var(--argon-runtime-bg-opacity);
     }
-    {{- with $.Site.Params.pageBackgroundDarkUrl }}
     #content:after {
         content: '';
         display: block;
@@ -29,25 +34,32 @@
         top: 0;
         bottom: 0;
         z-index: -2;
-        background: url({{ . | relURL }});
+        background: var(--argon-runtime-bg-dark);
         background-position: center;
         background-size: cover;
         background-repeat: no-repeat;
+        pointer-events: none;
         opacity: 0;
         transition: opacity .5s ease;
     }
     html.darkmode #content:after {
-        opacity: {{ default 1 $.Site.Params.pageBackgroundOpacity }};
-    }
-    html.darkmode #content:before {
         opacity: 0;
     }
-    {{- end }}
-    {{- if $.Site.Params.transparentBanner }}
-    #banner, #banner .shape {
+    html.darkmode.argon-has-dark-background #content:before {
+        opacity: 0;
+    }
+    html.darkmode.argon-has-dark-background #content:after {
+        opacity: var(--argon-runtime-bg-opacity);
+    }
+    html.argon-yaml-transparent-banner:not(.argon-runtime-opaque-banner) #banner,
+    html.argon-yaml-transparent-banner:not(.argon-runtime-opaque-banner) #banner .shape,
+    html.argon-runtime-transparent-banner #banner,
+    html.argon-runtime-transparent-banner #banner .shape {
         background: transparent !important;
     }
-    {{- end }}
+    html.argon-runtime-opaque-banner #banner,
+    html.argon-runtime-opaque-banner #banner .shape {
+        background: var(--themecolor-gradient) !important;
+    }
 </style>
-{{- end }}
 

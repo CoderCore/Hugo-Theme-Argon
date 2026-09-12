@@ -9,53 +9,63 @@
 {{- if and (eq (index $viewCounter "enabled") true) (eq (printf "%T" (index $viewCounter "endpoint")) "string") (ne (index $viewCounter "endpoint") "") -}}
     {{- $showViews = true -}}
 {{- end -}}
-{{- range $index, $meta := $metaList }}
-    {{- if gt $index 0 }}
-    <div class="post-meta-devide">|</div>
-    {{- end }}
-    {{- if eq $meta "time" }}
-    <div class="post-meta-detail post-meta-detail-time">
-        <i class="fa fa-clock-o" aria-hidden="true"></i>
-        <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
-            {{ $.Date.Format "2006-01-02 15:04" }}
-        </time>
-    </div>
-    {{- else if eq $meta "edittime" }}
-    <div class="post-meta-detail post-meta-detail-edittime">
-        <i class="fa fa-clock-o" aria-hidden="true"></i>
-        <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
-            {{ $.Lastmod.Format "2006-01-02 15:04" }}
-        </time>
-    </div>
-    {{- else if eq $meta "categories" }}
-        {{- with $.Params.categories }}
+{{- $renderedCount := 0 -}}
+{{- range $meta := $metaList }}
+    {{- $shouldRender := false -}}
+    {{- if or (eq $meta "time") (eq $meta "edittime") (eq $meta "read") (eq $meta "words") (eq $meta "readingtime") -}}
+        {{- $shouldRender = true -}}
+    {{- else if eq $meta "views" -}}
+        {{- $shouldRender = $showViews -}}
+    {{- else if eq $meta "categories" -}}
+        {{- with $.Params.categories -}}
+            {{- $shouldRender = true -}}
+        {{- end -}}
+    {{- end -}}
+    {{- if $shouldRender -}}
+        {{- if gt $renderedCount 0 }}<div class="post-meta-devide">|</div>{{ end -}}
+        {{- if eq $meta "time" -}}
+        <div class="post-meta-detail post-meta-detail-time">
+            <i class="fa fa-clock-o" aria-hidden="true"></i>
+            <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
+                {{ $.Date.Format "2006-01-02 15:04" }}
+            </time>
+        </div>
+        {{- else if eq $meta "edittime" -}}
+        <div class="post-meta-detail post-meta-detail-edittime">
+            <i class="fa fa-clock-o" aria-hidden="true"></i>
+            <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
+                {{ $.Lastmod.Format "2006-01-02 15:04" }}
+            </time>
+        </div>
+        {{- else if eq $meta "categories" -}}
         <div class="post-meta-detail post-meta-detail-categories">
             <i class="fa fa-bookmark-o" aria-hidden="true"></i>
-            {{- range $idx, $cat := . }}
-                {{- if gt $idx 0 }} , {{ end }}
+            {{- range $idx, $cat := $.Params.categories }}
+                {{- if gt $idx 0 }} , {{ end -}}
                 <a href="{{ "categories/" | relURL }}{{ $cat | urlize }}" class="post-meta-detail-category">{{ $cat }}</a>
             {{- end }}
         </div>
-        {{- end }}
-    {{- else if and (eq $meta "views") $showViews }}
-    <div class="post-meta-detail post-meta-detail-views d-none" data-view-count data-view-id="{{ $.RelPermalink }}" hidden aria-hidden="true">
-        <i class="fa fa-eye" aria-hidden="true"></i>
-        <span class="argon-view-count-value"></span>
-    </div>
-    {{- else if eq $meta "read" }}
-    <div class="post-meta-detail post-meta-detail-words">
-        <i class="fa fa-book" aria-hidden="true"></i>
-        <span>阅读次数</span>
-    </div>
-    {{- else if eq $meta "words" }}
-    <div class="post-meta-detail post-meta-detail-words">
-        <i class="fa fa-file-word-o" aria-hidden="true"></i>
-        <span>{{ $.WordCount }} 字</span>
-    </div>
-    {{- else if eq $meta "readingtime" }}
-    <div class="post-meta-detail post-meta-detail-readingtime">
-        <i class="fa fa-clock-o" aria-hidden="true"></i>
-        <span>{{ $.ReadingTime }} 分钟</span>
-    </div>
-    {{- end }}
-{{- end }}
+        {{- else if eq $meta "views" -}}
+        <div class="post-meta-detail post-meta-detail-views d-none" data-view-count data-view-id="{{ $.RelPermalink }}" hidden aria-hidden="true">
+            <i class="fa fa-eye" aria-hidden="true"></i>
+            <span class="argon-view-count-value"></span>
+        </div>
+        {{- else if eq $meta "read" -}}
+        <div class="post-meta-detail post-meta-detail-words">
+            <i class="fa fa-book" aria-hidden="true"></i>
+            <span>阅读次数</span>
+        </div>
+        {{- else if eq $meta "words" -}}
+        <div class="post-meta-detail post-meta-detail-words">
+            <i class="fa fa-file-word-o" aria-hidden="true"></i>
+            <span>{{ $.WordCount }} 字</span>
+        </div>
+        {{- else if eq $meta "readingtime" -}}
+        <div class="post-meta-detail post-meta-detail-readingtime">
+            <i class="fa fa-clock-o" aria-hidden="true"></i>
+            <span>{{ $.ReadingTime }} 分钟</span>
+        </div>
+        {{- end -}}
+        {{- $renderedCount = add $renderedCount 1 -}}
+    {{- end -}}
+{{- end -}}

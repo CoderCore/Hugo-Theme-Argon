@@ -33,6 +33,54 @@
 {{- if $viewCounterKey }}
 <meta name="argon-view-counter-key-b64" content="{{ base64Encode $viewCounterKey }}">
 {{- end }}
+{{- /* The static settings page reads this safe, editable baseline from the home page. */ -}}
+{{- $params := .Site.Params -}}
+{{- $bannerParams := dict -}}
+{{- with (index $params "banner") }}{{ $bannerParams = . }}{{ end -}}
+{{- $sidebarParams := dict -}}
+{{- with (index $params "sidebar") }}{{ $sidebarParams = . }}{{ end -}}
+{{- $toolbarParams := dict -}}
+{{- with (index $params "toolbar") }}{{ $toolbarParams = . }}{{ end -}}
+{{- $themeColor := default "#5e72e4" .Site.Params.themeColor -}}
+{{- $pageBackgroundUrl := default "" .Site.Params.pageBackgroundUrl -}}
+{{- $pageBackgroundDarkUrl := default "" .Site.Params.pageBackgroundDarkUrl -}}
+{{- $pageBackgroundOpacity := default 1 .Site.Params.pageBackgroundOpacity -}}
+{{- $cardRadius := default 4 .Site.Params.cardRadius -}}
+{{- $cardShadow := default "default" .Site.Params.cardShadow -}}
+{{- $font := default "sans-serif" .Site.Params.font -}}
+{{- $transparentBanner := true -}}
+{{- if eq .Site.Params.transparentBanner false }}{{ $transparentBanner = false }}{{ end -}}
+{{- $bannerTitle := default "" $bannerParams.title -}}
+{{- $bannerSubtitle := default "" $bannerParams.subtitle -}}
+{{- $bannerBackgroundUrl := default "" $bannerParams.backgroundUrl -}}
+{{- $bannerSize := default "full" $bannerParams.size -}}
+{{- $bannerColorType := default "shape-primary" $bannerParams.backgroundColorType -}}
+{{- $bannerHideShapes := false -}}{{ if eq $bannerParams.backgroundHideShapes true }}{{ $bannerHideShapes = true }}{{ end -}}
+{{- $bannerDefaults := dict "title" $bannerTitle "subtitle" $bannerSubtitle "backgroundUrl" $bannerBackgroundUrl "size" $bannerSize "backgroundColorType" $bannerColorType "backgroundHideShapes" $bannerHideShapes -}}
+{{- $sidebarBannerTitle := default "" $sidebarParams.bannerTitle -}}
+{{- $sidebarBannerSubtitle := default "" $sidebarParams.bannerSubtitle -}}
+{{- $authorName := default "" $sidebarParams.authorName -}}
+{{- $authorImage := default "" $sidebarParams.authorImage -}}
+{{- $authorDescription := default "" $sidebarParams.authorDescription -}}
+{{- $sidebarDefaults := dict "bannerTitle" $sidebarBannerTitle "bannerSubtitle" $sidebarBannerSubtitle "authorName" $authorName "authorImage" $authorImage "authorDescription" $authorDescription -}}
+{{- $toolbarTitle := default "" $toolbarParams.title -}}
+{{- $toolbarBlur := true -}}{{ if eq $toolbarParams.blur false }}{{ $toolbarBlur = false }}{{ end -}}
+{{- $toolbarDefaults := dict "title" $toolbarTitle "blur" $toolbarBlur -}}
+{{- $settingsDefaults := dict
+    "title" .Site.Title
+    "themeColor" $themeColor
+    "pageBackgroundUrl" $pageBackgroundUrl
+    "pageBackgroundDarkUrl" $pageBackgroundDarkUrl
+    "pageBackgroundOpacity" $pageBackgroundOpacity
+    "cardRadius" $cardRadius
+    "cardShadow" $cardShadow
+    "font" $font
+    "transparentBanner" $transparentBanner
+    "banner" $bannerDefaults
+    "sidebar" $sidebarDefaults
+    "toolbar" $toolbarDefaults
+-}}
+<meta name="argon-settings-defaults-b64" content="{{ $settingsDefaults | jsonify | base64Encode }}">
 {{- if .Title -}}
     {{- $title = printf "%s - %s" .Title .Site.Title -}}
 {{- else if eq .Kind "taxonomy" -}}

@@ -24,6 +24,12 @@
 {{- if .Site.Params.articleListWaterflow -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "article-list-layout-waterflow " -}}
 {{- end -}}
+{{- if .Site.Params.transparentBanner -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "argon-yaml-transparent-banner " -}}
+{{- end -}}
+{{- if .Site.Params.pageBackgroundDarkUrl -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "argon-has-dark-background " -}}
+{{- end -}}
 
 {{- /* --- START: BANNER LOGIC --- */ -}}
 {{- $finalBannerSize := "full" -}} {{- /* Default for all pages is 'full' */ -}}

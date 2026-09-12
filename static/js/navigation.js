@@ -12,6 +12,51 @@
     var navigationSerial = 0;
     var cacheLifetime = 5 * 60 * 1000;
     var managedHtmlClasses = ['banner-is-fullscreen', 'banner-is-hidden'];
+    var navigationDebugKey = 'argon_navigation_debug';
+    var navigationDebug = false;
+    var navigationLogBuffer = [];
+
+    try {
+        navigationDebug = new URLSearchParams(window.location.search).get('argonNavDebug') === '1' ||
+            window.localStorage.getItem(navigationDebugKey) === '1';
+    } catch (error) {
+        navigationDebug = false;
+    }
+
+    function navigationLog(eventName, detail) {
+        if (!navigationDebug || !window.console || typeof window.console.info !== 'function') {
+            return;
+        }
+        var payload = Object.assign({
+            event: eventName,
+            href: window.location.href,
+            serial: navigationSerial,
+            time: new Date().toISOString()
+        }, detail || {});
+        navigationLogBuffer.push(payload);
+        if (navigationLogBuffer.length > 300) {
+            navigationLogBuffer.shift();
+        }
+        window.console.info('[Argon navigation]', eventName, payload);
+    }
+
+    window.argonNavigationDebug = {
+        enable: function() {
+            navigationDebug = true;
+            try { window.localStorage.setItem(navigationDebugKey, '1'); } catch (error) {}
+            navigationLog('debug-enabled');
+        },
+        disable: function() {
+            navigationDebug = false;
+            try { window.localStorage.removeItem(navigationDebugKey); } catch (error) {}
+        },
+        getLogs: function() {
+            return navigationLogBuffer.slice();
+        },
+        clearLogs: function() {
+            navigationLogBuffer.length = 0;
+        }
+    };
 
     function dispatch(name, detail) {
         document.dispatchEvent(new CustomEvent(name, {detail: detail || {}}));
@@ -29,10 +74,6 @@
         }
     }
 
-    function isReducedMotion() {
-        return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    }
-
     function sameDocumentHash(url) {
         return url.origin === window.location.origin &&
             url.pathname === window.location.pathname &&
@@ -40,7 +81,10 @@
     }
 
     function isNavigableLink(link, event) {
-        if (!link || !link.href || event.defaultPrevented || event.button !== 0 ||
+        // This handler is the single owner of same-origin page navigation.
+        // Another UI listener may have called preventDefault() earlier in the
+        // capture phase; that must not make the address bar randomly stay put.
+        if (!link || !link.href || event.button !== 0 ||
             event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
             return false;
         }
@@ -94,23 +138,30 @@
     async function loadPage(url) {
         var cachedHtml = cacheGet(url);
         if (cachedHtml) {
+            navigationLog('cache-hit', {url: url});
             return parsePage(url, cachedHtml);
         }
 
         var requestedUrl = new URL(url, window.location.href);
 
         if (pendingController) {
+            navigationLog('abort-previous-request', {url: url});
             pendingController.abort();
         }
         pendingController = new AbortController();
         var controller = pendingController;
         var response;
         try {
+            navigationLog('request-start', {url: requestedUrl.href});
             response = await fetch(url, {
                 credentials: 'same-origin',
                 signal: controller.signal,
                 headers: {'Accept': 'text/html'}
             });
+            navigationLog('request-response', {url: requestedUrl.href, status: response.status, ok: response.ok});
+        } catch (error) {
+            navigationLog('request-error', {url: requestedUrl.href, name: error.name, message: error.message});
+            throw error;
         } finally {
             if (pendingController === controller) {
                 pendingController = null;
@@ -122,8 +173,8 @@
         }
         var html = await response.text();
         cacheSet(url, html);
-        responseUrl.hash = requestedUrl.hash;
-        return parsePage(responseUrl.href, html);
+        navigationLog('request-parsed', {url: requestedUrl.href, bytes: html.length});
+        return parsePage(requestedUrl.href, html);
     }
 
     function copyPageView(nextView) {
@@ -187,6 +238,36 @@
         button.classList.toggle('d-none', !nextView.querySelector('#post_comment, #comments'));
     }
 
+    function repairUrl(url, mode) {
+        var target = new URL(url, window.location.href);
+        if (target.href === window.location.href) {
+            return;
+        }
+        var previousUrl = window.location.href;
+        navigationLog('url-mismatch', {from: previousUrl, to: target.href, mode: mode});
+        try {
+            window.history.replaceState(Object.assign({}, window.history.state || {}, {
+                argonNavigation: true,
+                url: target.href,
+                scrollY: 0
+            }), '', target.href);
+            navigationLog('url-repaired', {
+                from: previousUrl,
+                to: window.location.href,
+                mode: mode,
+                repaired: window.location.href === target.href
+            });
+        } catch (error) {
+            navigationLog('url-repair-failed', {
+                from: previousUrl,
+                to: target.href,
+                mode: mode,
+                name: error.name,
+                message: error.message
+            });
+        }
+    }
+
     function scrollAfterNavigation(url, scrollY) {
         if (url.hash) {
             var target = document.getElementById(decodeURIComponent(url.hash.slice(1)));
@@ -199,6 +280,8 @@
     }
 
     function applyPage(page, state, mode) {
+        repairUrl(page.url, mode);
+        navigationLog('apply-start', {url: page.url, mode: mode});
         var update = function() {
             syncPageChrome(page.document);
             copyPageView(page.view);
@@ -209,36 +292,35 @@
             document.documentElement.classList.add('argon-ready');
         };
 
-        var transition;
-        if (document.startViewTransition && !isReducedMotion()) {
-            transition = document.startViewTransition(update);
-        } else {
-            update();
-        }
+        /*
+         * The View Transition API creates a full-viewport pseudo-element
+         * above the document while it animates. That layer wins hit-testing,
+         * so a quick click on the next link can be delivered to <html>
+         * instead of the link and leave the URL unchanged. Page navigation
+         * must remain interactive, therefore replace the view synchronously.
+         */
+        update();
 
-        if (transition) {
-            transition.finished.catch(function(){});
-        }
-
-        if (mode === 'push') {
-            window.history.pushState({argonNavigation: true, url: page.url, scrollY: 0}, '', page.url);
-        }
         scrollAfterNavigation(new URL(page.url, window.location.href), state && state.scrollY);
+        navigationLog('apply-finished', {url: page.url, mode: mode});
         dispatch('argon:page-ready', {root: pageView, document: page.document, url: page.url, mode: mode});
     }
 
     async function navigate(url, mode, scrollY) {
         var serial = ++navigationSerial;
+        navigationLog('navigation-start', {url: url, mode: mode, scrollY: scrollY});
         progressStart();
         document.documentElement.setAttribute('aria-busy', 'true');
         dispatch('argon:navigation-start', {url: url, mode: mode});
         try {
             var page = await loadPage(url);
             if (serial !== navigationSerial) {
+                navigationLog('navigation-stale', {url: url, mode: mode, requestSerial: serial});
                 return;
             }
             applyPage(page, {scrollY: scrollY}, mode);
         } catch (error) {
+            navigationLog('navigation-error', {url: url, mode: mode, name: error.name, message: error.message});
             if (error.name !== 'AbortError') {
                 window.location.assign(url);
             }
@@ -247,18 +329,67 @@
                 document.documentElement.removeAttribute('aria-busy');
                 progressDone();
                 dispatch('argon:navigation-end', {url: url, mode: mode});
+                navigationLog('navigation-end', {url: url, mode: mode});
             }
         }
     }
 
-    function updateHistoryScroll() {
-        if (!window.history.state || !window.history.state.argonNavigation) {
+    var historyScrollTimer = null;
+    var historyScrollDelay = 120;
+
+    function writeHistoryScroll() {
+        var state = window.history.state;
+        if (!state || !state.argonNavigation) {
             return;
         }
-        window.history.replaceState(Object.assign({}, window.history.state, {scrollY: window.scrollY}), '', window.location.href);
+
+        var scrollY = window.scrollY;
+        var href = window.location.href;
+        if (state.url === href && state.scrollY === scrollY) {
+            return;
+        }
+
+        try {
+            window.history.replaceState(Object.assign({}, state, {
+                url: href,
+                scrollY: scrollY
+            }), '', href);
+        } catch (error) {
+            navigationLog('history-scroll-failed', {
+                name: error.name,
+                message: error.message
+            });
+        }
+    }
+
+    function cancelHistoryScroll() {
+        if (historyScrollTimer) {
+            window.clearTimeout(historyScrollTimer);
+            historyScrollTimer = null;
+        }
+    }
+
+    function updateHistoryScroll(flush) {
+        if (flush) {
+            cancelHistoryScroll();
+            writeHistoryScroll();
+            return;
+        }
+
+        // Scrolling can emit one event per animation frame. Wait until the
+        // burst ends so Chromium does not throttle a replaceState call every
+        // frame (clicks flush this timer before changing the URL).
+        if (historyScrollTimer) {
+            window.clearTimeout(historyScrollTimer);
+        }
+        historyScrollTimer = window.setTimeout(function() {
+            historyScrollTimer = null;
+            writeHistoryScroll();
+        }, historyScrollDelay);
     }
 
     function boot() {
+        navigationLog('boot', {url: window.location.href, readyState: document.readyState});
         if ('scrollRestoration' in window.history) {
             window.history.scrollRestoration = 'manual';
         }
@@ -280,16 +411,40 @@
 
         document.addEventListener('click', function(event) {
             var link = event.target.closest ? event.target.closest('a[href]') : null;
+            navigationLog('click-seen', {
+                target: link ? link.href : null,
+                defaultPrevented: event.defaultPrevented,
+                button: event.button
+            });
             if (!isNavigableLink(link, event)) {
+                navigationLog('click-ignored', {target: link ? link.href : null});
                 return;
             }
             event.preventDefault();
+            event.stopImmediatePropagation();
             var url = new URL(link.href, window.location.href);
-            updateHistoryScroll();
+            var previousUrl = window.location.href;
+            updateHistoryScroll(true);
+            // Commit the URL before the asynchronous fetch so the address bar
+            // always follows the user's click, even while the page is loading.
+            window.history.pushState({argonNavigation: true, url: url.href, scrollY: 0}, '', url.href);
+            navigationLog('click-accepted', {
+                from: previousUrl,
+                to: url.href,
+                urlAfterPush: window.location.href,
+                historyChanged: previousUrl !== window.location.href
+            });
             navigate(url.href, 'push', 0);
         }, true);
 
         window.addEventListener('popstate', function(event) {
+            // A delayed write belongs to the entry we just left. Do not let
+            // it overwrite the scroll position of the entry being restored.
+            cancelHistoryScroll();
+            navigationLog('popstate', {
+                state: event.state,
+                url: window.location.href
+            });
             navigate(window.location.href, 'pop', event.state && event.state.argonNavigation ? event.state.scrollY : 0);
         });
 

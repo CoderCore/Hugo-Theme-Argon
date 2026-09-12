@@ -13,6 +13,9 @@
         {{ .Site.Title }}
     {{- end }}
 </h6>
+{{- with (index $sidebar "authorDescription") }}
+<p id="leftbar_overview_author_description" class="text-muted small mb-3">{{ . }}</p>
+{{- end }}
 <nav class="site-state">
     <div class="site-state-item site-state-posts">
         <a href="{{ "archives" | relURL }}">
