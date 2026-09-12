@@ -33,7 +33,8 @@
 {{- if $viewCounterKey }}
 <meta name="argon-view-counter-key-b64" content="{{ base64Encode $viewCounterKey }}">
 {{- end }}
-{{- /* The static settings page reads this safe, editable baseline from the home page. */ -}}
+{{- /* The static settings page reads this editable baseline from the home page. */ -}}
+{{- if .IsHome -}}
 {{- $params := .Site.Params -}}
 {{- $bannerParams := dict -}}
 {{- with (index $params "banner") }}{{ $bannerParams = . }}{{ end -}}
@@ -81,6 +82,7 @@
     "toolbar" $toolbarDefaults
 -}}
 <meta name="argon-settings-defaults-b64" content="{{ $settingsDefaults | jsonify | base64Encode }}">
+{{- end -}}
 {{- if .Title -}}
     {{- $title = printf "%s - %s" .Title .Site.Title -}}
 {{- else if eq .Kind "taxonomy" -}}

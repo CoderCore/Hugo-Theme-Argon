@@ -105,6 +105,10 @@ legend { padding: 0 7px; color: var(--settings-primary-dark); font-size: .78rem;
 .field-help { margin-top: 17px; color: var(--settings-muted); font-size: .8rem; }
 .field-help summary { cursor: pointer; font-weight: 700; }
 .field-help pre { overflow: auto; margin: 10px 0 0; padding: 12px; border-radius: 9px; background: #f6f7fb; color: #53617c; font-size: .74rem; line-height: 1.55; }
+.total-editor { max-width: 360px; margin: 0 0 16px; padding: 13px 14px; border: 1px solid var(--settings-border); border-radius: 10px; background: #fbfcff; }
+.total-editor label { margin-bottom: 6px; }
+.total-editor-row { display: flex; align-items: center; gap: 9px; }
+.total-editor-row input { min-width: 0; }
 .views-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .search-label { flex: 0 0 auto; margin: 0; }
 .views-toolbar input { max-width: 310px; padding: 7px 10px; }

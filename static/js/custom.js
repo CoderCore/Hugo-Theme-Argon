@@ -51,21 +51,6 @@ document.addEventListener('argon:page-ready', function(event) {
         return typeof endpoint === 'string' ? endpoint.replace(/\/+$/, '') : '';
     }
 
-    function makeSettingsUrl() {
-        var endpoint = endpointUrl();
-        if (!endpoint) return '';
-        try {
-            var url = new URL(endpoint, window.location.href);
-            var path = url.pathname.replace(/\/+$/, '');
-            if (!/\/api\/views$/.test(path)) return '';
-            url.pathname = path.slice(0, -'/api/views'.length) + '/api/settings';
-            url.search = '';
-            return url.href;
-        } catch (error) {
-            return '';
-        }
-    }
-
     function formatCount(value) {
         var count = Number(value);
         return Number.isFinite(count) ? new Intl.NumberFormat().format(count) : '0';
@@ -103,99 +88,69 @@ document.addEventListener('argon:page-ready', function(event) {
         });
     }
 
-    async function requestCount(id, increment) {
-        var endpoint = endpointUrl();
-        if (!endpoint || !id) {
-            return null;
-        }
-        var config = counterConfig();
-        var controller = typeof AbortController === 'function' ? new AbortController() : null;
-        var timeout = Number(config.requestTimeout) || 4000;
-        var timer = controller ? window.setTimeout(function() { controller.abort(); }, timeout) : null;
-        try {
-            var headers = {'Accept': 'application/json'};
-            if (increment) {
-                headers['Content-Type'] = 'application/json';
-            }
-            if (typeof config.key === 'string' && config.key) {
-                headers['X-View-Counter-Key'] = config.key;
-            }
-            var requestUrl = new URL(endpoint, window.location.href);
-            if (!increment) {
-                requestUrl.searchParams.set('id', id);
-            }
-            var response = await fetch(requestUrl.href, {
-                method: increment ? 'POST' : 'GET',
-                headers: headers,
-                body: increment ? JSON.stringify({id: id}) : undefined,
-                signal: controller ? controller.signal : undefined,
-                credentials: 'omit'
-            });
-            if (!response.ok) {
-                return null;
-            }
-            var data = await response.json();
-            return typeof data.views === 'number' ? data.views : null;
-        } catch (error) {
-            return null;
-        } finally {
-            if (timer) {
-                window.clearTimeout(timer);
-            }
-        }
-    }
-
-    var appearancePromise = null;
-    var appearanceSettings = {};
-    var appearanceCacheKey = 'argon_appearance_settings_cache_v1';
+    var appearanceCacheKey = 'argon_appearance_settings_local_v2';
+    var legacyAppearanceCacheKey = 'argon_appearance_settings_cache_v1';
 
     function readAppearanceCache() {
         try {
-            var raw = window.localStorage.getItem(appearanceCacheKey);
-            if (!raw) return {};
-            var cached = JSON.parse(raw);
-            return cached && typeof cached === 'object' && !Array.isArray(cached) ? cached : {};
+            var keys = [appearanceCacheKey, legacyAppearanceCacheKey];
+            for (var keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+                var key = keys[keyIndex];
+                var raw = window.localStorage.getItem(key);
+                if (!raw) continue;
+                var cached = JSON.parse(raw);
+                if (!cached || typeof cached !== 'object' || Array.isArray(cached)) continue;
+                if (key !== appearanceCacheKey) {
+                    try { window.localStorage.setItem(appearanceCacheKey, JSON.stringify(cached)); } catch (migrationError) {}
+                }
+                return cached;
+            }
+            return {};
         } catch (error) {
             return {};
         }
     }
 
-    function writeAppearanceCache(settings) {
+    async function requestBatchCounts(ids, increment) {
+        var endpoint = endpointUrl();
+        if (!endpoint || !ids.length) return null;
+        var config = counterConfig();
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        var timeout = Number(config.requestTimeout) || 4000;
+        var timer = controller ? window.setTimeout(function() { controller.abort(); }, timeout) : null;
         try {
-            window.localStorage.setItem(appearanceCacheKey, JSON.stringify(
-                settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {}
-            ));
+            var requestUrl = new URL(endpoint, window.location.href);
+            requestUrl.pathname = requestUrl.pathname.replace(/\/+$/, '') + '/batch';
+            requestUrl.search = '';
+            requestUrl.hash = '';
+            var headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            };
+            if (typeof config.key === 'string' && config.key) {
+                headers['X-View-Counter-Key'] = config.key;
+            }
+            var body = {ids: ids};
+            if (increment) body.increment = increment;
+            var response = await fetch(requestUrl.href, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(body),
+                signal: controller ? controller.signal : undefined,
+                credentials: 'omit'
+            });
+            if (!response.ok) return null;
+            var data = await response.json();
+            return data && data.counts && typeof data.counts === 'object' ? data : null;
         } catch (error) {
-            /* Private browsing or a full storage quota should not break rendering. */
+            return null;
+        } finally {
+            if (timer) window.clearTimeout(timer);
         }
     }
 
-    async function loadAppearanceSettings() {
-        if (appearancePromise) return appearancePromise;
-        var cachedSettings = readAppearanceCache();
-        var url = makeSettingsUrl();
-        if (!url) {
-            appearanceSettings = cachedSettings;
-            return appearanceSettings;
-        }
-        appearancePromise = fetch(url, {
-            method: 'GET',
-            headers: {'Accept': 'application/json'},
-            credentials: 'omit'
-        }).then(function(response) {
-            if (!response.ok) throw new Error('appearance settings request failed');
-            return response.json();
-        }).then(function(data) {
-            var settings = data && data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)
-                ? data.settings
-                : {};
-            writeAppearanceCache(settings);
-            return settings;
-        }).catch(function() {
-            return cachedSettings;
-        });
-        appearanceSettings = await appearancePromise;
-        return appearanceSettings;
+    function loadAppearanceSettings() {
+        return readAppearanceCache();
     }
 
     function setText(selector, value) {
@@ -371,30 +326,45 @@ document.addEventListener('argon:page-ready', function(event) {
         counters.forEach(hideCount);
         var fullArticle = document.querySelector('article.post-full');
         var fullCounter = fullArticle ? fullArticle.querySelector('[data-view-count][data-view-id]') : null;
-        var jobs = counters.filter(function(counter) {
+        var visibleCounters = counters.filter(function(counter) {
             return counter !== fullCounter && (config.showOnPreview !== false || !counter.closest('article.post-preview'));
-        }).map(function(counter) {
-            return requestCount(counter.getAttribute('data-view-id'), false).then(function(value) {
-                if (value !== null) renderCount(counter, value);
-                else hideCount(counter);
-                syncMetaDividers();
-            });
         });
-        if (fullCounter) {
-            jobs.push(requestCount(fullCounter.getAttribute('data-view-id'), true).then(function(value) {
-                if (value !== null) renderCount(fullCounter, value);
-                else hideCount(fullCounter);
-                syncMetaDividers();
-            }));
+        if (fullCounter) visibleCounters.push(fullCounter);
+        var ids = [];
+        visibleCounters.forEach(function(counter) {
+            var id = counter.getAttribute('data-view-id');
+            if (id && ids.indexOf(id) < 0) ids.push(id);
+        });
+        if (!ids.length) {
+            syncMetaDividers();
+            return;
         }
+
+        /* One request serves all visible cards. The current article is also
+         * incremented in that request, avoiding a second round trip. */
+        var chunks = [];
+        for (var start = 0; start < ids.length; start += 100) chunks.push(ids.slice(start, start + 100));
+        var results = await Promise.all(chunks.map(function(chunk) {
+            var increment = fullCounter ? fullCounter.getAttribute('data-view-id') : '';
+            return requestBatchCounts(chunk, chunk.indexOf(increment) >= 0 ? increment : '');
+        }));
+        var values = {};
+        var successful = true;
+        results.forEach(function(result) {
+            if (!result) { successful = false; return; }
+            Object.keys(result.counts).forEach(function(id) { values[id] = result.counts[id]; });
+        });
+        visibleCounters.forEach(function(counter) {
+            var id = counter.getAttribute('data-view-id');
+            if (successful && Object.prototype.hasOwnProperty.call(values, id)) renderCount(counter, values[id]);
+            else hideCount(counter);
+        });
         syncMetaDividers();
-        await Promise.all(jobs);
     }
 
     async function handlePageReady() {
-        /* Apply the last known public settings before the network round trip. */
-        applyAppearanceSettings(readAppearanceCache());
-        var settings = await loadAppearanceSettings();
+        /* Apply the last known local settings without a Worker round trip. */
+        var settings = loadAppearanceSettings();
         applyAppearanceSettings(settings);
         await refreshPageCounters();
     }

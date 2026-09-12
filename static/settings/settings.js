@@ -7,10 +7,12 @@
         settings: {},
         slugs: [],
         counts: {},
+        total: 0,
         adminKey: ''
     };
-    var defaultYaml = '# 只填写需要覆盖 hugo.yaml 的字段。删除字段即可回退。\n';
-    var appearanceCacheKey = 'argon_appearance_settings_cache_v1';
+    var defaultYaml = '# 这是 params 配置片段。导出后合并到 hugo.yaml，再重新构建站点。\n';
+    var appearanceCacheKey = 'argon_appearance_settings_local_v2';
+    var legacyAppearanceCacheKey = 'argon_appearance_settings_cache_v1';
 
     function byId(id) { return document.getElementById(id); }
 
@@ -88,7 +90,7 @@
         byId('endpoint-label').textContent = endpoint;
         byId('origin-label').textContent = window.location.origin;
         byId('yaml-defaults-status').textContent = Object.keys(state.defaults).length
-            ? '默认值来自当前站点的 hugo.yaml；带“覆盖”标记的值来自后台保存。'
+            ? '默认值来自当前站点的 hugo.yaml；带“覆盖”标记的值来自当前浏览器。'
             : '未发现 hugo.yaml 默认值，将使用主题内置默认值。';
     }
 
@@ -323,9 +325,48 @@
 
     function generateYamlFromForm() {
         var settings = collectFormSettings();
-        var text = formatYaml(settings, '');
-        byId('settings-yaml').value = text ? text + '\n' : defaultYaml;
+        var text = formatYaml(settings, '  ');
+        byId('settings-yaml').value = text ? 'params:\n' + text + '\n' : defaultYaml;
         return settings;
+    }
+
+    function yamlTextForExport() {
+        var textarea = byId('settings-yaml');
+        if (!textarea.value.trim() || textarea.value.trim() === defaultYaml.trim()) generateYamlFromForm();
+        return textarea.value;
+    }
+
+    async function copyYaml() {
+        try {
+            var text = yamlTextForExport();
+            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(text);
+            else {
+                var textarea = byId('settings-yaml');
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+            }
+            setMessage('appearance-message', 'YAML 已复制，可以合并到 hugo.yaml。', 'success');
+        } catch (error) {
+            setMessage('appearance-message', '复制失败，请手动复制文本框内容。', 'error');
+        }
+    }
+
+    function downloadYaml() {
+        try {
+            var blob = new Blob([yamlTextForExport()], {type: 'text/yaml;charset=utf-8'});
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = url;
+            link.download = 'argon-params.yaml';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+            setMessage('appearance-message', 'YAML 文件已下载。', 'success');
+        } catch (error) {
+            setMessage('appearance-message', '下载失败，请使用“复制 YAML”。', 'error');
+        }
     }
 
     function renderSettings(settings) {
@@ -335,10 +376,25 @@
 
     function showGuide(show) { byId('offline-guide').hidden = !show; }
 
-    async function loadPublicSettings() {
-        var data = await apiRequest('/api/settings', {method: 'GET'});
-        state.settings = data && data.settings && typeof data.settings === 'object' ? data.settings : {};
-        cacheAppearanceSettings(state.settings);
+    function loadLocalSettings() {
+        try {
+            var settings = {};
+            var keys = [appearanceCacheKey, legacyAppearanceCacheKey];
+            for (var keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+                var raw = window.localStorage.getItem(keys[keyIndex]);
+                if (!raw) continue;
+                var parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
+                settings = parsed;
+                if (keys[keyIndex] !== appearanceCacheKey) {
+                    try { window.localStorage.setItem(appearanceCacheKey, JSON.stringify(settings)); } catch (migrationError) {}
+                }
+                break;
+            }
+            state.settings = settings;
+        } catch (error) {
+            state.settings = {};
+        }
         renderSettings(state.settings);
     }
 
@@ -373,6 +429,7 @@
     async function loadCounts() {
         var data = await apiRequest('/api/views?all=1', {method: 'GET'});
         state.counts = {};
+        state.total = Number(data.total) || 0;
         (data.counts || []).forEach(function (row) {
             if (row && typeof row.slug === 'string') state.counts[row.slug] = Number(row.views) || 0;
         });
@@ -387,9 +444,10 @@
     function renderViews() {
         var body = byId('views-body');
         var filter = (byId('view-filter').value || '').trim().toLowerCase();
+        byId('site-total').value = String(state.total);
         body.textContent = '';
         var slugs = allSlugs().filter(function (slug) { return !filter || slug.toLowerCase().indexOf(filter) >= 0; });
-        byId('views-summary').textContent = slugs.length + ' 条路径 · ' + Object.keys(state.counts).length + ' 条 D1 记录';
+        byId('views-summary').textContent = slugs.length + ' 条路径 · ' + Object.keys(state.counts).length + ' 条 D1 记录 · 网站总阅读量 ' + state.total;
         if (!slugs.length) {
             var empty = document.createElement('tr');
             var emptyCell = document.createElement('td');
@@ -462,13 +520,34 @@
         }
     }
 
+    async function saveTotal() {
+        if (!state.adminKey) { setMessage('views-message', '请先连接管理员密钥。', 'error'); return; }
+        var value = Number(byId('site-total').value);
+        if (!Number.isSafeInteger(value) || value < 0 || value > 2147483647) {
+            setMessage('views-message', '网站总阅读量必须是 0 到 2147483647 的整数。', 'error');
+            return;
+        }
+        try {
+            var data = await apiRequest('/api/views', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({id: '__site_total__', views: value})
+            });
+            state.total = Number(data.total) || 0;
+            renderViews();
+            setMessage('views-message', '网站总阅读量已保存。', 'success');
+        } catch (error) {
+            setMessage('views-message', '保存网站总量失败：' + error.message, 'error');
+        }
+    }
+
     async function loadAdminData() {
         if (!state.adminKey) throw new Error('请输入管理员密钥');
         await Promise.all([loadCounts(), loadSlugs()]);
         renderViews();
         byId('auth-badge').textContent = '已连接';
         byId('auth-badge').className = 'badge';
-        setStatus('Worker 已连接，可以管理阅读量和外观。', 'ok');
+        setStatus('Worker 已连接，可以管理阅读量和网站总量。', 'ok');
         showGuide(false);
     }
 
@@ -498,49 +577,38 @@
     }
 
     async function saveSettings() {
-        if (!state.adminKey) { setMessage('appearance-message', '请先连接管理员密钥。', 'error'); return; }
         try {
             var settings = collectFormSettings();
-            var data = await apiRequest('/api/settings', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({settings: settings})
-            });
-            state.settings = data.settings || {};
+            state.settings = settings;
             cacheAppearanceSettings(state.settings);
             renderSettings(state.settings);
-            setMessage('appearance-message', '外观覆盖已保存，打开站点页面即可看到效果。', 'success');
+            setMessage('appearance-message', '已保存到当前浏览器。要让所有访客生效，请导出 YAML 并重新构建博客。', 'success');
         } catch (error) {
             setMessage('appearance-message', '保存失败：' + error.message, 'error');
         }
     }
 
     async function clearSettings() {
-        if (!state.adminKey) { setMessage('appearance-message', '请先连接管理员密钥。', 'error'); return; }
-        if (!window.confirm('清空全部外观覆盖并回退到 hugo.yaml？')) return;
-        try {
-            await apiRequest('/api/settings', {method: 'DELETE'});
-            state.settings = {};
-            cacheAppearanceSettings(state.settings);
-            renderSettings({});
-            setMessage('appearance-message', '已清空，站点将使用 hugo.yaml 基线。', 'success');
-        } catch (error) {
-            setMessage('appearance-message', '清空失败：' + error.message, 'error');
-        }
+        if (!window.confirm('清空当前浏览器的全部主题覆盖并回退到 hugo.yaml？')) return;
+        state.settings = {};
+        cacheAppearanceSettings(state.settings);
+        renderSettings({});
+        setMessage('appearance-message', '已清空当前浏览器设置，站点将使用 hugo.yaml 基线。', 'success');
     }
 
     async function bootstrap() {
         byId('admin-key').value = storageGet('argon-view-counter-admin-key');
         byId('origin-label').textContent = window.location.origin;
+        loadLocalSettings();
         try {
             await discoverEndpoint();
-            await loadPublicSettings();
-            setStatus('Worker 地址已发现，请输入管理员密钥。', 'ok');
+            renderSettings(state.settings);
+            setStatus('Worker 地址已发现；主题设置保存在当前浏览器。', 'ok');
             showGuide(false);
         } catch (error) {
-            setStatus('无法发现 Worker：' + error.message, 'error');
+            renderSettings(state.settings);
+            setStatus('未发现可用的阅读量 Worker：' + error.message, 'error');
             showGuide(true);
-            renderSettings({});
         }
     }
 
@@ -548,11 +616,15 @@
     byId('forget-button').addEventListener('click', function () { disconnect('管理员密钥已清除。'); });
     byId('save-settings').addEventListener('click', saveSettings);
     byId('clear-settings').addEventListener('click', clearSettings);
+    byId('save-total').addEventListener('click', saveTotal);
     byId('apply-yaml-settings').addEventListener('click', function() {
         try {
-            var settings = parseYaml(byId('settings-yaml').value);
+            var parsed = parseYaml(byId('settings-yaml').value);
+            var settings = parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params)
+                ? parsed.params
+                : parsed;
             setFormSettings(state.defaults, settings);
-            setMessage('appearance-message', 'YAML 已载入表单；检查后点击“保存表单设置”。', 'success');
+            setMessage('appearance-message', 'YAML 已载入表单；检查后点击“保存本机设置”。', 'success');
         } catch (error) {
             setMessage('appearance-message', 'YAML 格式错误：' + error.message, 'error');
         }
@@ -565,6 +637,8 @@
             setMessage('appearance-message', error.message, 'error');
         }
     });
+    byId('copy-yaml-settings').addEventListener('click', copyYaml);
+    byId('download-yaml-settings').addEventListener('click', downloadYaml);
     byId('reload-views').addEventListener('click', function () { if (state.adminKey) loadAdminData().catch(function (error) { setMessage('views-message', error.message, 'error'); }); });
     byId('view-filter').addEventListener('input', renderViews);
     document.querySelectorAll('[data-setting-toggle]').forEach(function(toggle) {

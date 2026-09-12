@@ -55,20 +55,28 @@ params:
 
 ## 可选：Cloudflare Worker + D1 阅读量
 
-仓库外的静态站点可以把 `worker.js` 复制到一个单独的 Cloudflare Worker 项目中直接部署。本主题仓库的 `cloudflare/view-counter/worker.js` 是可直接粘贴的单文件 Worker。Worker 需要一个名为 `DB` 的 D1 绑定。
+仓库外的静态站点可以把 [`cloudflare/view-counter/worker.js`](./cloudflare/view-counter/worker.js) 的全部内容复制到一个单独的 Cloudflare Worker 中直接部署。它是只提供 JSON API 的单文件 Worker，需要一个名为 `DB` 的 D1 绑定；首次带有效密钥访问 API 时会自动创建阅读量表。
 
-### 1. 创建并初始化 D1
+完整的 Cloudflare 控制台复制粘贴部署步骤见 [`cloudflare/view-counter/README.md`](./cloudflare/view-counter/README.md)。简要配置如下。
 
-```sh
-npx wrangler d1 create argon-views
-npx wrangler d1 execute argon-views --remote --file=./schema.sql
-```
+### 1. 创建 D1 并绑定 Worker
 
-`schema.sql` 创建 `view_counts` 表。若需要导入已有站点数据，请在独立的 Worker 项目中维护站点专用的初始化 SQL，不要把真实文章路径和浏览量提交到主题仓库。
+在 Cloudflare 控制台创建 D1 数据库，在 Worker 的 **Settings → Bindings** 添加 D1 binding：
+
+- 变量名：`DB`
+- 数据库：选择刚创建的 D1
+
+不需要预先执行 SQL；也可以在 [`cloudflare/view-counter/schema.sql`](./cloudflare/view-counter/schema.sql) 中显式初始化。
 
 ### 2. 配置并部署 Worker
 
-`wrangler.jsonc` 至少需要以下内容，`database_id` 使用创建 D1 时返回的值：
+为 Worker 配置精确的站点 Origin，并设置两个密钥：
+
+- `ALLOWED_ORIGINS`：站点 Origin，多个值用英文逗号分隔，不要填路径或末尾 `/`。
+- `VIEW_COUNTER_KEY`：公开前端请求使用的共享密钥，与站点配置相同。
+- `VIEW_COUNTER_ADMIN_KEY`：仅设置页管理员使用的不同 Secret。
+
+需要 Wrangler 时，`wrangler.jsonc` 至少需要以下内容，`database_id` 使用创建 D1 时返回的值：
 
 ```jsonc
 {
@@ -86,14 +94,15 @@ npx wrangler d1 execute argon-views --remote --file=./schema.sql
 }
 ```
 
-为接口设置共享密钥。密钥本身不要写入 Worker 源码或 `wrangler.jsonc`：
+密钥本身不要写入 Worker 源码或 `wrangler.jsonc`：
 
 ```sh
 npx wrangler secret put VIEW_COUNTER_KEY
+npx wrangler secret put VIEW_COUNTER_ADMIN_KEY
 npx wrangler deploy
 ```
 
-Worker 只接受允许的 `Origin`，并要求请求带有 `X-View-Counter-Key` 且与 `VIEW_COUNTER_KEY` 一致。未设置密钥、密钥错误、Origin 不在白名单或 D1 不可用时，接口会拒绝请求。
+浏览器跨域请求只允许白名单中的 `Origin`，并要求请求带有 `X-View-Counter-Key` 或管理员请求头。未设置密钥、密钥错误、Origin 不在白名单或 D1 不可用时，接口会拒绝请求；错误请求不会触发数据库初始化。
 
 ### 3. 接入 Hugo 前端
 
@@ -109,11 +118,13 @@ params:
     requestTimeout: 4000
 ```
 
-文章页会用 `POST` 增加一次计数，列表页用 `GET` 读取计数。D1 凭据永远只存在 Worker 中，不放进浏览器。
+文章页和列表页会通过 `/api/views/batch` 一次读取可见文章的计数，当前文章在同一请求中增加一次计数。管理员可在 `/settings/` 页面编辑文章阅读量和网站总阅读量。
+
+主题外观设置不写入 D1：设置页把覆盖项保存到当前浏览器的 `localStorage`，并可导出为 `params:` YAML。只保存到本机时仅当前浏览器生效；要让所有访客看到修改，需要将导出的配置合并到 `hugo.yaml` 并重新构建。
 
 需要注意：静态 Hugo 页面必须把 `key` 发送给浏览器，因此它不是严格意义上的秘密，访客可以在开发者工具中看到。共享密钥主要用于降低误用和简单脚本请求；生产环境还应配合准确的 `ALLOWED_ORIGINS`、Cloudflare WAF/Rate Limiting，必要时增加 Turnstile 或改为由自己的服务端代理请求。
 
-Worker 未部署、未配置密钥、请求超时或返回错误时，主题会保持阅读量元素隐藏，不显示 front matter 中的静态初始值，也不会阻塞页面渲染。只有 Worker 成功返回有效的 `views` 数字后才显示阅读量。
+Worker 未部署、未配置密钥、请求超时或返回错误时，主题会保持阅读量元素隐藏，不显示 front matter 中的静态初始值，也不会阻塞页面渲染。只有批量 API 成功返回有效的计数后才显示阅读量。
 
 ## 开发与许可
 
