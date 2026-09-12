@@ -4760,6 +4760,11 @@ html.darkmode .badge {
 html.darkmode .page-link {
 	color: #eee !important;
 }
+html.darkmode .page-item.disabled .page-link {
+	color: var(--color-text-deeper) !important;
+	background-color: var(--color-widgets-disabled) !important;
+	border-color: var(--color-border) !important;
+}
 html.darkmode .zoomify-shadow {
 	background: rgba(0, 0, 0, 0.6);
 }
