@@ -57,114 +57,12 @@
                 </div>
                 <span class="badge badge-muted">显式字段优先</span>
             </div>
-            <p class="panel-intro">填空、选颜色或拖动滑块即可修改。设置只保存在当前浏览器的 localStorage；导出 YAML 并重新构建博客后，所有访客才能看到修改。</p>
-            <p id="yaml-defaults-status" class="yaml-defaults-status" role="status">正在读取当前站点的 hugo.yaml 默认值…</p>
+            <p class="panel-intro">下面会按配置分类显示仓库 <code>hugo.yaml</code> 中的全部变量，包括页脚、文章、阅读量、懒加载和自定义字段。每个字段都可单独开启覆盖；未修改的内容会原样保留。</p>
+            <p id="yaml-defaults-status" class="yaml-defaults-status" role="status">正在读取仓库 hugo.yaml…</p>
             <form id="appearance-form" autocomplete="off">
-                <fieldset>
-                    <legend>基础外观</legend>
-                    <div class="appearance-form-grid">
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-title">站点标题</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="title">覆盖</label></div>
-                            <input id="appearance-title" class="setting-control" data-setting-input="title" type="text" placeholder="留空则使用 hugo.yaml" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-theme-color-text">主题色</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="themeColor">覆盖</label></div>
-                            <div class="color-input-row"><input id="appearance-theme-color" class="setting-control color-picker" data-color-companion="themeColor" type="color" value="#5e72e4" disabled><input id="appearance-theme-color-text" class="setting-control" data-setting-input="themeColor" type="text" placeholder="#5e72e4" maxlength="7" disabled></div>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-card-radius">卡片圆角</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="cardRadius">覆盖</label></div>
-                            <div class="range-input-row"><input id="appearance-card-radius" class="setting-control setting-range" data-setting-input="cardRadius" type="range" min="0" max="24" step="1" value="4" disabled><output data-range-output="cardRadius">4px</output></div>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-card-shadow">卡片阴影</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="cardShadow">覆盖</label></div>
-                            <select id="appearance-card-shadow" class="setting-control" data-setting-input="cardShadow" disabled><option value="default">默认</option><option value="small">浅阴影</option><option value="big">深阴影</option><option value="">无额外阴影</option></select>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-font">字体</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="font">覆盖</label></div>
-                            <select id="appearance-font" class="setting-control" data-setting-input="font" disabled><option value="sans-serif">无衬线</option><option value="serif">衬线</option></select>
-                        </div>
-                        <div class="appearance-field appearance-field-wide">
-                            <div class="field-label-row"><label for="appearance-background-url">页面背景图片地址</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="pageBackgroundUrl">覆盖</label></div>
-                            <input id="appearance-background-url" class="setting-control" data-setting-input="pageBackgroundUrl" type="url" placeholder="https://…（空字符串可清除背景）" disabled>
-                        </div>
-                        <div class="appearance-field appearance-field-wide">
-                            <div class="field-label-row"><label for="appearance-background-dark-url">夜间背景图片地址</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="pageBackgroundDarkUrl">覆盖</label></div>
-                            <input id="appearance-background-dark-url" class="setting-control" data-setting-input="pageBackgroundDarkUrl" type="url" placeholder="可留空" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-background-opacity">背景透明度</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="pageBackgroundOpacity">覆盖</label></div>
-                            <div class="range-input-row"><input id="appearance-background-opacity" class="setting-control setting-range" data-setting-input="pageBackgroundOpacity" type="range" min="0" max="1" step="0.01" value="1" disabled><output data-range-output="pageBackgroundOpacity">100%</output></div>
-                        </div>
-                        <div class="appearance-field appearance-field-switch">
-                            <div class="field-label-row"><label for="appearance-transparent-banner">透明横幅</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="transparentBanner">覆盖</label></div>
-                            <label class="switch-line"><input id="appearance-transparent-banner" class="setting-control setting-checkbox" data-setting-input="transparentBanner" type="checkbox" disabled><span>横幅背景透明</span></label>
-                        </div>
-                    </div>
-                </fieldset>
-
-                <fieldset>
-                    <legend>横幅</legend>
-                    <div class="appearance-form-grid">
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-banner-title">横幅标题</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="banner.title">覆盖</label></div>
-                            <input id="appearance-banner-title" class="setting-control" data-setting-input="banner.title" type="text" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-banner-subtitle">横幅副标题</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="banner.subtitle">覆盖</label></div>
-                            <input id="appearance-banner-subtitle" class="setting-control" data-setting-input="banner.subtitle" type="text" disabled>
-                        </div>
-                        <div class="appearance-field appearance-field-wide">
-                            <div class="field-label-row"><label for="appearance-banner-background-url">横幅背景图片地址</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="banner.backgroundUrl">覆盖</label></div>
-                            <input id="appearance-banner-background-url" class="setting-control" data-setting-input="banner.backgroundUrl" type="url" placeholder="https://…（空字符串可清除）" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-banner-size">横幅尺寸</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="banner.size">覆盖</label></div>
-                            <select id="appearance-banner-size" class="setting-control" data-setting-input="banner.size" disabled><option value="full">完整</option><option value="mini">迷你</option><option value="fullscreen">全屏</option><option value="hidden">隐藏</option></select>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-banner-color-type">横幅配色</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="banner.backgroundColorType">覆盖</label></div>
-                            <select id="appearance-banner-color-type" class="setting-control" data-setting-input="banner.backgroundColorType" disabled><option value="shape-primary">主题色</option><option value="shape-default">默认</option><option value="shape-dark">深色</option><option value="shape-info">信息蓝</option><option value="shape-success">成功绿</option><option value="shape-warning">警告黄</option><option value="shape-danger">危险红</option></select>
-                        </div>
-                        <div class="appearance-field appearance-field-switch">
-                            <div class="field-label-row"><label for="appearance-banner-hide-shapes">彩色图形</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="banner.backgroundHideShapes">覆盖</label></div>
-                            <label class="switch-line"><input id="appearance-banner-hide-shapes" class="setting-control setting-checkbox" data-setting-input="banner.backgroundHideShapes" type="checkbox" disabled><span>隐藏横幅图形</span></label>
-                        </div>
-                    </div>
-                </fieldset>
-
-                <fieldset>
-                    <legend>侧栏与顶栏</legend>
-                    <div class="appearance-form-grid">
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-sidebar-banner-title">侧栏标题</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="sidebar.bannerTitle">覆盖</label></div>
-                            <input id="appearance-sidebar-banner-title" class="setting-control" data-setting-input="sidebar.bannerTitle" type="text" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-sidebar-banner-subtitle">侧栏副标题</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="sidebar.bannerSubtitle">覆盖</label></div>
-                            <input id="appearance-sidebar-banner-subtitle" class="setting-control" data-setting-input="sidebar.bannerSubtitle" type="text" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-sidebar-author-name">作者名称</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="sidebar.authorName">覆盖</label></div>
-                            <input id="appearance-sidebar-author-name" class="setting-control" data-setting-input="sidebar.authorName" type="text" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-sidebar-author-image">头像地址</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="sidebar.authorImage">覆盖</label></div>
-                            <input id="appearance-sidebar-author-image" class="setting-control" data-setting-input="sidebar.authorImage" type="url" placeholder="https://…" disabled>
-                        </div>
-                        <div class="appearance-field appearance-field-wide">
-                            <div class="field-label-row"><label for="appearance-sidebar-author-description">作者简介</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="sidebar.authorDescription">覆盖</label></div>
-                            <input id="appearance-sidebar-author-description" class="setting-control" data-setting-input="sidebar.authorDescription" type="text" disabled>
-                        </div>
-                        <div class="appearance-field">
-                            <div class="field-label-row"><label for="appearance-toolbar-title">顶栏标题</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="toolbar.title">覆盖</label></div>
-                            <input id="appearance-toolbar-title" class="setting-control" data-setting-input="toolbar.title" type="text" disabled>
-                        </div>
-                        <div class="appearance-field appearance-field-switch">
-                            <div class="field-label-row"><label for="appearance-toolbar-blur">顶栏模糊</label><label class="override-toggle"><input type="checkbox" data-setting-toggle="toolbar.blur">覆盖</label></div>
-                            <label class="switch-line"><input id="appearance-toolbar-blur" class="setting-control setting-checkbox" data-setting-input="toolbar.blur" type="checkbox" disabled><span>启用背景模糊</span></label>
-                        </div>
-                    </div>
-                </fieldset>
+                <div id="dynamic-settings" class="dynamic-settings">
+                    <p class="yaml-defaults-status">正在生成完整配置表单…</p>
+                </div>
             </form>
             <div class="button-row">
                 <button id="save-settings" class="button button-primary" type="button">保存本机设置</button>
@@ -173,21 +71,17 @@
             <p id="appearance-message" class="message" role="status" aria-live="polite"></p>
             <details id="advanced-settings" class="field-help">
                 <summary>高级：查看、粘贴或导出 YAML</summary>
-                <p class="advanced-intro">下方会保留当前站点发现的全部 <code>params</code> 字段，并把表单修改合并进去；菜单、链接和其他高级字段不会再被丢弃。可以粘贴完整 <code>hugo.yaml</code> 或只粘贴 <code>params:</code> 片段，点击“应用 YAML 到表单”后再保存。</p>
-                <label for="settings-yaml">params.yaml</label>
-                <textarea id="settings-yaml" rows="15" spellcheck="false"></textarea>
+                <p class="advanced-intro">这里显示完整的 <code>hugo.yaml</code>。未修改时导出内容就是仓库原文；应用表单覆盖后只更新对应值，其他顶层配置、未编辑字段、数组和嵌套对象都会保留。</p>
+                <label for="settings-yaml">hugo.yaml</label>
+                <textarea id="settings-yaml" rows="18" spellcheck="false"></textarea>
                 <div class="button-row">
                     <button id="apply-yaml-settings" class="button button-quiet" type="button">应用 YAML 到表单</button>
                     <button id="generate-yaml-settings" class="button button-quiet" type="button">从表单生成 YAML</button>
                     <button id="copy-yaml-settings" class="button button-quiet" type="button">复制 YAML</button>
                     <button id="download-yaml-settings" class="button button-quiet" type="button">下载 YAML</button>
                 </div>
-                <pre># 导出结果会包含当前站点的全部 params；数组也可直接被 Hugo 读取。
-params:
-  toolbar:
-    menu: [{"name":"首页","url":"/"}]
-  sidebar:
-    authorLinks: [{"name":"GitHub","url":"https://github.com/"}]</pre>
+                <pre># 未修改时这里会保留仓库中的完整 hugo.yaml 原文。
+# 修改任意字段后，导出仍会包含所有其他配置。</pre>
             </details>
         </section>
 
@@ -227,6 +121,6 @@ params:
         <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
     </footer>
 </main>
-<script src="/settings/settings.js?v=settings-5" defer></script>
+<script src="/settings/settings.js?v=settings-6" defer></script>
 </body>
 </html>

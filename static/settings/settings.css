@@ -76,6 +76,14 @@ fieldset { min-width: 0; margin: 0 0 15px; padding: 15px; border: 1px solid var(
 fieldset:last-child { margin-bottom: 0; }
 legend { padding: 0 7px; color: var(--settings-primary-dark); font-size: .78rem; font-weight: 800; }
 .appearance-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.dynamic-settings { display: grid; gap: 15px; }
+.dynamic-settings fieldset { margin: 0; }
+.dynamic-settings .appearance-field-wide { grid-column: 1 / -1; }
+.setting-path { overflow: hidden; margin: -4px 0 6px; color: var(--settings-muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.dynamic-settings textarea { min-height: 88px; }
+.dynamic-settings .setting-control-longtext { min-height: 150px; }
+.dynamic-settings .setting-control-json { min-height: 110px; }
+.dynamic-settings input[type="number"] { font-variant-numeric: tabular-nums; }
 .appearance-field { min-width: 0; }
 .appearance-field-wide { grid-column: 1 / -1; }
 .appearance-field-switch { align-self: end; }

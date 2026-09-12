@@ -5,12 +5,15 @@
         endpoint: '',
         defaults: {},
         settings: {},
+        sourceConfig: null,
+        sourceYaml: '',
+        formDirty: false,
         slugs: [],
         counts: {},
         total: 0,
         adminKey: ''
     };
-    var defaultYaml = '# 这是 params 配置片段。导出后合并到 hugo.yaml，再重新构建站点。\n';
+    var defaultYaml = '# 当前站点还没有提供可导出的 hugo.yaml。\n';
     var appearanceCacheKey = 'argon_appearance_settings_local_v2';
     var legacyAppearanceCacheKey = 'argon_appearance_settings_cache_v1';
 
@@ -68,6 +71,22 @@
         } catch (error) { return ''; }
     }
 
+    async function loadSourceConfig() {
+        try {
+            var response = await fetch(new URL('/settings/source-hugo.yaml', window.location.href).href, {cache: 'no-store', credentials: 'same-origin'});
+            if (!response.ok) return false;
+            var sourceYaml = await response.text();
+            var sourceConfig = parseYaml(sourceYaml);
+            if (!sourceConfig || typeof sourceConfig !== 'object' || Array.isArray(sourceConfig)) return false;
+            state.sourceYaml = sourceYaml;
+            state.sourceConfig = sourceConfig;
+            state.defaults = normalizeSettingKeys(sourceConfig);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
     async function discoverEndpoint() {
         var response = await fetch(new URL('/', window.location.href).href, {cache: 'no-store', credentials: 'same-origin'});
         if (!response.ok) throw new Error('站点首页返回 ' + response.status);
@@ -80,17 +99,18 @@
         if (defaultsText) {
             try {
                 var parsedDefaults = JSON.parse(defaultsText);
-                if (parsedDefaults && typeof parsedDefaults === 'object') state.defaults = normalizeSettingKeys(parsedDefaults);
+                if (parsedDefaults && typeof parsedDefaults === 'object') state.defaults = {params: normalizeSettingKeys(parsedDefaults)};
             } catch (error) {
                 throw new Error('首页的 hugo.yaml 默认值格式错误');
             }
         }
+        var sourceLoaded = await loadSourceConfig();
         if (!endpoint) throw new Error('首页没有有效的阅读量 Worker 地址');
         state.endpoint = endpoint;
         byId('endpoint-label').textContent = endpoint;
         byId('origin-label').textContent = window.location.origin;
         byId('yaml-defaults-status').textContent = Object.keys(state.defaults).length
-            ? '默认值来自当前站点的 hugo.yaml；带“覆盖”标记的值来自当前浏览器。'
+            ? (sourceLoaded ? '已读取仓库 hugo.yaml 原文；每个字段都可单独覆盖，导出会保留完整配置。' : '已读取当前站点参数；未发现仓库原文，导出将保留全部已知字段。')
             : '未发现 hugo.yaml 默认值，将使用主题内置默认值。';
     }
 
@@ -319,6 +339,24 @@
 
     function canonicalSettingKey(path) {
         var canonical = path;
+        var legacyAliases = {
+            'params.themecolor': 'params.themeColor',
+            'params.cardradius': 'params.cardRadius',
+            'params.cardshadow': 'params.cardShadow',
+            'params.pagebackgroundurl': 'params.pageBackgroundUrl',
+            'params.pagebackgrounddarkurl': 'params.pageBackgroundDarkUrl',
+            'params.pagebackgroundopacity': 'params.pageBackgroundOpacity',
+            'params.transparentbanner': 'params.transparentBanner',
+            'params.banner.backgroundurl': 'params.banner.backgroundUrl',
+            'params.banner.backgroundcolortype': 'params.banner.backgroundColorType',
+            'params.banner.backgroundhideshapes': 'params.banner.backgroundHideShapes',
+            'params.sidebar.bannertitle': 'params.sidebar.bannerTitle',
+            'params.sidebar.bannersubtitle': 'params.sidebar.bannerSubtitle',
+            'params.sidebar.authorname': 'params.sidebar.authorName',
+            'params.sidebar.authorimage': 'params.sidebar.authorImage',
+            'params.sidebar.authordescription': 'params.sidebar.authorDescription'
+        };
+        if (legacyAliases[path.toLowerCase()]) canonical = legacyAliases[path.toLowerCase()];
         document.querySelectorAll('[data-setting-toggle]').forEach(function(toggle) {
             var candidate = toggle.getAttribute('data-setting-toggle');
             if (candidate && candidate.toLowerCase() === path.toLowerCase()) canonical = candidate;
@@ -337,6 +375,143 @@
             result[canonical] = normalizeSettingKeys(value[key], childPrefix);
         });
         return result;
+    }
+
+    var categoryLabels = {
+        banner: '横幅',
+        toolbar: '顶栏',
+        sidebar: '侧栏',
+        fab: '悬浮操作按钮',
+        viewCounter: '阅读量',
+        article: '文章',
+        footerHtml: '页脚'
+    };
+    var articleSettingKeys = {
+        excerpt: true, excerptLength: true, firstImageAsThumbnail: true, articleMeta: true,
+        showReadingtime: true, readingSpeedCn: true, readingSpeedEn: true,
+        showThumbnailInBannerInContentPage: true, showShareBtn: true, donateQrcodeUrl: true,
+        additionalContentAfterPost: true, articleHeaderStyle: true
+    };
+
+    function settingCategory(path) {
+        var parts = path.split('.');
+        if (parts[0] !== 'params') return '站点构建配置';
+        var key = parts[1] || 'params';
+        var categoryKey = Object.keys(categoryLabels).find(function(candidate) { return candidate.toLowerCase() === key.toLowerCase(); });
+        if (categoryKey) return categoryLabels[categoryKey];
+        var articleKey = Object.keys(articleSettingKeys).find(function(candidate) { return candidate.toLowerCase() === key.toLowerCase(); });
+        if (articleKey) return '文章';
+        return '基础与全局';
+    }
+
+    function settingLabel(path) {
+        var parts = path.split('.');
+        return parts[parts.length - 1];
+    }
+
+    function settingId(path) {
+        return 'argon-setting-' + path.replace(/[^a-zA-Z0-9_-]/g, '-');
+    }
+
+    function collectSettingLeaves(value, path, leaves) {
+        if (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length) {
+            Object.keys(value).forEach(function(key) {
+                collectSettingLeaves(value[key], path ? path + '.' + key : key, leaves);
+            });
+            return;
+        }
+        leaves.push({path: path, value: value});
+    }
+
+    function makeSettingEditor(item) {
+        var value = item.value;
+        var editor;
+        var jsonValue = value === null || (value && typeof value === 'object');
+        if (jsonValue) {
+            editor = document.createElement('textarea');
+            editor.className = 'setting-control setting-control-json';
+            editor.setAttribute('data-setting-json', 'true');
+            editor.value = JSON.stringify(value, null, 2);
+        } else {
+            editor = document.createElement('input');
+            editor.className = 'setting-control' + (typeof value === 'boolean' ? ' setting-checkbox' : '');
+            if (typeof value === 'boolean') editor.type = 'checkbox';
+            else if (typeof value === 'number') {
+                editor.type = 'number';
+                editor.step = Number.isInteger(value) ? '1' : 'any';
+            } else if (typeof value === 'string' && (value.length > 120 || /\r?\n/.test(value))) {
+                editor = document.createElement('textarea');
+                editor.className = 'setting-control setting-control-longtext';
+                editor.value = value;
+            } else {
+                editor.type = 'text';
+                editor.value = value === undefined ? '' : String(value);
+            }
+        }
+        editor.id = settingId(item.path);
+        editor.setAttribute('data-setting-input', item.path);
+        editor.setAttribute('aria-label', item.path);
+        return editor;
+    }
+
+    function renderDynamicSettings(settings) {
+        var container = byId('dynamic-settings');
+        if (!container) return;
+        container.textContent = '';
+        var source = mergeSettings(state.defaults, settings || {});
+        var leaves = [];
+        collectSettingLeaves(source, '', leaves);
+        if (!leaves.length || !leaves[0].path) {
+            var empty = document.createElement('p');
+            empty.className = 'yaml-defaults-status';
+            empty.textContent = '尚未读取到 hugo.yaml，请稍后刷新。';
+            container.appendChild(empty);
+            return;
+        }
+        var groups = {};
+        var order = [];
+        leaves.forEach(function(item) {
+            var category = settingCategory(item.path);
+            if (!groups[category]) { groups[category] = []; order.push(category); }
+            groups[category].push(item);
+        });
+        order.forEach(function(category) {
+            var fieldset = document.createElement('fieldset');
+            var legend = document.createElement('legend');
+            legend.textContent = category;
+            fieldset.appendChild(legend);
+            var grid = document.createElement('div');
+            grid.className = 'appearance-form-grid';
+            groups[category].forEach(function(item) {
+                var field = document.createElement('div');
+                var value = item.value;
+                var wide = value === null || (value && typeof value === 'object') || (typeof value === 'string' && (value.length > 120 || /\r?\n/.test(value)));
+                field.className = 'appearance-field' + (wide ? ' appearance-field-wide' : '');
+                var row = document.createElement('div');
+                row.className = 'field-label-row';
+                var label = document.createElement('label');
+                label.setAttribute('for', settingId(item.path));
+                label.textContent = settingLabel(item.path);
+                row.appendChild(label);
+                var overrideLabel = document.createElement('label');
+                overrideLabel.className = 'override-toggle';
+                var toggle = document.createElement('input');
+                toggle.type = 'checkbox';
+                toggle.setAttribute('data-setting-toggle', item.path);
+                overrideLabel.appendChild(toggle);
+                overrideLabel.appendChild(document.createTextNode('覆盖'));
+                row.appendChild(overrideLabel);
+                field.appendChild(row);
+                var pathHint = document.createElement('div');
+                pathHint.className = 'setting-path';
+                pathHint.textContent = item.path;
+                field.appendChild(pathHint);
+                field.appendChild(makeSettingEditor(item));
+                grid.appendChild(field);
+            });
+            fieldset.appendChild(grid);
+            container.appendChild(fieldset);
+        });
     }
 
     function settingToggle(path) {
@@ -397,6 +572,7 @@
             }
             var value = readSetting(source, path);
             if (input.type === 'checkbox') input.checked = value === true;
+            else if (input.getAttribute('data-setting-json') === 'true') input.value = JSON.stringify(value, null, 2);
             else if (value !== undefined && value !== null) input.value = String(value);
             updateRangeOutput(path);
         });
@@ -426,13 +602,17 @@
             if (!toggle.checked) { deleteSetting(settings, path); return; }
             var input = settingInput(path);
             if (!input) return;
-            var value = input.type === 'checkbox' ? input.checked : input.value;
-            if (input.type === 'range') value = Number(input.value);
-            if (path === 'themeColor') {
+            var value;
+            if (input.type === 'checkbox') value = input.checked;
+            else if (input.getAttribute('data-setting-json') === 'true') {
+                try { value = JSON.parse(input.value); } catch (error) { throw new Error(path + ' 的 JSON 格式错误'); }
+            } else value = input.value;
+            if (input.type === 'range' || input.type === 'number') value = Number(input.value);
+            if (path === 'themeColor' || path === 'params.themeColor') {
                 value = normalizedColor(value);
                 if (!value) throw new Error('主题色必须是 #fff 或 #ffffff 格式');
             }
-            if (/Url$/.test(path) || path === 'sidebar.authorImage') {
+            if (/url$/i.test(path)) {
                 if (!isSafeSettingUrl(String(value))) throw new Error(path + ' 只支持 / 路径或 http(s) 地址');
             }
             writeSetting(settings, path, value);
@@ -440,17 +620,28 @@
         return settings;
     }
 
+    function hasSettingValue(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
+        return Object.keys(value).some(function(key) { return hasSettingValue(value[key]); });
+    }
+
     function generateYamlFromForm() {
         var overrides = collectFormSettings(state.settings);
         var settings = mergeSettings(state.defaults, overrides);
-        var text = formatYaml(settings, '  ');
-        byId('settings-yaml').value = text ? 'params:\n' + text + '\n' : defaultYaml;
+        var text;
+        if (state.sourceYaml && !hasSettingValue(overrides)) text = state.sourceYaml;
+        else {
+            text = formatYaml(settings, '') + '\n';
+            if (text === '\n') text = defaultYaml;
+        }
+        byId('settings-yaml').value = text || defaultYaml;
+        state.formDirty = false;
         return settings;
     }
 
     function yamlTextForExport() {
         var textarea = byId('settings-yaml');
-        if (!textarea.value.trim() || textarea.value.trim() === defaultYaml.trim()) generateYamlFromForm();
+        if (state.formDirty || !textarea.value.trim() || textarea.value.trim() === defaultYaml.trim()) generateYamlFromForm();
         return textarea.value;
     }
 
@@ -464,7 +655,7 @@
                 textarea.select();
                 document.execCommand('copy');
             }
-            setMessage('appearance-message', 'YAML 已复制，可以合并到 hugo.yaml。', 'success');
+            setMessage('appearance-message', '完整 hugo.yaml 已复制。', 'success');
         } catch (error) {
             setMessage('appearance-message', '复制失败，请手动复制文本框内容。', 'error');
         }
@@ -476,20 +667,22 @@
             var url = URL.createObjectURL(blob);
             var link = document.createElement('a');
             link.href = url;
-            link.download = 'argon-params.yaml';
+            link.download = 'hugo.yaml';
             document.body.appendChild(link);
             link.click();
             link.remove();
             URL.revokeObjectURL(url);
-            setMessage('appearance-message', 'YAML 文件已下载。', 'success');
+            setMessage('appearance-message', '完整 hugo.yaml 已下载。', 'success');
         } catch (error) {
             setMessage('appearance-message', '下载失败，请使用“复制 YAML”。', 'error');
         }
     }
 
     function renderSettings(settings) {
+        renderDynamicSettings(settings);
         setFormSettings(state.defaults, settings);
         try { generateYamlFromForm(); } catch (error) { byId('settings-yaml').value = defaultYaml; }
+        state.formDirty = false;
     }
 
     function showGuide(show) { byId('offline-guide').hidden = !show; }
@@ -503,7 +696,9 @@
                 if (!raw) continue;
                 var parsed = JSON.parse(raw);
                 if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue;
-                settings = parsed;
+                settings = Object.prototype.hasOwnProperty.call(parsed, 'params')
+                    ? parsed
+                    : (Object.keys(parsed).length ? {params: parsed} : {});
                 if (keys[keyIndex] !== appearanceCacheKey) {
                     try { window.localStorage.setItem(appearanceCacheKey, JSON.stringify(settings)); } catch (migrationError) {}
                 }
@@ -737,12 +932,18 @@
     byId('save-total').addEventListener('click', saveTotal);
     byId('apply-yaml-settings').addEventListener('click', function() {
         try {
-            var parsed = parseYaml(byId('settings-yaml').value);
-            var settings = parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params)
-                ? parsed.params
-                : parsed;
+            var yamlValue = byId('settings-yaml').value;
+            var parsed = parseYaml(yamlValue);
+            var isFullConfig = parsed.params && typeof parsed.params === 'object' && !Array.isArray(parsed.params);
+            var settings = isFullConfig ? parsed : {params: parsed};
+            if (isFullConfig) {
+                state.sourceYaml = yamlValue;
+                state.sourceConfig = parsed;
+            }
             state.settings = normalizeSettingKeys(settings);
+            renderDynamicSettings(state.settings);
             setFormSettings(state.defaults, state.settings);
+            state.formDirty = false;
             setMessage('appearance-message', 'YAML 已载入表单；检查后点击“保存本机设置”。', 'success');
         } catch (error) {
             setMessage('appearance-message', 'YAML 格式错误：' + error.message, 'error');
@@ -760,31 +961,16 @@
     byId('download-yaml-settings').addEventListener('click', downloadYaml);
     byId('reload-views').addEventListener('click', function () { if (state.adminKey) loadAdminData().catch(function (error) { setMessage('views-message', error.message, 'error'); }); });
     byId('view-filter').addEventListener('input', renderViews);
-    document.querySelectorAll('[data-setting-toggle]').forEach(function(toggle) {
-        toggle.addEventListener('change', function() {
-            var path = toggle.getAttribute('data-setting-toggle');
-            setSettingEnabled(path, toggle.checked);
-            if (toggle.checked && path === 'themeColor') {
-                var text = settingInput(path);
-                var picker = document.querySelector('[data-color-companion="' + path + '"]');
-                if (text && !normalizedColor(text.value) && picker) text.value = picker.value;
-            }
-            updateRangeOutput(path);
-        });
+    byId('appearance-form').addEventListener('change', function(event) {
+        var target = event.target;
+        var path = target && target.getAttribute ? target.getAttribute('data-setting-toggle') : '';
+        if (path) setSettingEnabled(path, target.checked);
+        if (target && target.getAttribute && target.getAttribute('data-setting-input')) state.formDirty = true;
+        if (path) state.formDirty = true;
     });
-    document.querySelectorAll('[data-setting-input]').forEach(function(input) {
-        input.addEventListener('input', function() {
-            updateRangeOutput(input.getAttribute('data-setting-input'));
-        });
+    byId('appearance-form').addEventListener('input', function(event) {
+        var target = event.target;
+        if (target && target.getAttribute && target.getAttribute('data-setting-input')) state.formDirty = true;
     });
-    var themeColorText = settingInput('themeColor');
-    var themeColorPicker = document.querySelector('[data-color-companion="themeColor"]');
-    if (themeColorText && themeColorPicker) {
-        themeColorPicker.addEventListener('input', function() { themeColorText.value = themeColorPicker.value; });
-        themeColorText.addEventListener('input', function() {
-            var color = normalizedColor(themeColorText.value);
-            if (color) themeColorPicker.value = color;
-        });
-    }
     bootstrap();
 }());
