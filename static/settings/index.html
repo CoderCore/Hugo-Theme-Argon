@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#5e72e4">
-    <title>主题设置 · Argon</title>
+    <title>阅读量管理 · Argon</title>
     <link rel="stylesheet" href="/settings/settings.css">
 </head>
 <body>
@@ -15,15 +15,15 @@
     </header>
 
     <section class="settings-hero">
-        <p class="eyebrow">ARGON THEME CONTROL</p>
-        <h1>主题设置</h1>
-        <p>主题设置保存在当前浏览器并可导出为 YAML；阅读量和网站总阅读量由 Cloudflare Worker + D1 管理。</p>
+        <p class="eyebrow">ARGON VIEW COUNTER</p>
+        <h1>阅读量管理</h1>
+        <p>此页只负责阅读量管理；网站和主题配置统一读取仓库中的 <code>hugo.yaml</code>。</p>
         <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
     </section>
 
     <section id="offline-guide" class="notice notice-warning" hidden>
-        <strong>暂时无法连接阅读量 Worker</strong>
-        <p>主题设置仍可在本机编辑。若要管理阅读量，请确认 Worker、D1 绑定、密钥和当前页面 Origin 配置正确。修改 <code>hugo.yaml</code> 或 Worker 配置后，请重新加载此页。</p>
+            <strong>暂时无法连接阅读量 Worker</strong>
+            <p>请确认 Worker、D1 绑定、密钥和当前页面 Origin 配置正确。修改仓库中的 <code>hugo.yaml</code> 或 Worker 配置后，请重新加载此页。</p>
         <a href="https://github.com/jiang068/Hugo-Theme-Argon/blob/main/cloudflare/view-counter/README.md" target="_blank" rel="noopener">查看断开连接与部署指南 ↗</a>
     </section>
 
@@ -47,42 +47,6 @@
                 <div><dt>发现的 Worker</dt><dd id="endpoint-label">尚未发现</dd></div>
                 <div><dt>页面 Origin</dt><dd id="origin-label"></dd></div>
             </dl>
-        </section>
-
-        <section class="panel panel-appearance">
-            <div class="panel-heading">
-                <div>
-                    <p class="panel-kicker">APPEARANCE</p>
-                    <h2>外观覆盖</h2>
-                </div>
-                <span class="badge badge-muted">显式字段优先</span>
-            </div>
-            <p class="panel-intro">下面会按配置分类显示仓库 <code>hugo.yaml</code> 中的全部变量，包括页脚、文章、阅读量、懒加载和自定义字段。每个字段都可单独开启覆盖；未修改的内容会原样保留。</p>
-            <p id="yaml-defaults-status" class="yaml-defaults-status" role="status">正在读取仓库 hugo.yaml…</p>
-            <form id="appearance-form" autocomplete="off">
-                <div id="dynamic-settings" class="dynamic-settings">
-                    <p class="yaml-defaults-status">正在生成完整配置表单…</p>
-                </div>
-            </form>
-            <div class="button-row">
-                <button id="save-settings" class="button button-primary" type="button">保存本机设置</button>
-                <button id="clear-settings" class="button button-danger" type="button">恢复 YAML 基线</button>
-            </div>
-            <p id="appearance-message" class="message" role="status" aria-live="polite"></p>
-            <details id="advanced-settings" class="field-help">
-                <summary>高级：查看、粘贴或导出 YAML</summary>
-                <p class="advanced-intro">这里显示完整的 <code>hugo.yaml</code>。未修改时导出内容就是仓库原文；应用表单覆盖后只更新对应值，其他顶层配置、未编辑字段、数组和嵌套对象都会保留。</p>
-                <label for="settings-yaml">hugo.yaml</label>
-                <textarea id="settings-yaml" rows="18" spellcheck="false"></textarea>
-                <div class="button-row">
-                    <button id="apply-yaml-settings" class="button button-quiet" type="button">应用 YAML 到表单</button>
-                    <button id="generate-yaml-settings" class="button button-quiet" type="button">从表单生成 YAML</button>
-                    <button id="copy-yaml-settings" class="button button-quiet" type="button">复制 YAML</button>
-                    <button id="download-yaml-settings" class="button button-quiet" type="button">下载 YAML</button>
-                </div>
-                <pre># 未修改时这里会保留仓库中的完整 hugo.yaml 原文。
-# 修改任意字段后，导出仍会包含所有其他配置。</pre>
-            </details>
         </section>
 
         <section class="panel panel-views">
@@ -121,6 +85,6 @@
         <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
     </footer>
 </main>
-<script src="/settings/settings.js?v=settings-6" defer></script>
+<script src="/settings/settings.js?v=settings-7" defer></script>
 </body>
 </html>

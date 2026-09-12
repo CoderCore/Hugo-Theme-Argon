@@ -1,6 +1,6 @@
 # Argon 阅读量 Worker
 
-这是一个只提供 JSON API 的 Cloudflare Worker + D1 阅读量计数器。Worker 不提供 HTML 页面，也不保存主题外观配置；主题设置由 `/settings/` 前端页面保存在浏览器 `localStorage`，导出到 `hugo.yaml` 后重新构建站点。
+这是一个只提供 JSON API 的 Cloudflare Worker + D1 阅读量计数器。Worker 不提供 HTML 页面，也不保存主题配置；主题和网站配置统一以仓库中的 `hugo.yaml` 为准，`/settings/` 前端页面只负责阅读量管理。
 
 最新版 Worker 会在第一次收到带有效密钥的 API 请求时自动初始化 D1，不需要预先执行 SQL 或安装 Wrangler。
 
@@ -100,17 +100,9 @@ POST /api/views
 
 `__site_total__` 是保留 ID，不会显示为文章。普通文章访问会同时增加文章阅读量和网站总阅读量；管理员修改单篇文章数值时，网站总量不会自动跟随变化，因此总量可以单独校正。
 
-## 主题设置与 `/settings/`
+## `/settings/`
 
-主题设置不进入 D1。`/settings/` 页面会从当前博客首页读取 Hugo 默认值，编辑结果保存在当前浏览器的 `localStorage` 中，并可生成 `params:` YAML 片段。
-
-如果要让所有访客看到修改：
-
-1. 在 `/settings/` 中编辑并生成 YAML。
-2. 将配置合并到博客的 `hugo.yaml`。
-3. 重新执行 Hugo 构建并部署静态站点。
-
-只保存到 `localStorage` 的修改只对当前浏览器有效，换设备或清除浏览器数据后不会保留。管理员密钥只用于阅读量管理，不用于主题配置。
+`/settings/` 页面只用于管理员查看和修改文章阅读量、网站总阅读量。管理员密钥只用于阅读量 API，不用于主题配置；主题配置请直接修改仓库中的 `hugo.yaml`，然后按传统流程重新构建并部署站点。
 
 ## 部署后检查
 
