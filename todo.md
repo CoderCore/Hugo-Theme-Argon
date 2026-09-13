@@ -68,6 +68,7 @@
 - `[x]` 开发调试源已切换为 `Hugo-Theme-Argon/exampleSite`；当前 `1315` 服务通过 `--themesDir E:\桌面\静态网页\Argon` 挂载本地主题，完整样式样本页为 `/post/welcome/`，原 `jiang068.github.io` 文件未被覆盖。
 - `[x]` 移动端分页修复：分页模板只输出普通 `.pagination`，旧 CSS 却在窄屏隐藏所有非 `.pagination-mobile` 节点，导致唯一分页行消失；已移除该隐藏规则并给 `.pagination-nav` 增加窄屏横向滚动，首页和 `/page/2/` 均能输出分页导航。
 - `[x]` 示例站点样式与公式修复：`.shuoshuo-title`/`.shuoshuo-content` 改用主题文字变量，暗色模式下不再继承近黑色；代码块外层 `pre.hljs-codeblock` 补齐 8px 圆角，避免 Hugo 的内联背景露出方角；代码选中样式移除未定义的 `--color-selection-rgbstr`，改用主题选中色并明确选中文字色，选中区域在暗色代码块中可见。
+- `[x]` 修复 Hugo 高亮代码双层背景：Hugo 生成的 `pre` 内联黑色背景会与高亮主题给 `code.hljs` 的背景色不一致；`argon-code.js` 在高亮完成后将外层背景同步为当前高亮主题背景，已在目标站 `/t/166/` 的 13 个代码块中验证无背景色不一致。
 - `[x]` 示例站点数学公式修复：`exampleSite/hugo.yaml` 启用 `mathRender: mathjax3`；本地浏览器实际验证欢迎页的 `$...$` 内联公式和 `$$...$$` 块级公式均已排版，常用 `\\(...\\)`、`\\[...\\]` 及 TeX 环境由现有 MathJax 配置覆盖。
 - `[x]` 本次范围边界：按用户要求未修改浏览器 Dark Reader 兼容逻辑；示例站仍在 `1315`，目标站目录验收实例在 `1317`，不涉及评论、阅读量、Worker/D1 或其他外接服务。
 - `[ ]` 尚未宣称完成的部分：真实评论读写、真实阅读量、Cloudflare Worker/D1、跨域配置、公开站点性能指标；这些都需要用户提供服务或部署条件。

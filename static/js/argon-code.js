@@ -48,6 +48,18 @@
         });
     }
 
+    function syncCodeBlockBackground(code) {
+        var pre = code && code.parentElement;
+        if (!pre) return;
+        var background = window.getComputedStyle(code).backgroundColor;
+        if (background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)') {
+            // Hugo writes a black inline background on <pre>. Match the
+            // wrapper to the loaded highlight theme instead of exposing a
+            // second, mismatched surface around the <code> element.
+            pre.style.backgroundColor = background;
+        }
+    }
+
     function render(root) {
         root = root && typeof root.querySelectorAll === 'function' ? root : document;
         if (typeof window.argonEnableCodeHighlight === 'undefined' || !window.argonEnableCodeHighlight) {
@@ -78,6 +90,7 @@
             window.hljs.lineNumbersBlock(block, {singleLine: true});
             $(block).parent().addClass('hljs-codeblock');
             $(block).attr('hljs-codeblock-inner', '');
+            syncCodeBlockBackground(block);
             $(block).parent().attr('data-argon-highlighted', 'true');
             var copyBtnID = 'copy_btn_' + randomString();
             $(block).parent().append('<div class="hljs-control hljs-title">\n' +
