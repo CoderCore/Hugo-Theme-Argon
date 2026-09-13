@@ -120,4 +120,4 @@ categoryTitle: "分类 : %s"
 archiveTitle: 归档
 donateQrCode: 赞赏二维码
 theme: 主题
-poweredBy: 由 Hugo 驱动
+poweredBy: 由 %s 驱动

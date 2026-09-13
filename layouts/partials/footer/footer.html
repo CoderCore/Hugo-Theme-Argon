@@ -2,7 +2,7 @@
     {{- with .Site.Params.footerHtml }}
         {{ . | safeHTML }}
     {{- end }}
-    <div>{{ T "theme" }} <a href="https://github.com/solstice23/argon-theme"><strong>Argon</strong></a> | {{ T "poweredBy" }} <a href="https://gohugo.io/">Hugo</a></div>
+    <div>{{ T "theme" }} <a href="https://github.com/solstice23/argon-theme"><strong>Argon</strong></a> | {{ printf (T "poweredBy") "<a href=\"https://gohugo.io/\">Hugo</a>" | safeHTML }}</div>
     <!-- <span id="busuanzi_container_site_uv">
         {{ printf (T "siteVisitors") "<span id=\"busuanzi_value_site_uv\"></span>" | safeHTML }}
     </span> -->

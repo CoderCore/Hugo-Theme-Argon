@@ -1014,6 +1014,26 @@ function argonLoadSearchModule(root){
 }
 
 /* Optional Zoomify module */
+var argonHeadIndexAssetsPromise = null;
+
+function argonLoadHeadIndexAssets(){
+	if (window.jQuery && window.jQuery.fn && typeof(window.jQuery.fn.headIndex) == 'function'){
+		return Promise.resolve();
+	}
+	if (!argonHeadIndexAssetsPromise){
+		argonHeadIndexAssetsPromise = Promise.all([
+			argonLoadOptionalStyle('headIndexStyle'),
+			argonLoadOptionalScript('headIndex', function(){
+				return window.jQuery && window.jQuery.fn && typeof(window.jQuery.fn.headIndex) == 'function';
+			})
+		]).catch(function(error){
+			argonHeadIndexAssetsPromise = null;
+			throw error;
+		});
+	}
+	return argonHeadIndexAssetsPromise;
+}
+
 /* 页面生命周期：由 navigation.js 在首次加载和跨路径替换后统一调用。 */
 function argonInitHeadIndex(root){
 	root = root && typeof(root.querySelector) == 'function' ? root : document;
@@ -1044,6 +1064,14 @@ function argonInitHeadIndex(root){
 		headIndex.indexBox.off('.headindex').off('.argonHeadIndex');
 	}
 	catalog.replaceChildren();
+	if (!headIndex && hasHeadings && typeof($.fn.headIndex) != 'function'){
+		argonLoadHeadIndexAssets().then(function(){
+			if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+				argonInitHeadIndex(root);
+			}
+		}).catch(function(){});
+		return;
+	}
 	if (!headIndex && hasHeadings && typeof($.fn.headIndex) == 'function'){
 		$(document).headIndex({
 			articleWrapSelector: '#post_content',

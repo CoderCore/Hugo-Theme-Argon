@@ -127,6 +127,8 @@
         lazyloadVendor: "{{ "/assets/vendor/lazyload/jquery.lazyload.min.js" | relURL }}",
         bannerModule: "{{ "/js/argon-banner.js" | relURL }}",
         searchModule: "{{ "/js/argon-search.js" | relURL }}",
+        headIndex: "{{ "/assets/vendor/headindex/headindex.js" | relURL }}",
+        headIndexStyle: "{{ "/assets/vendor/headindex/headindex.css" | relURL }}",
         highlightStyle: "{{ printf "/assets/vendor/highlight/styles/%s.css" $codeHighlightStyle | relURL }}",
         mathjax3: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
         mathjax2: "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML",

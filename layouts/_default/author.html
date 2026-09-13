@@ -1,7 +1,7 @@
 {{ define "information-card" }}
 {{- $sidebar := dict -}}
 {{- with .Site.Params.sidebar }}{{ if reflect.IsMap . }}{{ $sidebar = . }}{{ end }}{{ end -}}
-<div class="information-card card bg-white shadow-sm border-0">
+<div class="page-information-card card bg-white shadow-sm border-0">
     <div class="card-body text-center">
         <h1 class="information-card-title">{{ .Title | default (T "author") }}</h1>
         {{- with (index $sidebar "authorName") }}<p class="mb-0 text-muted">{{ . }}</p>{{ end }}
