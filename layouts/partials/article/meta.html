@@ -1,4 +1,4 @@
-{{- $metaList := split (default "time|categories|read|words|readingtime" .Site.Params.articleMeta) "|" -}}
+{{- $metaList := split (default "time|categories|words|readingtime" .Site.Params.articleMeta) "|" -}}
 {{- $viewCounter := dict -}}
 {{- with .Site.Params.viewCounter -}}
     {{- if reflect.IsMap . -}}
@@ -9,13 +9,21 @@
 {{- if and (eq (index $viewCounter "enabled") true) (eq (printf "%T" (index $viewCounter "endpoint")) "string") (ne (index $viewCounter "endpoint") "") -}}
     {{- $showViews = true -}}
 {{- end -}}
+{{- $showReadingtime := true -}}
+{{- if eq .Site.Params.showReadingtime false -}}
+    {{- $showReadingtime = false -}}
+{{- end -}}
 {{- $renderedCount := 0 -}}
 {{- range $meta := $metaList }}
     {{- $shouldRender := false -}}
-    {{- if or (eq $meta "time") (eq $meta "edittime") (eq $meta "read") (eq $meta "words") (eq $meta "readingtime") -}}
+    {{- if or (eq $meta "time") (eq $meta "edittime") (eq $meta "words") -}}
         {{- $shouldRender = true -}}
-    {{- else if eq $meta "views" -}}
+    {{- else if eq $meta "readingtime" -}}
+        {{- $shouldRender = $showReadingtime -}}
+    {{- else if or (eq $meta "views") (eq $meta "read") -}}
         {{- $shouldRender = $showViews -}}
+    {{- else if eq $meta "comments" -}}
+        {{- $shouldRender = ne (printf "%T" $.Params.commentsCount) "<nil>" -}}
     {{- else if eq $meta "categories" -}}
         {{- with $.Params.categories -}}
             {{- $shouldRender = true -}}
@@ -26,14 +34,14 @@
         {{- if eq $meta "time" -}}
         <div class="post-meta-detail post-meta-detail-time">
             <i class="fa fa-clock-o" aria-hidden="true"></i>
-            <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
+            <time title="{{ printf (T "publishedEdited") ($.Date.Format "2006-01-02 15:04:05") ($.Lastmod.Format "2006-01-02 15:04:05") }}">
                 {{ $.Date.Format "2006-01-02 15:04" }}
             </time>
         </div>
         {{- else if eq $meta "edittime" -}}
         <div class="post-meta-detail post-meta-detail-edittime">
             <i class="fa fa-clock-o" aria-hidden="true"></i>
-            <time title="发布于 {{ $.Date.Format "2006-01-02 15:04:05" }} | 编辑于 {{ $.Lastmod.Format "2006-01-02 15:04:05" }}">
+            <time title="{{ printf (T "publishedEdited") ($.Date.Format "2006-01-02 15:04:05") ($.Lastmod.Format "2006-01-02 15:04:05") }}">
                 {{ $.Lastmod.Format "2006-01-02 15:04" }}
             </time>
         </div>
@@ -45,25 +53,25 @@
                 <a href="{{ "categories/" | relURL }}{{ $cat | urlize }}" class="post-meta-detail-category">{{ $cat }}</a>
             {{- end }}
         </div>
-        {{- else if eq $meta "views" -}}
+        {{- else if or (eq $meta "views") (eq $meta "read") -}}
         <div class="post-meta-detail post-meta-detail-views d-none" data-view-count data-view-id="{{ $.RelPermalink }}" hidden aria-hidden="true">
             <i class="fa fa-eye" aria-hidden="true"></i>
             <span class="argon-view-count-value"></span>
         </div>
-        {{- else if eq $meta "read" -}}
-        <div class="post-meta-detail post-meta-detail-words">
-            <i class="fa fa-book" aria-hidden="true"></i>
-            <span>阅读次数</span>
+        {{- else if eq $meta "comments" -}}
+        <div class="post-meta-detail post-meta-detail-comments">
+            <i class="fa fa-comments-o" aria-hidden="true"></i>
+            <span>{{ printf (T "commentCount") $.Params.commentsCount }}</span>
         </div>
         {{- else if eq $meta "words" -}}
         <div class="post-meta-detail post-meta-detail-words">
             <i class="fa fa-file-word-o" aria-hidden="true"></i>
-            <span>{{ $.WordCount }} 字</span>
+            <span>{{ printf (T "wordCount") $.WordCount }}</span>
         </div>
         {{- else if eq $meta "readingtime" -}}
         <div class="post-meta-detail post-meta-detail-readingtime">
             <i class="fa fa-clock-o" aria-hidden="true"></i>
-            <span>{{ $.ReadingTime }} 分钟</span>
+            <span>{{ partial "article/readingtime.html" $ }}</span>
         </div>
         {{- end -}}
         {{- $renderedCount = add $renderedCount 1 -}}

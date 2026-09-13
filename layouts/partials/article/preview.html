@@ -1,11 +1,15 @@
 {{- $thumbnail := partial "article/thumbnail.html" . -}}
 
 {{- $hasThumbnail := ne $thumbnail "" -}}
+{{- $layout := printf "%v" (default "1" .Site.Params.articleListLayout) -}}
+{{- if not (in (slice "1" "2" "3") $layout) -}}
+    {{- $layout = "1" -}}
+{{- end -}}
 
-<article class="post card bg-white shadow-sm border-0 {{ if .Site.Params.enableIntoArticleAnimation }}post-preview{{ end }}">
+<article class="post card bg-white shadow-sm border-0 post-preview-layout-{{ $layout }}{{ if .Site.Params.enableIntoArticleAnimation }} post-preview{{ end }}" data-argon-article-preview>
     <header class="post-header text-center{{ if $hasThumbnail }} post-header-with-thumbnail{{ end }}">
         {{- if $hasThumbnail }}
-        <img class='post-thumbnail' src='{{ $thumbnail | relURL }}' decoding='async' alt='thumbnail'>
+        {{- partial "article/image.html" (dict "page" . "src" $thumbnail "class" "post-thumbnail" "alt" .Title "loading" "lazy" "sizes" "(max-width: 650px) 100vw, (max-width: 1200px) 50vw, 800px") -}}
         <div class='post-header-text-container'>
         {{- end }}
         <a class="post-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
@@ -17,6 +21,7 @@
         {{- end }}
     </header>
 
+    {{- if eq $layout "2" }}<div class="post-content-container">{{ end -}}
     <div class="post-content">
         {{- $excerptLength := .Site.Params.excerptLength | default 175 -}}
         {{- if .Description -}}
@@ -39,4 +44,5 @@
         {{- end }}
     </div>
     {{- end -}}
+    {{- if eq $layout "2" }}</div>{{ end -}}
 </article>

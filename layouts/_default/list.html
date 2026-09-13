@@ -1,9 +1,16 @@
 {{- define "main" -}}
     {{- $pag := .Paginate .Pages -}}
+    <div class="article-list-container">
 
-    {{- range $pag.Pages -}}
-        {{- partial "article/preview.html" . -}}
-    {{- end -}}
+        {{- range $pag.Pages -}}
+            {{- partial "article/preview.html" . -}}
+        {{- end -}}
 
+    </div>
     {{- partial "pagination.html" . -}}
+{{- end -}}
+
+{{- define "main-class" -}}
+    {{- $waterflowColumns := printf "%v" (default "3" .Site.Params.articleListWaterflowColumns) -}}
+    article-list{{ if .Site.Params.articleListWaterflow }} waterflow{{ if eq $waterflowColumns "2" }} waterflow-columns-2{{ else if eq $waterflowColumns "3" }} waterflow-columns-3{{ end }}{{ end }}
 {{- end -}}

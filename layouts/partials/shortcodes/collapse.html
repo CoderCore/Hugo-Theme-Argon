@@ -1,0 +1,13 @@
+{{- $color := lower (default "none" (.Get "color")) -}}
+{{- $colorClass := default "transparent" (index (dict "indigo" "primary" "green" "success" "red" "danger" "orange" "warning" "blue" "info" "black" "default" "grey" "grey" "none" "transparent") $color) -}}
+{{- $collapsed := ne (lower (default "true" (.Get "collapsed"))) "false" -}}
+{{- $showLeftBorder := eq (lower (default "false" (.Get "showleftborder"))) "true" -}}
+{{- $collapseID := printf "argon-collapse-%d" .Ordinal -}}
+<div class="collapse-block shadow-sm collapse-block-{{ $colorClass }}{{ if $collapsed }} collapsed{{ end }}{{ if not $showLeftBorder }} hide-border-left{{ end }}" collapse-id="{{ $collapseID }}">
+    <div class="collapse-block-title" collapse-id="{{ $collapseID }}" role="button" tabindex="0" aria-controls="{{ $collapseID }}-body" aria-expanded="{{ if $collapsed }}false{{ else }}true{{ end }}">
+        {{- with $.Get "icon" }}<i class="fa fa-{{ replaceRE "[^A-Za-z0-9-]" "" . }}" aria-hidden="true"></i>{{ end -}}
+        <span class="collapse-block-title-inner">{{ default "" ($.Get "title") }}</span>
+        <i class="collapse-icon fa fa-angle-down" aria-hidden="true"></i>
+    </div>
+    <div class="collapse-block-body" id="{{ $collapseID }}-body"{{ if $collapsed }} style="display:none;"{{ end }}>{{ $.Inner | markdownify }}</div>
+</div>

@@ -1,0 +1,4 @@
+{{- $type := lower (default "blur" (.Get "type")) -}}
+{{- $class := "blur" -}}
+{{- if eq $type "background" }}{{ $class = "background" }}{{ end -}}
+<span class="argon-hidden-text argon-hidden-text-{{ $class }}"{{ with $.Get "tip" }} title="{{ . }}"{{ end }}>{{ $.Inner | plainify }}</span>

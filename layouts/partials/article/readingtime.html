@@ -1,0 +1,22 @@
+{{- $speedCn := int (default 300 .Site.Params.readingSpeedCn) -}}
+{{- $speedEn := int (default 160 .Site.Params.readingSpeedEn) -}}
+{{- if le $speedCn 0 }}{{ $speedCn = 300 }}{{ end -}}
+{{- if le $speedEn 0 }}{{ $speedEn = 160 }}{{ end -}}
+
+{{- $languageCode := lower .Site.LanguageCode -}}
+{{- $speed := $speedEn -}}
+{{- if strings.HasPrefix $languageCode "zh" -}}
+    {{- $speed = $speedCn -}}
+{{- end -}}
+
+{{- $wordCount := int .WordCount -}}
+{{- $readingMinutes := math.Div (float $wordCount) (float $speed) -}}
+{{- if lt $readingMinutes 0.3 -}}
+    {{- i18n "fewSeconds" -}}
+{{- else if lt $readingMinutes 1 -}}
+    {{- i18n "withinMinute" -}}
+{{- else if lt $readingMinutes 60 -}}
+    {{- printf "%d %s" (int (math.Ceil $readingMinutes)) (i18n "minutes") -}}
+{{- else -}}
+    {{- printf "%.1f %s" (math.Div $readingMinutes 60) (i18n "hours") -}}
+{{- end -}}

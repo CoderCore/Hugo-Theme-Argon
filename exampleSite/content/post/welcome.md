@@ -88,3 +88,31 @@ $$
 ## 总结
 
 Argon Hugo 主题是一个功能丰富、美观易用的 Hugo 博客主题。快来试试吧！
+
+## 短代码
+
+{{< alert color="green" icon="check" title="提示" >}}
+短代码内容支持 Markdown。
+{{< /alert >}}
+
+{{< tip color="orange" title="注意" >}}
+这是一个可折叠风格的提示块。
+{{< /tip >}}
+
+{{< tag color="blue" shape="round" >}}Hugo{{< /tag >}}
+{{< todo checked="true" >}}已完成的事项{{< /todo >}}
+
+{{< collapse title="展开详情" color="indigo" collapsed="true" >}}
+这里是折叠内容。
+{{< /collapse >}}
+
+{{< hidden type="blur" tip="鼠标悬停显示" >}}隐藏文字{{< /hidden >}}
+
+{{< progressbar progress="75" color="green" >}}完成度{{< /progressbar >}}
+
+{{< timeline >}}
+2024-01|主题开始迁移|从 WordPress 迁移到 Hugo。
+2024-02/10|完成基础功能|增加短代码支持。
+{{< /timeline >}}
+
+{{< github author="gohugoio" project="hugo" size="mini" />}}

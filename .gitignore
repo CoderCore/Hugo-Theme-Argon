@@ -1,12 +1,26 @@
-# Hugo generated output
+# Hugo 生成物
 /public/
+**/public/
 /resources/_gen/
+**/resources/_gen/
 /.hugo_build.lock
+**/.hugo_build.lock
 /hugo_stats.json
+**/hugo_stats.json
 /.hugo-test-public/
+**/.hugo-test-public/
 /.nav-build-check/
+**/.nav-build-check/
 
-# Cloudflare / local secrets
+# 本地开发、测试与工具缓存
+/.tmp-tools/
+**/.tmp-tools/
+**/.tmp-build*/
+**/.tmp-public/
+**/.hugo-cache/
+**/.go-build-cache/
+
+# Cloudflare / 本地敏感配置
 **/.wrangler/
 **/.xdg-config/
 **/.dev.vars
@@ -15,14 +29,15 @@
 !**/.env.example
 !**/.dev.vars.example
 
-# Node tooling and logs
+# Node 工具与日志
 /node_modules/
+**/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# OS and editor files
+# 操作系统与编辑器文件
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -38,7 +53,7 @@ ehthumbs.db
 *.sublime-workspace
 *~
 
-# Temporary files
+# 临时文件
 *.tmp
 *.bak
 *.log

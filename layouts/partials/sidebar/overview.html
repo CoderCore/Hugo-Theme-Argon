@@ -20,19 +20,19 @@
     <div class="site-state-item site-state-posts">
         <a href="{{ "archives" | relURL }}">
             <span class="site-state-item-count">{{ len (where .Site.RegularPages "Type" "in" .Site.Params.mainSections) }}</span>
-            <span class="site-state-item-name">文章</span>
+            <span class="site-state-item-name">{{ T "posts" }}</span>
         </a>
     </div>
     <div class="site-state-item site-state-categories">
         <a data-toggle="modal" data-target="#blog_categories">
             <span class="site-state-item-count">{{ len .Site.Taxonomies.categories }}</span>
-            <span class="site-state-item-name">分类</span>
+            <span class="site-state-item-name">{{ T "categories" }}</span>
         </a>
     </div>
     <div class="site-state-item site-state-tags">
         <a data-toggle="modal" data-target="#blog_tags">
             <span class="site-state-item-count">{{ len .Site.Taxonomies.tags }}</span>
-            <span class="site-state-item-name">标签</span>
+            <span class="site-state-item-name">{{ T "tags" }}</span>
         </a>
     </div>
 </nav>

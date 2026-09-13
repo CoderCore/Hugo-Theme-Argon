@@ -1,5 +1,5 @@
 {{- /* Search form placeholder */ -}}
 <div class="search-form">
-    <input type="text" class="form-control" placeholder="输入关键词搜索..." id="local-search-input" data-search.path="/search.xml">
+    <input type="text" class="form-control" placeholder="{{ T "searchPlaceholder" }}" id="local-search-input" data-search.path="{{ printf "%ssearch.json" .Site.Home.RelPermalink }}">
     <div id="search-results"></div>
 </div>

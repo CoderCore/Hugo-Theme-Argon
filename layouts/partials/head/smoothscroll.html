@@ -1,10 +1,10 @@
 {{- $smoothscroll := default "1" .Site.Params.smoothscroll -}}
 {{- if eq $smoothscroll "2" }}
-<script src="{{ "/assets/vendor/smoothscroll/smoothscroll2.js" | relURL }}"></script>
+<script defer src="{{ "/assets/vendor/smoothscroll/smoothscroll2.js" | relURL }}"></script>
 {{- else if eq $smoothscroll "3" }}
-<script src="{{ "/assets/vendor/smoothscroll/smoothscroll3.min.js" | relURL }}"></script>
+<script defer src="{{ "/assets/vendor/smoothscroll/smoothscroll3.min.js" | relURL }}"></script>
 {{- else if eq $smoothscroll "1-pulse" }}
-<script src="{{ "/assets/vendor/smoothscroll/smoothscroll1_pulse.js" | relURL }}"></script>
+<script defer src="{{ "/assets/vendor/smoothscroll/smoothscroll1_pulse.js" | relURL }}"></script>
 {{- else if ne $smoothscroll "disabled" }}
-<script src="{{ "/assets/vendor/smoothscroll/smoothscroll1.js" | relURL }}"></script>
+<script defer src="{{ "/assets/vendor/smoothscroll/smoothscroll1.js" | relURL }}"></script>
 {{- end }}

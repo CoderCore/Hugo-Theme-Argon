@@ -13,7 +13,7 @@
                     <img src="{{ . | relURL }}">
                 </a>
                 {{- end }}
-                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar_global" aria-controls="navbar_global" aria-expanded="false" aria-label="Toggle navigation">
+                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar_global" aria-controls="navbar_global" aria-expanded="false" aria-label="{{ T "toggleNavigation" }}">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <a class="navbar-brand" href="{{ "/" | relURL }}">
@@ -28,7 +28,7 @@
                         <div class="row">
                             <div class="col-6 collapse-brand"></div>
                             <div class="col-6 collapse-close">
-                                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar_global" aria-controls="navbar_global" aria-expanded="false" aria-label="Toggle navigation">
+                                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbar_global" aria-controls="navbar_global" aria-expanded="false" aria-label="{{ T "toggleNavigation" }}">
                                     <span></span>
                                     <span></span>
                                 </button>
@@ -39,7 +39,7 @@
                         <li class="nav-item" data-toggle="modal" data-target="#argon_search_modal" style="padding-left: 5px;">
                             <a class="nav-link nav-link-icon">
                                 <i class="fa fa-search"></i>
-                                <span class="nav-link-inner--text d-lg-none">搜索</span>
+                                <span class="nav-link-inner--text d-lg-none">{{ T "search" }}</span>
                             </a>
                         </li>
                     </ul>
@@ -68,7 +68,7 @@
                         <li class="nav-item" data-toggle="modal" data-target="#argon_search_modal" id="navbar_search_btn_pc">
                             <a class="nav-link nav-link-icon">
                                 <i class="fa fa-search"></i>
-                                <span class="nav-link-inner--text d-lg-none">搜索</span>
+                                <span class="nav-link-inner--text d-lg-none">{{ T "search" }}</span>
                             </a>
                         </li>
                     </ul>

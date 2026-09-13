@@ -3,9 +3,9 @@
     <div class="card-body">
         <h2 class="information-card-title">
             {{- if eq .Type "tags" }}
-                所有标签
+                {{ T "allTags" }}
             {{- else if eq .Type "categories" }}
-                所有分类
+                {{ T "allCategories" }}
             {{- end }}
         </h2>
     </div>

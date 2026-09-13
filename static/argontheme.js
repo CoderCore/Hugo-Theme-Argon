@@ -1,9 +1,6 @@
 if (typeof(argonConfig) == "undefined"){
 	var argonConfig = {};
 }
-if (typeof(argonConfig.wp_path) == "undefined"){
-	argonConfig.wp_path = "/";
-}
 /* Cookies 操作 */
 function setCookie(cname, cvalue, exdays) {
 	var d = new Date();
@@ -66,6 +63,7 @@ translation['en_US'] = {
 	"没有更多了": "No more comments",
 	"找不到该 Repo": "Can't find the repository",
 	"获取 Repo 信息失败": "Failed to get repository information",
+	"GitHub API 请求次数已达上限": "GitHub API rate limit reached",
 	"点赞失败": "Vote failed",
 	"Hitokoto 获取失败": "Failed to get Hitokoto",
 	"复制成功": "Copied",
@@ -85,6 +83,13 @@ translation['en_US'] = {
 	"复制": "Copy",
 	"全屏": "Fullscreen",
 	"退出全屏": "Exit Fullscreen",
+	"加载中": "Loading...",
+	"没有找到结果": "No results found",
+	"搜索索引加载失败": "Failed to load the search index",
+	"微信扫描二维码": "Scan with WeChat",
+	"链接已复制": "Link copied",
+	"链接已复制到剪贴板": "Link copied to clipboard",
+	"请手动复制链接": "Please copy the link manually",
 };
 translation['ru_RU'] = {
 	"确定": "ОК",
@@ -201,7 +206,10 @@ translation['zh_TW'] = {
 	"退出全屏": "退出全屏"
 };
 function __(text){
-	let lang = argonConfig.language;
+	let lang = String(argonConfig.language || '').replace('-', '_').toLowerCase();
+	if (lang == "en" || lang == "en_us") lang = "en_US";
+	else if (lang == "ru" || lang == "ru_ru") lang = "ru_RU";
+	else if (lang == "zh_tw") lang = "zh_TW";
 	if (typeof(translation[lang]) == "undefined"){
 		return text;
 	}
@@ -253,55 +261,6 @@ function __(text){
 	changeToolbarTransparency();
 	document.addEventListener("scroll", changeToolbarTransparency, {passive: true});
 }();
-
-/* 顶栏搜索 */
-$(document).on("click" , "#navbar_search_input_container" , function(){
-	$(this).addClass("open");
-	$("#navbar_search_input").focus();
-});
-$(document).on("blur" , "#navbar_search_input_container" , function(){
-	$(this).removeClass("open");
-});
-$(document).on("keydown" , "#navbar_search_input_container #navbar_search_input" , function(e){
-	if (e.keyCode != 13){
-		return;
-	}
-	let word = $(this).val();
-	if (word == ""){
-		$("#navbar_search_input_container").blur();
-		return;
-	}
-	let scrolltop = $(document).scrollTop();
-	$.pjax({
-		url: argonConfig.wp_path + "?s=" + encodeURI(word)
-	});
-});
-/* 侧栏搜索 */
-$(document).on("click" , "#leftbar_search_container" , function(){
-	$(".leftbar-search-button").addClass("open");
-	$("#leftbar_search_input").removeAttr("readonly").focus();
-	$("#leftbar_search_input").focus();
-	$("#leftbar_search_input").select();
-	return false;
-});
-$(document).on("blur" , "#leftbar_search_container" , function(){
-	$(".leftbar-search-button").removeClass("open");
-	$("#leftbar_search_input").attr("readonly", "readonly");
-});
-$(document).on("keydown" , "#leftbar_search_input" , function(e){
-	if (e.keyCode != 13){
-		return;
-	}
-	let word = $(this).val();
-	if (word == ""){
-		$("#leftbar_search_container").blur();
-		return;
-	}
-	$("html").removeClass("leftbar-opened");
-	$.pjax({
-		url: argonConfig.wp_path + "?s=" + encodeURI(word)
-	});
-});
 
 /* 左侧栏随页面滚动浮动 */
 let argonLeftbarStickyObserver = null;
@@ -410,13 +369,17 @@ if (argonConfig.headroom){
 		toggleAmoledDarkMode();
 	})
 
-	if ($("#post_comment").length > 0){
+	let $commentTarget = $("#post_comment:not([hidden]), #comments:not([hidden])").first();
+	if ($commentTarget.length > 0){
 		$("#fabtn_go_to_comment").removeClass("d-none");
 	}else{
 		$("#fabtn_go_to_comment").addClass("d-none");
 	}
 	$goToComment.on("click" , function(){
-		gotoHash("#post_comment" , 600);
+		let $target = $("#post_comment:not([hidden]), #comments:not([hidden])").first();
+		if ($target.length > 0){
+			gotoHash("#" + $target.attr("id") , 600);
+		}
 		$("#post_comment_content").focus();
 	});
 
@@ -512,15 +475,273 @@ if (argonConfig.headroom){
 	$fabtns.removeClass("fabtns-unloaded");
 }();
 
-/* 卡片圆角大小调整 */
-!function(){
-	function setCardRadius(radius, save){
-		document.documentElement.style.setProperty('--card-radius', radius + "px");
-		if (save){
-			localStorage["argon_card_radius"] = radius;
-		}
+/* 卡片圆角大小调整：滑块只在用户打开设置面板时加载。 */
+var argonOptionalScriptPromises = {};
+function argonLoadOptionalScript(name, ready){
+	if (ready && ready()){
+		return Promise.resolve();
 	}
-	let slider = document.getElementById('blog_setting_card_radius');
+	let urls = window.argonOptionalAssets || {};
+	let src = urls[name];
+	if (!src){
+		return Promise.reject(new Error('Optional asset URL is unavailable'));
+	}
+	if (argonOptionalScriptPromises[src]){
+		return argonOptionalScriptPromises[src];
+	}
+	let promise = new Promise(function(resolve, reject){
+		let existing = document.querySelector("script[data-argon-optional-script='" + name + "']");
+		if (existing){
+			if (existing.getAttribute('data-argon-optional-loaded') == 'true' && (!ready || ready())){
+				resolve();
+				return;
+			}
+			if (existing.getAttribute('data-argon-optional-loaded') == 'true'){
+				if (existing.parentNode) existing.parentNode.removeChild(existing);
+				reject(new Error('Optional asset did not expose its expected global'));
+				return;
+			}
+			existing.addEventListener('load', function(){
+				if (!ready || ready()){
+					existing.setAttribute('data-argon-optional-loaded', 'true');
+					 resolve();
+				}else{
+					if (existing.parentNode) existing.parentNode.removeChild(existing);
+					reject(new Error('Optional asset did not expose its expected global'));
+				}
+			}, {once: true});
+			existing.addEventListener('error', function(){
+				if (existing.parentNode) existing.parentNode.removeChild(existing);
+				reject(new Error('Optional asset failed to load'));
+			}, {once: true});
+			return;
+		}
+		let script = document.createElement('script');
+		script.src = src;
+		script.async = true;
+		script.setAttribute('data-argon-optional-script', name);
+		script.addEventListener('load', function(){
+			if (!ready || ready()){
+				script.setAttribute('data-argon-optional-loaded', 'true');
+				resolve();
+			}else{
+				if (script.parentNode) script.parentNode.removeChild(script);
+				reject(new Error('Optional asset did not expose its expected global'));
+			}
+		}, {once: true});
+		script.addEventListener('error', function(){
+			if (script.parentNode) script.parentNode.removeChild(script);
+			reject(new Error('Optional asset failed to load'));
+		}, {once: true});
+		document.head.appendChild(script);
+	});
+	argonOptionalScriptPromises[src] = promise.catch(function(error){
+		delete argonOptionalScriptPromises[src];
+		throw error;
+	});
+	return argonOptionalScriptPromises[src];
+}
+
+var argonOptionalStylePromises = {};
+function argonLoadOptionalStyle(name){
+	let urls = window.argonOptionalAssets || {};
+	let src = urls[name];
+	if (!src){
+		return Promise.reject(new Error('Optional stylesheet URL is unavailable'));
+	}
+	if (argonOptionalStylePromises[src]){
+		return argonOptionalStylePromises[src];
+	}
+	let existing = null;
+	Array.prototype.some.call(document.querySelectorAll('link[rel="stylesheet"]'), function(candidate){
+		if (candidate.getAttribute('href') == src || candidate.href == new URL(src, window.location.href).href){
+			existing = candidate;
+			return true;
+		}
+		return false;
+	});
+	if (existing){
+		if (existing.getAttribute('data-argon-optional-style-loaded') == 'true'){
+			argonOptionalStylePromises[src] = Promise.resolve(existing);
+			return argonOptionalStylePromises[src];
+		}
+		if (existing.getAttribute('data-argon-optional-style')){
+			argonOptionalStylePromises[src] = new Promise(function(resolve, reject){
+				existing.addEventListener('load', function(){
+					existing.setAttribute('data-argon-optional-style-loaded', 'true');
+					resolve(existing);
+				}, {once: true});
+				existing.addEventListener('error', function(){
+					if (existing.parentNode) existing.parentNode.removeChild(existing);
+					reject(new Error('Optional stylesheet failed to load'));
+				}, {once: true});
+			}).catch(function(error){
+				delete argonOptionalStylePromises[src];
+				throw error;
+			});
+			return argonOptionalStylePromises[src];
+		}
+		argonOptionalStylePromises[src] = Promise.resolve(existing);
+		return argonOptionalStylePromises[src];
+	}
+	argonOptionalStylePromises[src] = new Promise(function(resolve, reject){
+		let link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.href = src;
+		link.setAttribute('data-argon-optional-style', name);
+		link.addEventListener('load', function(){
+			link.setAttribute('data-argon-optional-style-loaded', 'true');
+			resolve(link);
+		}, {once: true});
+		link.addEventListener('error', function(){
+			if (link.parentNode) link.parentNode.removeChild(link);
+			reject(new Error('Optional stylesheet failed to load'));
+		}, {once: true});
+		document.head.appendChild(link);
+	}).catch(function(error){
+		delete argonOptionalStylePromises[src];
+		throw error;
+	});
+	return argonOptionalStylePromises[src];
+}
+
+var argonCodeAssetsPromise = null;
+function argonLoadCodeAssets(){
+	if (typeof(window.hljs) != 'undefined' && typeof(window.hljs.lineNumbersBlock) == 'function' && typeof(window.ClipboardJS) == 'function'){
+		return Promise.resolve();
+	}
+	if (argonCodeAssetsPromise){
+		return argonCodeAssetsPromise;
+	}
+	let scripts = Promise.resolve();
+	if (typeof(window.hljs) == 'undefined'){
+		scripts = scripts.then(function(){
+			return argonLoadOptionalScript('highlight', function(){ return typeof(window.hljs) != 'undefined'; });
+		});
+	}
+	if (typeof(window.hljs) == 'undefined' || typeof(window.hljs.lineNumbersBlock) != 'function'){
+		scripts = scripts.then(function(){
+			return argonLoadOptionalScript('highlightLineNumbers', function(){ return typeof(window.hljs) != 'undefined' && typeof(window.hljs.lineNumbersBlock) == 'function'; });
+		});
+	}
+	if (typeof(window.ClipboardJS) == 'undefined'){
+		scripts = scripts.then(function(){
+			return argonLoadOptionalScript('clipboard', function(){ return typeof(window.ClipboardJS) != 'undefined'; });
+		});
+	}
+	argonCodeAssetsPromise = Promise.all([argonLoadOptionalStyle('highlightStyle'), scripts]);
+	return argonCodeAssetsPromise;
+}
+
+var argonMathLoadPromise = null;
+function argonHasMathContent(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	var content = root.matches && root.matches('article') ? root : root.querySelector('article #post_content, article');
+	if (!content) return false;
+	if (content.querySelector('.katex, .MathJax, mjx-container, [data-math]')) return true;
+	var textNodes = content.querySelectorAll('p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6');
+	for (var index = 0; index < textNodes.length; index += 1){
+		if (/(?:\$\$|\\\(|\\\[|\$[^$\r\n]+\$)/.test(textNodes[index].textContent || '')) return true;
+	}
+	return false;
+}
+
+function argonLoadMathAssets(){
+	var config = window.argonMathConfig || {};
+	var renderer = config.renderer;
+	var urls = window.argonOptionalAssets || {};
+	if (!config.enabled || !renderer){
+		return Promise.reject(new Error('Math rendering is disabled'));
+	}
+	if (renderer == 'mathjax3' && typeof(window.MathJax) != 'undefined' && typeof(window.MathJax.typesetPromise) == 'function'){
+		return Promise.resolve();
+	}
+	if (renderer == 'mathjax2' && typeof(window.MathJax) != 'undefined' && window.MathJax.Hub){
+		return Promise.resolve();
+	}
+	if (renderer == 'katex' && typeof(window.renderMathInElement) == 'function'){
+		return Promise.resolve();
+	}
+	if (argonMathLoadPromise){
+		return argonMathLoadPromise;
+	}
+	if (renderer == 'mathjax3'){
+		window.MathJax = {
+			tex: {
+				inlineMath: [['$', '$'], ['\\(', '\\)']],
+				displayMath: [['$$', '$$'], ['\\[', '\\]']],
+				processEscapes: true,
+				packages: {'[+]': ['noerrors']}
+			},
+			options: {
+				skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+				ignoreHtmlClass: 'tex2jax_ignore',
+				processHtmlClass: 'tex2jax_process'
+			},
+			loader: {load: ['[tex]/noerrors']}
+		};
+		argonMathLoadPromise = argonLoadOptionalScript('mathjax3', function(){
+			return typeof(window.MathJax) != 'undefined' && typeof(window.MathJax.typesetPromise) == 'function';
+		});
+	}else if (renderer == 'mathjax2'){
+		window.MathJax = window.MathJax || {};
+		window.MathJax.messageStyle = 'none';
+		window.MathJax.tex2jax = {
+			inlineMath: [['$', '$'], ['\\(', '\\)']],
+			displayMath: [['$$', '$$'], ['\\[', '\\]']],
+			processEscapes: true,
+			skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+		};
+		window.MathJax.menuSettings = {zoom: 'Hover', zscale: '200%'};
+		window.MathJax['HTML-CSS'] = {showMathMenu: 'false'};
+		argonMathLoadPromise = argonLoadOptionalScript('mathjax2', function(){
+			return typeof(window.MathJax) != 'undefined' && !!window.MathJax.Hub;
+		}).then(function(){
+			if (window.MathJax.Hub && typeof(window.MathJax.Hub.Config) == 'function'){
+				window.MathJax.Hub.Config({
+					messageStyle: 'none',
+					tex2jax: {
+						inlineMath: [['$', '$'], ['\\(', '\\)']],
+						displayMath: [['$$', '$$'], ['\\[', '\\]']],
+						processEscapes: true,
+						skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+					},
+					menuSettings: {zoom: 'Hover', zscale: '200%'},
+					'HTML-CSS': {showMathMenu: 'false'}
+				});
+			}
+		});
+	}else if (renderer == 'katex'){
+		argonMathLoadPromise = Promise.all([
+			argonLoadOptionalStyle('katexCss'),
+			argonLoadOptionalScript('katex', function(){ return typeof(window.katex) != 'undefined'; })
+		]).then(function(){
+			return argonLoadOptionalScript('katexAutoRender', function(){ return typeof(window.renderMathInElement) == 'function'; });
+		});
+	}else{
+		argonMathLoadPromise = Promise.reject(new Error('Unknown math renderer'));
+	}
+	return argonMathLoadPromise;
+}
+
+function initCardRadius(root){
+	root = root && typeof(root.querySelector) == 'function' ? root : document;
+	let slider = root.querySelector('#blog_setting_card_radius');
+	if (!slider || slider.noUiSlider){
+		return;
+	}
+	if (typeof window.noUiSlider == 'undefined'){
+		let settingsButton = root.querySelector('#fabtn_toggle_blog_settings_popup');
+		if (settingsButton && settingsButton.getAttribute('data-argon-nouislider-bound') != 'true'){
+			settingsButton.setAttribute('data-argon-nouislider-bound', 'true');
+			settingsButton.addEventListener('click', function(){
+				argonLoadOptionalScript('nouislider', function(){ return typeof window.noUiSlider != 'undefined'; })
+					.then(initCardRadius).catch(function(){});
+			});
+		}
+		return;
+	}
+	document.documentElement.style.setProperty('--card-radius', localStorage["argon_card_radius"] == undefined ? $("meta[name='theme-card-radius']").attr("content") + "px" : localStorage["argon_card_radius"] + "px");
 	noUiSlider.create(slider, {
 		start: [localStorage["argon_card_radius"] == undefined ? $("meta[name='theme-card-radius']").attr("content") : localStorage["argon_card_radius"]],
 		step: 0.5,
@@ -531,32 +752,19 @@ if (argonConfig.headroom){
 		}
 	});
 	slider.noUiSlider.on('update', function (values){
-		let value = values[0];
-		setCardRadius(value, false);
+			document.documentElement.style.setProperty('--card-radius', values[0] + "px");
 	});
 	slider.noUiSlider.on('set', function (values){
-		let value = values[0];
-		setCardRadius(value, true);
-	});
-	$(document).on("click" , "#blog_setting_card_radius_to_default" , function(){
+			localStorage["argon_card_radius"] = values[0];
+		});
+	$(document).off("click.argonCardRadius", "#blog_setting_card_radius_to_default").on("click.argonCardRadius", "#blog_setting_card_radius_to_default", function(){
 		slider.noUiSlider.set($("meta[name='theme-card-radius']").attr("content"));
-		setCardRadius($("meta[name='theme-card-radius']").attr("content"), false);
+		document.documentElement.style.setProperty('--card-radius', $("meta[name='theme-card-radius']").attr("content") + "px");
 		localStorage.removeItem("argon_card_radius");
 	});
-	if (localStorage["argon_card_radius"] != undefined){
-		setCardRadius(localStorage["argon_card_radius"], false);
-	}
-}();
-/* 需要密码的文章加载 */
-$(document).on("submit" , ".post-password-form" , function(){
-	$("input[type='submit']", this).attr("disabled", "disabled");
-	let url = $(this).attr("action");
-	$.pjax.form(this, {
-		push: false,
-		replace: false
-	});
-	return false;
-});
+}
+initCardRadius();
+/* Hugo 不提供 WordPress password form；保留原生提交，避免调用已移除的 PJAX API。 */
 /* URL 中 # 根据 ID 定位 */
 function gotoHash(hash , durtion){
 	if (hash.length == 0){
@@ -583,178 +791,239 @@ function getHash(url){
 	$(window).trigger("hashchange");
 }();
 
-/* 显示文章过时信息 Toast */
-function showPostOutdateToast(){
-	if ($("#primary #post_outdate_toast").length > 0){
-		iziToast.show({
-			title: '',
-			message: $("#primary #post_outdate_toast").data("text"),
-			class: 'shadow-sm',
-			position: 'topRight',
-			backgroundColor: 'var(--themecolor)',
-			titleColor: '#ffffff',
-			messageColor: '#ffffff',
-			iconColor: '#ffffff',
-			progressBarColor: '#ffffff',
-			icon: 'fa fa-info',
-			close: false,
-			timeout: 8000
+var argonOutdateModulePromise = null;
+function argonLoadOutdateModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('#primary #post_outdate_toast')){
+		return;
+	}
+	if (typeof(window.argonOutdateToastInit) == 'function'){
+		window.argonOutdateToastInit(root);
+		return;
+	}
+	if (!argonOutdateModulePromise){
+		argonOutdateModulePromise = argonLoadOptionalScript('outdateModule', function(){
+			return typeof(window.argonOutdateToastInit) == 'function';
+		}).catch(function(error){
+			argonOutdateModulePromise = null;
+			throw error;
 		});
-		$("#primary #post_outdate_toast").remove();
 	}
+	argonOutdateModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonOutdateToastInit(root);
+		}
+	}).catch(function(){});
 }
-showPostOutdateToast();
 
-/* Zoomify */
-function zoomifyInit(){
-	if (argonConfig.zoomify == false){
+var argonCommentImageModulePromise = null;
+function argonLoadCommentImageModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('.comment-item-text .comment-image')){
 		return;
 	}
-	$("article img").filter(function(){
-		return $(this).data("argon-zoomify-initialized") != true;
-	}).each(function(){
-		$(this).zoomify(argonConfig.zoomify);
-		$(this).data("argon-zoomify-initialized", true);
-	});
-}
-zoomifyInit();
-
-/* Lazyload */
-function lazyloadInit(){
-	if (argonConfig.lazyload == false){
+	if (typeof(window.argonCommentImageInit) == 'function'){
+		window.argonCommentImageInit(root);
 		return;
 	}
-	if (argonConfig.lazyload.effect == "none"){
-		delete argonConfig.lazyload.effect;
+	if (!argonCommentImageModulePromise){
+		argonCommentImageModulePromise = argonLoadOptionalScript('commentImageModule', function(){
+			return typeof(window.argonCommentImageInit) == 'function';
+		}).catch(function(error){
+			argonCommentImageModulePromise = null;
+			throw error;
+		});
 	}
-	let images = $("article img.lazyload:not(.lazyload-loaded) , .post-thumbnail.lazyload:not(.lazyload-loaded) , .related-post-thumbnail.lazyload:not(.lazyload-loaded)").filter(function(){
-		return $(this).data("argon-lazyload-initialized") != true;
-	});
-	if (images.length > 0){
-		images.data("argon-lazyload-initialized", true);
-		images.lazyload(Object.assign(argonConfig.lazyload, {load: function(){$(this).addClass("lazyload-loaded")}}));
-	}
-	let stickers = $(".comment-item-text .comment-sticker.lazyload").filter(function(){
-		return $(this).data("argon-lazyload-initialized") != true;
-	});
-	if (stickers.length > 0){
-		stickers.data("argon-lazyload-initialized", true);
-		stickers.lazyload(Object.assign(argonConfig.lazyload, {load: function(){$(this).removeClass("lazyload")}}));
-	}
+	argonCommentImageModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonCommentImageInit(root);
+		}
+	}).catch(function(){});
 }
-lazyloadInit();
 
-/* Pangu.js */
-function panguInit(){
-	let article = document.getElementById('post_content');
-	if (argonConfig.pangu == true && article && article.getAttribute('data-argon-pangu-initialized') != 'true'){
-		pangu.spacingElementById('post_content');
-		article.setAttribute('data-argon-pangu-initialized', 'true');
+var argonCollapseModulePromise = null;
+function argonLoadCollapseModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('.collapse-block')){
+		return;
 	}
+	if (typeof(window.argonCollapseInit) == 'function'){
+		window.argonCollapseInit(root);
+		return;
+	}
+	if (!argonCollapseModulePromise){
+		argonCollapseModulePromise = argonLoadOptionalScript('collapseModule', function(){
+			return typeof(window.argonCollapseInit) == 'function';
+		}).catch(function(error){
+			argonCollapseModulePromise = null;
+			throw error;
+		});
+	}
+	argonCollapseModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonCollapseInit(root);
+		}
+	}).catch(function(){});
 }
-panguInit();
 
-/* Clamp.js */
-function clampInit(){
-	$(".clamp").each(function(index, dom) {
-		if (dom.getAttribute('data-argon-clamp-initialized') == 'true'){
+var argonPanguModulePromise = null;
+function argonLoadPanguModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (argonConfig.pangu !== true || !root.querySelector('#post_content')){
+		return;
+	}
+	if (typeof(window.argonPanguInit) == 'function'){
+		window.argonPanguInit(root);
+		return;
+	}
+	if (!argonPanguModulePromise){
+		var vendorPromise = window.pangu && typeof(window.pangu.spacingElementById) == 'function' ? Promise.resolve() :
+			argonLoadOptionalScript('panguVendor', function(){
+				return window.pangu && typeof(window.pangu.spacingElementById) == 'function';
+			});
+		argonPanguModulePromise = vendorPromise.then(function(){
+			return argonLoadOptionalScript('panguModule', function(){
+				return typeof(window.argonPanguInit) == 'function';
+			});
+		}).catch(function(error){
+			argonPanguModulePromise = null;
+			throw error;
+		});
+	}
+	argonPanguModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonPanguInit(root);
+		}
+	}).catch(function(){});
+}
+
+var argonClampModulePromise = null;
+function argonLoadClampModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('.clamp')){
+		return;
+	}
+	if (typeof(window.argonClampInit) == 'function'){
+		window.argonClampInit(root);
+		return;
+	}
+	if (!argonClampModulePromise){
+		argonClampModulePromise = argonLoadOptionalScript('clampModule', function(){
+			return typeof(window.argonClampInit) == 'function';
+		}).catch(function(error){
+			argonClampModulePromise = null;
+			throw error;
+		});
+	}
+	argonClampModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonClampInit(root);
+		}
+	}).catch(function(){});
+}
+
+var argonZoomifyModulePromise = null;
+function argonLoadZoomifyModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (argonConfig.zoomify === false || !root.querySelector('#post_content img')){
+		return;
+	}
+	if (!argonZoomifyModulePromise){
+		var vendorPromise = typeof($.fn.zoomify) == 'function' ? Promise.resolve() :
+			argonLoadOptionalScript('zoomifyVendor', function(){
+				return typeof($.fn.zoomify) == 'function';
+			});
+		argonZoomifyModulePromise = vendorPromise.then(function(){
+			return argonLoadOptionalScript('zoomifyModule', function(){
+				return typeof(window.argonZoomifyInit) == 'function';
+			});
+		}).catch(function(error){
+			argonZoomifyModulePromise = null;
+			throw error;
+		});
+	}
+	argonZoomifyModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonZoomifyInit(root);
+		}
+	}).catch(function(){});
+}
+
+var argonLazyloadModulePromise = null;
+function argonLoadLazyloadModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	var hasLazyloadNodes = root.querySelector('article img.lazyload, .post-thumbnail.lazyload, .related-post-thumbnail.lazyload, .comment-item-text .comment-sticker.lazyload');
+	if (argonConfig.lazyload === false || !hasLazyloadNodes){
+		return;
+	}
+	if (!argonLazyloadModulePromise){
+		var vendorPromise = typeof($.fn.lazyload) == 'function' ? Promise.resolve() :
+			argonLoadOptionalScript('lazyloadVendor', function(){
+				return typeof($.fn.lazyload) == 'function';
+			});
+		argonLazyloadModulePromise = vendorPromise.then(function(){
+			return argonLoadOptionalScript('lazyloadModule', function(){
+				return typeof(window.argonLazyloadInit) == 'function';
+			});
+		}).catch(function(error){
+			argonLazyloadModulePromise = null;
+			throw error;
+		});
+	}
+	argonLazyloadModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonLazyloadInit(root);
+		}
+	}).catch(function(){});
+}
+
+var argonSearchModulePromise = null;
+function argonLoadSearchModule(root){
+	root = root && typeof(root.querySelector) == 'function' ? root : document;
+	var input = root.querySelector('#local-search-input');
+	if (!input){
+		return;
+	}
+	var loadSearchModule = function(){
+		if (typeof(window.argonSearchInit) == 'function'){
+			window.argonSearchInit(root);
 			return;
 		}
-		$clamp(dom, {clamp: dom.getAttribute("clamp-line")});
-		dom.setAttribute('data-argon-clamp-initialized', 'true');
-	});
-}
-clampInit();
-
-/* 旧版多容器 PJAX 已由 static/js/navigation.js 接管，保留代码仅作兼容参考。 */
-if (false){
-$.pjax.defaults.timeout = 10000;
-$.pjax.defaults.container = ['#primary', '#leftbar_part1_menu', '#leftbar_part2_inner', '.page-information-card-container', '#wpadminbar'];
-$.pjax.defaults.fragment = ['#primary', '#leftbar_part1_menu', '#leftbar_part2_inner', '.page-information-card-container', '#wpadminbar'];
-$(document).pjax("a[href]:not([no-pjax]):not(.no-pjax):not([target='_blank']):not([download])")
-.on('pjax:click', function(e, f, g){
-	if (argonConfig.disable_pjax == true){
-		e.preventDefault();
-		return;
-	}
-	NProgress.remove();
-	NProgress.start();
-}).on('pjax:afterGetContainers', function(e, f, g) {
-	if (g.is("#main article.post-preview a.post-title")){
-		let $card = $(g.parents("article.post-preview")[0]);
-		$card.append("<div class='loading-css-animation'><div class='loading-dot loading-dot-1' ></div><div class='loading-dot loading-dot-2' ></div><div class='loading-dot loading-dot-3' ></div><div class='loading-dot loading-dot-4' ></div><div class='loading-dot loading-dot-5' ></div><div class='loading-dot loading-dot-6' ></div><div class='loading-dot loading-dot-7' ></div><div class='loading-dot loading-dot-8' ></div></div></div>");
-		$card.addClass("post-pjax-loading");
-		$("#main").addClass("post-list-pjax-loading");
-		let offsetTop = $($card).offset().top - $("#main").offset().top;
-		$card.css("transform" , "translateY(-" + offsetTop + "px)");
-		$("body,html").animate({
-			scrollTop: 0
-		}, 450);
-	}
-}).on('pjax:send', function() {
-	NProgress.set(0.618);
-}).on('pjax:beforeReplace', function(e, dom) {
-	if ($("#post_comment", dom[0]).length > 0){
-		$("#fabtn_go_to_comment").removeClass("d-none");
-	}else{
-		$("#fabtn_go_to_comment").addClass("d-none");
-	}
-}).on('pjax:complete', function() {
-	NProgress.inc();
-	try{
-		if (MathJax != undefined){
-			MathJax.typeset();
-		}
-	}catch (err){}
-	try{
-		if ($("script#mathjax_v2_script" , $vdom).length > 0){
-			MathJax.Hub.Typeset();
-		}
-	}catch (err){}
-	try{
-		if (renderMathInElement != undefined){
-			renderMathInElement(document.body,{
-				delimiters: [
-					{left: "$$", right: "$$", display: true},
-					{left: "$", right: "$", display: false},
-					{left: "\\(", right: "\\)", display: false}
-				]
+		if (!argonSearchModulePromise){
+			argonSearchModulePromise = argonLoadOptionalScript('searchModule', function(){
+				return typeof(window.argonSearchInit) == 'function';
+			}).catch(function(error){
+				argonSearchModulePromise = null;
+				throw error;
 			});
 		}
-	}catch (err){}
-
-	lazyloadInit();
-	zoomifyInit();
-	highlightJsRender();
-	panguInit();
-	clampInit();
-	getGithubInfoCardContent();
-	showPostOutdateToast();
-	calcHumanTimesOnPage();
-
-	if (typeof(window.pjaxLoaded) == "function"){
-		try{
-			window.pjaxLoaded();
-		}catch (err){
-			console.error(err);
-		}
+		argonSearchModulePromise.then(function(){
+			if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+				window.argonSearchInit(root);
+			}
+		}).catch(function(){});
+	};
+	if (input.getAttribute('data-argon-search-trigger-bound') != 'true'){
+		input.addEventListener('focus', loadSearchModule);
+		input.addEventListener('click', loadSearchModule);
+		input.setAttribute('data-argon-search-trigger-bound', 'true');
 	}
-
-	NProgress.done();
-}).on('pjax:end', function() {
-	lazyloadInit();
-});
+	if (document.activeElement === input){
+		loadSearchModule();
+	}
 }
 
+/* Optional Zoomify module */
 /* 页面生命周期：由 navigation.js 在首次加载和跨路径替换后统一调用。 */
-function argonInitHeadIndex(){
-	let catalog = document.getElementById('leftbar_catalog');
-	let article = document.getElementById('post_content');
-	let tabs = document.getElementById('leftbar_page_tabs');
-	let catalogButton = document.getElementById('leftbar_tab_catalog_btn');
-	let overviewButton = document.getElementById('leftbar_tab_overview_btn');
-	let catalogPane = document.getElementById('leftbar_tab_catalog');
-	let overviewPane = document.getElementById('leftbar_tab_overview');
+function argonInitHeadIndex(root){
+	root = root && typeof(root.querySelector) == 'function' ? root : document;
+	let catalog = root.querySelector('#leftbar_catalog');
+	let article = root.querySelector('#post_content');
+	let tabs = root.querySelector('#leftbar_page_tabs');
+	let catalogButton = root.querySelector('#leftbar_tab_catalog_btn');
+	let overviewButton = root.querySelector('#leftbar_tab_overview_btn');
+	let catalogPane = root.querySelector('#leftbar_tab_catalog');
+	let overviewPane = root.querySelector('#leftbar_tab_overview');
 	if (!catalog || !tabs || !catalogButton || !overviewButton || !catalogPane || !overviewPane){
 		return;
 	}
@@ -829,66 +1098,67 @@ function argonInitShare(root){
 	socialShare('#share', {
 		title: share.getAttribute('data-share-title') || document.title,
 		description: share.getAttribute('data-share-description') || '',
-		wechatQrcodeTitle: '分享到微信',
-		wechatQrcodeHelper: '微信扫描二维码',
+		wechatQrcodeTitle: __('分享到微信'),
+		wechatQrcodeHelper: __('微信扫描二维码'),
 		source: share.getAttribute('data-share-source') || window.location.href
 	});
 	share.setAttribute('data-initialized', 'true');
 }
 
-function argonShowCopyToast(success){
-	if (typeof(iziToast) == 'undefined'){
+var argonShareModulePromise = null;
+function argonLoadShareModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('#share_container')){
 		return;
 	}
-	iziToast.show({
-		title: success ? '链接已复制' : '复制失败',
-		message: success ? '链接已复制到剪贴板' : '请手动复制链接',
-		class: 'shadow',
-		position: 'topRight',
-		backgroundColor: success ? '#2dce89' : '#f5365c',
-		titleColor: '#ffffff',
-		messageColor: '#ffffff',
-		iconColor: '#ffffff',
-		progressBarColor: '#ffffff',
-		icon: success ? 'fa fa-check' : 'fa fa-close',
-		timeout: 5000
-	});
+	if (window.argonShareModuleReady === true){
+		return;
+	}
+	if (!argonShareModulePromise){
+		var vendorPromise = typeof(window.socialShare) == 'function' ? Promise.resolve() :
+			argonLoadOptionalScript('shareVendor', function(){
+				return typeof(window.socialShare) == 'function';
+			});
+		argonShareModulePromise = vendorPromise.then(function(){
+			return argonLoadOptionalScript('shareModule', function(){
+				return window.argonShareModuleReady === true;
+			});
+		}).then(function(){
+			argonInitShare(root);
+		}).catch(function(error){
+			argonShareModulePromise = null;
+			throw error;
+		});
+	}
+	argonShareModulePromise.catch(function(){});
 }
 
-$(document).on('click.argonShare', '#share_show', function(){
-	$(this).closest('#share_container').addClass('opened');
-});
-$(document).on('click.argonShare', '#share_copy_link', function(event){
-	event.preventDefault();
-	let input = document.createElement('input');
-	document.body.appendChild(input);
-	input.setAttribute('value', window.location.href);
-	input.setAttribute('readonly', 'readonly');
-	input.style.opacity = '0';
-	input.style.pointerEvents = 'none';
-	input.select();
-	let success = false;
-	try{
-		success = document.execCommand('copy');
-	}catch (err){}
-	document.body.removeChild(input);
-	argonShowCopyToast(success);
-});
-
 function argonRenderMath(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!argonHasMathContent(root)) return;
+	function isCurrentRoot(){
+		return root === document || (root && root.isConnected !== false && document.documentElement.contains(root));
+	}
+	var config = window.argonMathConfig || {};
 	try{
-		if (window.MathJax && typeof(window.MathJax.typesetPromise) == 'function'){
-			window.MathJax.typesetPromise([root || document]).catch(function(){});
-		}else if (window.MathJax && window.MathJax.Hub && typeof(window.MathJax.Hub.Queue) == 'function'){
-			window.MathJax.Hub.Queue(['Typeset', window.MathJax.Hub, root || document]);
-		}else if (typeof(renderMathInElement) == 'function'){
-			renderMathInElement(root || document, {
+		if (!isCurrentRoot()) return;
+		if (config.renderer == 'mathjax3' && window.MathJax && typeof(window.MathJax.typesetPromise) == 'function'){
+			window.MathJax.typesetPromise([root]).catch(function(){});
+		}else if (config.renderer == 'mathjax2' && window.MathJax && window.MathJax.Hub && typeof(window.MathJax.Hub.Queue) == 'function'){
+			window.MathJax.Hub.Queue(['Typeset', window.MathJax.Hub, root]);
+		}else if (config.renderer == 'katex' && typeof(renderMathInElement) == 'function'){
+			renderMathInElement(root, {
 				delimiters: [
 					{left: '$$', right: '$$', display: true},
+					{left: '\\[', right: '\\]', display: true},
 					{left: '$', right: '$', display: false},
-					{left: '\\\\(', right: '\\\\)', display: false}
+					{left: '\\(', right: '\\)', display: false}
 				]
 			});
+		}else if (config.enabled){
+			argonLoadMathAssets().then(function(){
+				if (isCurrentRoot()) argonRenderMath(root);
+			}).catch(function(){});
 		}
 	}catch (err){
 		console.error('Argon math rendering failed', err);
@@ -897,20 +1167,25 @@ function argonRenderMath(root){
 
 function argonInitPage(root){
 	root = root || document;
-	bannerInit();
-	lazyloadInit();
-	zoomifyInit();
-	highlightJsRender();
-	panguInit();
-	clampInit();
+	argonLoadBannerModule();
+	argonLoadLazyloadModule(root);
+	argonLoadZoomifyModule(root);
+	argonLoadCodeModule(root);
+	argonLoadShareModule(root);
+	argonLoadPanguModule(root);
+	argonLoadClampModule(root);
 	leftbarStickyInit();
-	hitokotoInit();
-	argonInitHeadIndex();
+	argonLoadHitokotoModule(root);
+	argonInitHeadIndex(root);
 	argonInitShare(root);
-	searchInit();
-	getGithubInfoCardContent();
-	showPostOutdateToast();
-	calcHumanTimesOnPage();
+	initCardRadius(root);
+	initArgonThemeColorPicker(root);
+	argonLoadSearchModule(document);
+	argonLoadGithubModule(root);
+	argonLoadOutdateModule(root);
+	argonLoadCommentImageModule(root);
+	argonLoadCollapseModule(root);
+	scheduleHumanTimesOnPage(root);
 	argonRenderMath(root);
 	if (typeof(window.pjaxLoaded) == 'function'){
 		try{
@@ -950,64 +1225,30 @@ $(document).on("click" , "#blog_categories .tag" , function(){
 	});
 }();
 
-/* 折叠区块小工具 */
-$(document).on("click" , ".collapse-block .collapse-block-title" , function(){
-	let id = this.getAttribute("collapse-id");
-	let selecter = ".collapse-block[collapse-id='" + id +"']";
-	$(selecter).toggleClass("collapsed");
-	if ($(selecter).hasClass("collapsed")){
-		$(selecter + " .collapse-block-body").stop(true , false).slideUp(200);
-	}else{
-		$(selecter + " .collapse-block-body").stop(true , false).slideDown(200);
+var argonGithubModulePromise = null;
+function argonLoadGithubModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('.github-info-card')){
+		return;
 	}
-	$("html").trigger("scroll");
-});
-
-/* 获得 Github Repo Shortcode 信息卡内容 */
-function getGithubInfoCardContent(){
-	$(".github-info-card").each(function(){
-		(function($this){
-			if ($this.attr("data-getdata") == "backend"){
-				$(".github-info-card-description" , $this).html($this.attr("data-description"));
-				$(".github-info-card-stars" , $this).html($this.attr("data-stars"));
-				$(".github-info-card-forks" , $this).html($this.attr("data-forks"));
-				return;
-			}
-			if ($this.attr("data-argon-github-initialized") == "true"){
-				return;
-			}
-			$this.attr("data-argon-github-initialized", "true");
-			$(".github-info-card-description" , $this).html("Loading...");
-			$(".github-info-card-stars" , $this).html("-");
-			$(".github-info-card-forks" , $this).html("-");
-			let author = $this.attr("data-author");
-			let project = $this.attr("data-project");
-			$.ajax({
-				url : "https://api.github.com/repos/" + author + "/" + project,
-				type : "GET",
-				dataType : "json",
-				success : function(result){
-					let description = result.description;
-					if (result.homepage != ""){
-						description += " <a href='" + result.homepage + "' target='_blank' no-pjax>" + result.homepage + "</a>"
-					}
-					$(".github-info-card-description" , $this).html(description);
-					$(".github-info-card-stars" , $this).html(result.stargazers_count);
-					$(".github-info-card-forks" , $this).html(result.forks_count);
-					// console.log(result);
-				},
-				error : function(xhr){
-					if (xhr.status == 404){
-						$(".github-info-card-description" , $this).html(__("找不到该 Repo"));
-					}else{
-						$(".github-info-card-description" , $this).html(__("获取 Repo 信息失败"));
-					}
-				}
-			});
-		})($(this));
-	});
+	if (typeof(window.argonGithubInfoCardInit) == 'function'){
+		window.argonGithubInfoCardInit(root);
+		return;
+	}
+	if (!argonGithubModulePromise){
+		argonGithubModulePromise = argonLoadOptionalScript('githubModule', function(){
+			return typeof(window.argonGithubInfoCardInit) == 'function';
+		}).catch(function(error){
+			argonGithubModulePromise = null;
+			throw error;
+		});
+	}
+	argonGithubModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonGithubInfoCardInit(root);
+		}
+	}).catch(function(){});
 }
-getGithubInfoCardContent();
 
 // 颜色计算
 function rgb2hsl(R,G,B){
@@ -1134,10 +1375,69 @@ function rgb2str(rgb){
 function hex2str(hex){
 	return rgb2str(hex2rgb(hex));
 }
-// 颜色选择器 & 切换主题色
-if ($("meta[name='argon-enable-custom-theme-color']").attr("content") == 'true'){
+// 颜色选择器 & 切换主题色。取色器只在首次打开设置弹窗时加载。
+let argonPickrLoadPromise = null;
+function argonLoadPickrAssets(){
+	if (window.Pickr){
+		return Promise.resolve();
+	}
+	if (argonPickrLoadPromise){
+		return argonPickrLoadPromise;
+	}
+	let urls = window.argonPickrAssets || {};
+	let cssPromise = new Promise(function(resolve, reject){
+		let existing = document.querySelector("link[data-argon-pickr-style]");
+		if (existing){
+			resolve(existing);
+			return;
+		}
+		if (!urls.css){
+			resolve();
+			return;
+		}
+		let link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.href = urls.css;
+		link.setAttribute('data-argon-pickr-style', 'true');
+		link.onload = function(){ resolve(link); };
+		link.onerror = function(){ reject(new Error('Pickr stylesheet failed to load')); };
+		document.head.appendChild(link);
+	});
+	let scriptPromise = new Promise(function(resolve, reject){
+		if (!urls.js){
+			reject(new Error('Pickr script URL is unavailable'));
+			return;
+		}
+		let script = document.createElement('script');
+		script.src = urls.js;
+		script.onload = function(){ resolve(); };
+		script.onerror = function(){ reject(new Error('Pickr script failed to load')); };
+		document.head.appendChild(script);
+	});
+	argonPickrLoadPromise = Promise.all([cssPromise, scriptPromise]);
+	return argonPickrLoadPromise;
+}
+
+function initArgonThemeColorPicker(root){
+	root = root && typeof(root.querySelector) == 'function' ? root : document;
+	// 颜色选择器 & 切换主题色
+	let pickerElement = root.querySelector('#theme-color-picker');
+	if ($("meta[name='argon-enable-custom-theme-color']").attr("content") == 'true' && pickerElement){
+		if (pickerElement.getAttribute('data-argon-pickr-initialized') == 'true'){
+			return;
+		}
+		if (typeof(window.Pickr) != 'function'){
+			let settingsButton = root.querySelector('#fabtn_toggle_blog_settings_popup');
+			if (settingsButton && settingsButton.getAttribute('data-argon-pickr-bound') != 'true'){
+				settingsButton.setAttribute('data-argon-pickr-bound', 'true');
+				settingsButton.addEventListener('click', function(){
+					argonLoadPickrAssets().then(function(){ initArgonThemeColorPicker(root); }).catch(function(){});
+				}, {once: true});
+			}
+			return;
+		}
 	let themeColorPicker = new Pickr({
-		el: '#theme-color-picker',
+		el: pickerElement,
 		container: 'body',
 		theme: 'monolith',
 		closeOnScroll: false,
@@ -1194,7 +1494,10 @@ if ($("meta[name='argon-enable-custom-theme-color']").attr("content") == 'true')
 		updateThemeColor($("meta[name='theme-color-origin']").attr("content").toUpperCase(), false);
 		localStorage.removeItem("argon_custom_theme_color");
 	});
+	pickerElement.setAttribute('data-argon-pickr-initialized', 'true');
 }
+}
+initArgonThemeColorPicker();
 function pickrObjectToHEX(color){
 	let HEXA = color.toHEXA();
 	return ("#" + HEXA[0] + HEXA[1] + HEXA[2]).toUpperCase();
@@ -1251,214 +1554,81 @@ if (localStorage["argon_custom_theme_color"] != undefined){
 	updateThemeColor(localStorage["argon_custom_theme_color"], false);
 }
 
-/* 评论区图片链接点击处理 */
-!function(){
-	let invid = 0;
-	let activeImg = null;
-	$(document).on("click" , ".comment-item-text .comment-image" , function(){
-		$(".comment-image-preview", this).attr("data-easing", "cubic-bezier(0.4, 0, 0, 1)");
-		$(".comment-image-preview", this).attr("data-duration", "500");
-		if (!$(this).hasClass("comment-image-preview-zoomed")){
-			activeImg = this;
-			$(this).addClass("comment-image-preview-zoomed");
-			if (!$(this).hasClass("loaded")){
-				$(".comment-image-preview", this).attr('src', $(this).attr("data-src"));
-			}
-			$(".comment-image-preview", this).zoomify('zoomIn');
-			if (!$(this).hasClass("loaded")){
-				invid = setInterval(function(){
-					if (activeImg.width != 0){
-						$("html").trigger("scroll");
-						$(activeImg).addClass("loaded");
-						clearInterval(invid);
-						activeImg = null;
-					}
-				}, 50);
-			}
-		}else{
-			clearInterval(invid);
-			activeImg = null;
-			$(this).removeClass("comment-image-preview-zoomed");
-			$(".comment-image-preview", this).zoomify('zoomOut');
+var argonBannerModulePromise = null;
+function argonLoadBannerModule(){
+	var bannerTitle = document.querySelector('.banner-title[data-text]');
+	if (!bannerTitle){
+		return;
+	}
+	if (typeof(window.argonBannerInit) == 'function'){
+		window.argonBannerInit(document);
+		return;
+	}
+	if (!argonBannerModulePromise){
+		argonBannerModulePromise = argonLoadOptionalScript('bannerModule', function(){
+			return typeof(window.argonBannerInit) == 'function';
+		}).catch(function(error){
+			argonBannerModulePromise = null;
+			throw error;
+		});
+	}
+	argonBannerModulePromise.then(function(){
+		if (document.documentElement.contains(bannerTitle)){
+			window.argonBannerInit(document);
 		}
-	});
-}();
+	}).catch(function(){});
+}
 
-/* 打字效果 */
-function typeEffect(element, text, now, interval){
-	element.classList.add('typing-effect');
-	if (now > text.length){
-		setTimeout(function(){
-			element.classList.remove('typing-effect');
-		}, 1000 - ((interval * now) % 1000) - 50);
+var argonHitokotoModulePromise = null;
+function argonLoadHitokotoModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (!root.querySelector('.hitokoto')){
 		return;
 	}
-	element.innerText = text.substring(0, now);
-	setTimeout(function(){typeEffect(element, text, now + 1, interval)}, interval);
-}
-function bannerInit(){
-	let bannerTitle = $(".banner-title").first();
-	let bannerInner = bannerTitle.find(".banner-title-inner")[0];
-	if (!bannerTitle.length || !bannerInner || bannerTitle.attr('data-argon-typing-initialized') == 'true'){
+	if (typeof(window.argonHitokotoInit) == 'function'){
+		window.argonHitokotoInit(root);
 		return;
 	}
-	bannerTitle.attr('data-argon-typing-initialized', 'true');
-	if (bannerTitle.data("text") != undefined){
-		typeEffect(bannerInner, bannerTitle.data("text"), 0, bannerTitle.data("interval"));
+	if (!argonHitokotoModulePromise){
+		argonHitokotoModulePromise = argonLoadOptionalScript('hitokotoModule', function(){
+			return typeof(window.argonHitokotoInit) == 'function';
+		}).catch(function(error){
+			argonHitokotoModulePromise = null;
+			throw error;
+		});
 	}
+	argonHitokotoModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonHitokotoInit(root);
+		}
+	}).catch(function(){});
 }
-bannerInit();
 
-/* 一言 */
-function hitokotoInit(){
-	$(".hitokoto").each(function(){
-		let $this = $(this);
-		if ($this.attr('data-argon-hitokoto-initialized') == 'true'){
-			return;
-		}
-		$this.attr('data-argon-hitokoto-initialized', 'true');
-		$.ajax({
-			type: 'GET',
-			url: "https://v1.hitokoto.cn",
-			success: function(result){
-				$this.text(result.hitokoto);
-			},
-			error: function(result){
-				$this.text(__("Hitokoto 获取失败"));
-			}
-		});
-	});
-}
-hitokotoInit();
-
-/* Highlight.js */
-function randomString(len) {
-	len = len || 32;
-	let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	let res = "";
-	for (let i = 0; i < len; i++) {
-		res += chars.charAt(Math.floor(Math.random() * chars.length));
-	}
-	return res;
-}
-var codeOfBlocks = {};
-function getCodeFromBlock(block){
-	if (codeOfBlocks[block.id] != undefined){
-		return codeOfBlocks[block.id];
-	}
-	let lines = $(".hljs-ln-code", block);
-	let res = "";
-	for (let i = 0; i < lines.length - 1; i++){
-		res += lines[i].innerText;
-		res += "\n";
-	}
-	res += lines[lines.length - 1].innerText;
-	codeOfBlocks[block.id] = res;
-	return res;
-}
-function highlightJsRender(){
-	if (typeof(hljs) == "undefined"){
+/* 代码高亮模块：只有当前页面包含代码块时才加载。 */
+var argonCodeModulePromise = null;
+function argonLoadCodeModule(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	if (typeof(argonEnableCodeHighlight) == 'undefined' || !argonEnableCodeHighlight || !root.querySelector('article pre > code, article pre.code')){
 		return;
 	}
-	if (typeof(argonEnableCodeHighlight) == "undefined"){
+	if (typeof(window.argonHighlightJsRender) == 'function'){
+		window.argonHighlightJsRender(root);
 		return;
 	}
-	if (!argonEnableCodeHighlight){
-		return;
+	if (!argonCodeModulePromise){
+		argonCodeModulePromise = argonLoadOptionalScript('codeModule', function(){
+			return typeof(window.argonHighlightJsRender) == 'function';
+		}).catch(function(error){
+			argonCodeModulePromise = null;
+			throw error;
+		});
 	}
-	$("article pre.code").each(function(index, block) {
-		if ($(block).hasClass("no-hljs")){
-			return;
+	argonCodeModulePromise.then(function(){
+		if (root === document || (root && root.isConnected !== false && document.documentElement.contains(root))){
+			window.argonHighlightJsRender(root);
 		}
-		if ($(block).children("code").length == 0){
-			$(block).html("<code>" + $(block).html() + "</code>");
-		}
-	});
-	$("article pre > code").each(function(index, block) {
-		if ($(block).hasClass("no-hljs")){
-			return;
-		}
-		if ($(block).parent().attr('data-argon-highlighted') == 'true'){
-			return;
-		}
-		$(block).parent().attr("id", randomString());
-		hljs.highlightBlock(block);
-		hljs.lineNumbersBlock(block, {singleLine: true});
-		$(block).parent().addClass("hljs-codeblock");
-		$(block).attr("hljs-codeblock-inner", "");
-		$(block).parent().attr('data-argon-highlighted', 'true');
-		let copyBtnID = "copy_btn_" + randomString();
-		$(block).parent().append(`<div class="hljs-control hljs-title">
-				<div class="hljs-control-btn hljs-control-toggle-linenumber" tooltip-hide-linenumber="` + __("隐藏行号") + `" tooltip-show-linenumber="` + __("显示行号") + `">
-					<i class="fa fa-list"></i>
-				</div>
-				<div class="hljs-control-btn hljs-control-toggle-break-line" tooltip-enable-breakline="` + __("开启折行") + `" tooltip-disable-breakline="` + __("关闭折行") + `">
-					<i class="fa fa-align-left"></i>
-				</div>
-				<div class="hljs-control-btn hljs-control-copy" id=` + copyBtnID + ` tooltip="` + __("复制") + `">
-					<i class="fa fa-clipboard"></i>
-				</div>
-				<div class="hljs-control-btn hljs-control-fullscreen" tooltip-fullscreen="` + __("全屏") + `" tooltip-exit-fullscreen="` + __("退出全屏") + `">
-					<i class="fa fa-arrows-alt"></i>
-				</div>
-			</div>`);
-		let clipboard = new ClipboardJS("#" + copyBtnID, {
-			text: function(trigger) {
-				return getCodeFromBlock($(block).parent()[0]);
-			}
-		});
-		clipboard.on('success', function(e) {
-			iziToast.show({
-				title: __("复制成功"),
-				message: __("代码已复制到剪贴板"),
-				class: 'shadow',
-				position: 'topRight',
-				backgroundColor: '#2dce89',
-				titleColor: '#ffffff',
-				messageColor: '#ffffff',
-				iconColor: '#ffffff',
-				progressBarColor: '#ffffff',
-				icon: 'fa fa-check',
-				timeout: 5000
-			});
-		});
-		clipboard.on('error', function(e) {
-			iziToast.show({
-				title: __("复制失败"),
-				message: __("请手动复制代码"),
-				class: 'shadow',
-				position: 'topRight',
-				backgroundColor: '#f5365c',
-				titleColor: '#ffffff',
-				messageColor: '#ffffff',
-				iconColor: '#ffffff',
-				progressBarColor: '#ffffff',
-				icon: 'fa fa-close',
-				timeout: 5000
-			});
-		});
-	});
+	}).catch(function(){});
 }
-$(document).ready(function(){
-	highlightJsRender();
-});
-$(document).on("click" , ".hljs-control-fullscreen" , function(){
-	let block = $(this).parent().parent();
-	block.toggleClass("hljs-codeblock-fullscreen");
-	if (block.hasClass("hljs-codeblock-fullscreen")){
-		$("html").addClass("noscroll codeblock-fullscreen");
-	}else{
-		$("html").removeClass("noscroll codeblock-fullscreen");
-	}
-});
-$(document).on("click" , ".hljs-control-toggle-break-line" , function(){
-	let block = $(this).parent().parent();
-	block.toggleClass("hljs-break-line");
-});
-$(document).on("click" , ".hljs-control-toggle-linenumber" , function(){
-	let block = $(this).parent().parent();
-	block.toggleClass("hljs-hide-linenumber");
-});
 
 /* 时间差计算 */
 function addPreZero(num, n) {
@@ -1526,126 +1696,32 @@ function humanTimeDiff(time){
 		return time.getDate() + "-" + (time.getMonth() + 1) + "-" + time.getFullYear();
 	}
 }
-function calcHumanTimesOnPage(){
-	$(".human-time").each(function(){
-		$(this).text(humanTimeDiff(parseInt($(this).data("time")) * 1000));
-	});
-}
-calcHumanTimesOnPage();
-setInterval(function(){
-	calcHumanTimesOnPage()
-}, 15000);
-
-/* 搜索 */
-// https://github.com/PaicHyperionDev/hexo-generator-search
-var searchFunc = function(path, search_id, content_id) {
-	'use strict';
-	$.ajax({
-		url: path,
-		dataType: "xml",
-		success: function( xmlResponse ) {
-			var datas = $( "entry", xmlResponse ).map(function() {
-				return {
-					title: $( "title", this ).text(),
-					content: $("content",this).text(),
-					url: $( "url" , this).text()
-				};
-			}).get();
-			var $input = document.getElementById(search_id);
-			var $resultContent = document.getElementById(content_id);
-			if (!$input || !$resultContent) return;
-			$input.setAttribute('data-argon-search-initialized', 'true');
-			if ($input) {
-				$input.addEventListener('input', function () {
-					var str = '<ul class=\"search-result-list\">';
-					var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
-					$resultContent.innerHTML = "";
-					if (this.value.trim().length <= 0) {
-						return;
-					}
-					datas.forEach(function (data) {
-						var isMatch = true;
-						var content_index = [];
-						if (!data.title || data.title.trim() === '') {
-							data.title = "Untitled";
-						}
-						var data_title = data.title.trim().toLowerCase();
-						var data_content = (data.content || "").trim().replace(/<[^>]+>/g, "").toLowerCase();
-						var data_url = data.url;
-						var index_title = -1;
-						var index_content = -1;
-						var first_occur = -1;
-						if (data_content !== '') {
-							keywords.forEach(function (keyword, i) {
-								index_title = data_title.indexOf(keyword);
-								index_content = data_content.indexOf(keyword);
-
-								if (index_title < 0 && index_content < 0) {
-									isMatch = false;
-								} else {
-									if (index_content < 0) {
-										index_content = 0;
-									}
-									if (i == 0) {
-										first_occur = index_content;
-									}
-								}
-							});
-						} else {
-							isMatch = false;
-						}
-						if (isMatch) {
-							str += "<li><a href='" + data_url + "' class='search-result-title'>" + data_title + "</a>";
-							var content = (data.content || "").trim().replace(/<[^>]+>/g, "");
-							if (first_occur >= 0) {
-								var start = first_occur - 20;
-								var end = first_occur + 80;
-								if (start < 0) {
-									start = 0;
-								}
-								if (start == 0) {
-									end = 100;
-								}
-								if (end > content.length) {
-									end = content.length;
-								}
-								var match_content = content.substring(start, end);
-								keywords.forEach(function (keyword) {
-									var regS = new RegExp(keyword, "gi");
-									match_content = match_content.replace(regS, "<em class=\"search-keyword\">" + keyword + "</em>");
-								});
-								str += "<p class=\"search-result\">" + match_content + "...</p>"
-							}
-							str += "</li>";
-						}
-					});
-					str += "</ul>";
-					$resultContent.innerHTML = str;
-				});
-			}
+function calcHumanTimesOnPage(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	let times = root.matches && root.matches('.human-time') ? $(root) : $('.human-time', root);
+	times.each(function(){
+		let timestamp = parseInt(this.getAttribute("data-time"), 10);
+		if (Number.isFinite(timestamp)){
+			this.textContent = humanTimeDiff(timestamp * 1000);
 		}
 	});
 }
-function searchInit(){
-	var input = document.getElementById('local-search-input');
-	if (!input || input.getAttribute('data-argon-search-initialized') == 'true' || input.getAttribute('data-argon-search-loading') == 'true'){
-		return;
+let humanTimeTimer = null;
+let humanTimeRoot = document;
+function scheduleHumanTimesOnPage(root){
+	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
+	humanTimeRoot = root;
+	if (humanTimeTimer != null){
+		clearInterval(humanTimeTimer);
+		humanTimeTimer = null;
 	}
-	var searchPath = $(input).data('search.path') || 'search.xml';
-	var root = $(input).data('config.root') || '';
-	var result = document.getElementById('search-results') || document.getElementById('local-search-result');
-	if (!result){
-		return;
+	calcHumanTimesOnPage(root);
+	let hasHumanTime = !!(root.matches && root.matches('.human-time')) || !!root.querySelector('.human-time');
+	if (hasHumanTime){
+		humanTimeTimer = setInterval(function(){ calcHumanTimesOnPage(humanTimeRoot); }, 15000);
 	}
-	input.setAttribute('data-argon-search-loading', 'true');
-	searchFunc(root + searchPath, input.id, result.id);
 }
-searchInit();
-
-$(document).on("click" , ".search-result-title" , function(){
-	$("#argon_search_modal button[data-dismiss='modal']").click();
-});
-
+scheduleHumanTimesOnPage();
 
 /* Console */
 !function(){

@@ -2,12 +2,14 @@ baseURL: ""
 languageCode: "zh-cn"
 title: "Argon Hugo Theme 示例站点"
 theme: "Hugo-Theme-Argon"
+enableRobotsTXT: true
 
 # Hugo 摘要设置
 summaryLength: 70  # 摘要字数（中文按字符计算）
 hasCJKLanguage: true  # 启用中文、日文、韩文支持
 
 params:
+  description: "展示 Argon Hugo 主题功能的示例站点"
   # 全局设置
   themeColor: '#5e72e4'  # 主题色（十六进制）
   themeColorRGB: '94, 114, 228'  # 主题色 RGB 值，用于半透明效果（需与 themeColor 对应）
@@ -17,7 +19,9 @@ params:
   cardRadius: 4
   cardShadow: ""
   font: "sans-serif"
+  enableExternalFonts: false  # 需要主题字体时改为 true
   enableHeadroom: false
+  enableBusuanzi: false
 
   # 顶栏
   toolbar:
@@ -29,6 +33,14 @@ params:
         url: "/"
       - name: "归档"
         url: "/archives/"
+      - name: "说说"
+        url: "/shuoshuo/"
+      - name: "时间线"
+        url: "/page/timeline/"
+      - name: "留言板"
+        url: "/page/msgboard/"
+      - name: "作者"
+        url: "/page/author/"
       - name: "关于"
         url: "/about/"
 
@@ -52,6 +64,14 @@ params:
         url: "/"
       - name: "归档"
         url: "/archives/"
+      - name: "说说"
+        url: "/shuoshuo/"
+      - name: "时间线"
+        url: "/page/timeline/"
+      - name: "留言板"
+        url: "/page/msgboard/"
+      - name: "作者"
+        url: "/page/author/"
       - name: "关于"
         url: "/about/"
     authorImage: "/assets/img/auther.jpg"
@@ -66,18 +86,51 @@ params:
         url: "https://gohugo.io"
       - name: "GitHub"
         url: "https://github.com"
+    rightbar:
+      - title: "站点链接"
+        items:
+          - name: "Hugo"
+            url: "https://gohugo.io"
+          - name: "Argon"
+            url: "https://github.com/solstice23/argon-theme"
     showHeadindexNumber: false
 
   # 文章
   excerpt: true
   excerptLength: 120  # 首页文章摘要长度（字符数），默认 175
   firstImageAsThumbnail: false
+  imageProcessing: true
+  # 可选字段：time、edittime、views、comments、categories、words、readingtime（read 为 views 兼容别名）
   articleMeta: "time|categories|words|readingtime"
+  showReadingtime: true
+  relatedPosts:
+    enabled: true
+    limit: 6
   readingSpeedCn: 300
   readingSpeedEn: 160
+  showShareBtn: true
   donateQrcodeUrl: ""
   additionalContentAfterPost: ""
   articleHeaderStyle: "2"  # default, 1, 2 - 样式2会在标题前显示彩色竖杠装饰
+  shuoshuo:
+    showOnHome: true
+    homeLimit: 1
+    homeTitle: "最近说说"
+  comments:
+    enabled: false
+    provider: "giscus" # giscus、waline、twikoo、remark42
+    repository: ""
+    repositoryID: ""
+    category: ""
+    categoryID: ""
+    mapping: "pathname"
+    language: "zh-CN"
+    serverURL: "" # Waline 服务地址
+    envId: "" # Twikoo 环境 ID 或服务地址
+    region: "" # Twikoo 腾讯云地域，例如 ap-guangzhou
+    host: "" # Remark42 服务地址
+    siteId: "" # Remark42 SITE 值
+    theme: "light" # Remark42 light 或 dark
 
   # 背景
   pageBackgroundUrl: ""
@@ -118,11 +171,25 @@ params:
   footerHtml: '<p>© 2024 Argon Hugo Theme. All rights reserved.</p>'
 
   # 数学公式
-  mathRender: ""
+  # 使用 MathJax 3 解析 $, $$, \\( \\), \\[ \\] 及其 TeX 环境。
+  mathRender: "mathjax3"
 
 # 主题栏目配置
 mainSections:
   - post
+
+archive:
+  monthly: true
+
+related:
+  threshold: 80
+  includeNewer: false
+  toLower: false
+  indices:
+    - name: tags
+      weight: 100
+    - name: categories
+      weight: 80
 
 # 分页
 pagination:
@@ -143,3 +210,15 @@ markup:
       unsafe: true
   highlight:
     style: monokai
+
+outputFormats:
+  Search:
+    mediaType: "application/json"
+    baseName: "search"
+    isPlainText: true
+
+outputs:
+  home:
+    - HTML
+    - RSS
+    - Search

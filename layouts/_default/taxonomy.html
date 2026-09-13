@@ -4,16 +4,16 @@
         <h2 class="information-card-title">
             {{- if eq .Kind "taxonomy" }}
                 {{- if eq .Type "tags" }}
-                    标签: {{ .Title }}
+                    {{ printf (T "tagTitle") .Title }}
                 {{- else if eq .Type "categories" }}
-                    分类: {{ .Title }}
+                    {{ printf (T "categoryTitle") .Title }}
                 {{- end }}
             {{- else if eq .Type "archives" }}
-                归档
+                {{ T "archiveTitle" }}
             {{- end }}
         </h2>
         <div class="information-card-meta">
-            共 {{ len .Pages }} 篇文章
+            {{ printf (T "articleCount") (len .Pages) }}
         </div>
     </div>
 </div>
@@ -23,9 +23,16 @@
     {{ $pages := .Pages }}
     {{ $pag := .Paginate $pages }}
 
-    {{ range $pag.Pages }}
-        {{- partial "article/preview.html" . -}}
-    {{ end }}
+    <div class="article-list-container">
+        {{ range $pag.Pages }}
+            {{- partial "article/preview.html" . -}}
+        {{ end }}
 
+    </div>
     {{- partial "pagination.html" . -}}
+{{ end }}
+
+{{ define "main-class" }}
+    {{- $waterflowColumns := printf "%v" (default "3" .Site.Params.articleListWaterflowColumns) -}}
+    article-list{{ if .Site.Params.articleListWaterflow }} waterflow{{ if eq $waterflowColumns "2" }} waterflow-columns-2{{ else if eq $waterflowColumns "3" }} waterflow-columns-3{{ end }}{{ end }}
 {{ end }}

@@ -1,0 +1,4 @@
+{{- $color := lower (default "indigo" (.Get "color")) -}}
+{{- $colorClass := default "primary" (index (dict "indigo" "primary" "green" "success" "red" "danger" "orange" "warning" "blue" "info") $color) -}}
+{{- $shape := lower (default "square" (.Get "shape")) -}}
+<span class="badge badge-{{ $colorClass }} tag{{ if eq $shape "round" }} badge-pill{{ end }}">{{ $.Inner | plainify }}</span>

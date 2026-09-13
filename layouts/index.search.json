@@ -1,0 +1,6 @@
+{{- $pages := where .Site.RegularPages "Kind" "page" -}}
+{{- $entries := slice -}}
+{{- range $pages -}}
+    {{- $entries = $entries | append (dict "title" .Title "content" .Plain "url" .RelPermalink) -}}
+{{- end -}}
+{{- $entries | jsonify -}}

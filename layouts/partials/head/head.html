@@ -1,4 +1,17 @@
 {{- $title := .Site.Title -}}
+{{- $argonCSS := resources.Get "argon_css_merged.css" | resources.Minify | resources.Fingerprint "sha256" -}}
+{{- $argonJS := resources.Get "argon_js_merged.js" | resources.Minify | resources.Fingerprint "sha256" -}}
+{{- $mainSections := .Site.Params.mainSections | default (slice "post") -}}
+{{- $isContentPage := and .IsPage (in $mainSections .Type) -}}
+{{- $zoomifyEnabled := ne .Site.Params.enableZoomify false -}}
+{{- $lazyloadEnabled := ne .Site.Params.enableLazyload false -}}
+{{- $codeHighlightStyle := default "vs2015" .Site.Params.codeHighlightStyle -}}
+{{- $mathRender := default "" .Site.Params.mathRender -}}
+{{- $mathEnabled := or (eq $mathRender "mathjax3") (eq $mathRender "mathjax2") (eq $mathRender "katex") -}}
+{{- $showCustomizeThemeColorPicker := true -}}
+{{- if eq .Site.Params.showCustomizeThemeColorPicker false -}}
+    {{- $showCustomizeThemeColorPicker = false -}}
+{{- end -}}
 {{- $viewCounter := dict -}}
 {{- with .Site.Params.viewCounter -}}
     {{- if reflect.IsMap . -}}
@@ -37,13 +50,13 @@
     {{- $title = printf "%s - %s" .Title .Site.Title -}}
 {{- else if eq .Kind "taxonomy" -}}
     {{- if eq .Type "tags" -}}
-        {{- $title = printf "标签 : %s - %s" .Title .Site.Title -}}
+        {{- $title = printf "%s - %s" (printf (T "tagTitle") .Title) .Site.Title -}}
     {{- else if eq .Type "categories" -}}
-        {{- $title = printf "分类 : %s - %s" .Title .Site.Title -}}
+        {{- $title = printf "%s - %s" (printf (T "categoryTitle") .Title) .Site.Title -}}
     {{- end -}}
 {{- else if eq .Kind "section" -}}
     {{- if eq .Type "archives" -}}
-        {{- $title = printf "归档 - %s" .Site.Title -}}
+        {{- $title = printf "%s - %s" (T "archiveTitle") .Site.Title -}}
     {{- end -}}
 {{- end -}}
 
@@ -56,35 +69,78 @@
 {{- end }}
 
 {{- partial "head/opengraph.html" . -}}
+{{- partial "head/structured-data.html" . -}}
 
 <meta name="theme-color" content="{{ default "#5e72e4" .Site.Params.themeColor }}">
 <meta name="theme-color-origin" content="{{ default "#5e72e4" .Site.Params.themeColor }}">
-<meta name="argon-enable-custom-theme-color" content="{{ default true .Site.Params.showCustomizeThemeColorPicker }}">
+<meta name="argon-enable-custom-theme-color" content="{{ if $showCustomizeThemeColorPicker }}true{{ else }}false{{ end }}">
 <meta name="theme-card-radius" content="{{ default 4 .Site.Params.cardRadius }}">
-<link rel="icon" href="/assets/img/favicon.ico" type="image/x-icon">
-<link rel="shortcut icon" href="/assets/img/favicon.ico" type="image/x-icon">
+<link rel="icon" href="{{ "/assets/img/favicon.ico" | relURL }}" type="image/x-icon">
+<link rel="shortcut icon" href="{{ "/assets/img/favicon.ico" | relURL }}" type="image/x-icon">
 
-{{- $cssOptions := (dict "targetPath" "assets/argon_css_merged.css" "outputStyle" "compressed") -}}
-<link rel="stylesheet" href="{{ "/assets/argon_css_merged.css" | relURL }}">
+<link rel="stylesheet" href="{{ $argonCSS.RelPermalink }}" integrity="{{ $argonCSS.Data.Integrity }}" crossorigin="anonymous">
+<link rel="stylesheet" href="{{ "/assets/vendor/nucleo/css/nucleo.css" | relURL }}">
 <link rel="stylesheet" href="{{ "/style.css" | relURL }}">
 <link rel="stylesheet" href="{{ "/css/custom.css" | relURL }}">
-{{- if ne .Site.Params.enableCodeHighlight false }}
-{{- $codeHighlightStyle := default "vs2015" .Site.Params.codeHighlightStyle -}}
-<link rel="stylesheet" href="{{ printf "/assets/vendor/highlight/styles/%s.css" $codeHighlightStyle | relURL }}">
+{{- if .Site.Params.enableExternalFonts }}
+<link rel="preconnect" href="https://fonts.loli.net">
+<link rel="stylesheet" href="https://fonts.loli.net/css?family=Open+Sans:300,400,600,700|Noto+Serif+SC:300,600&display=swap">
 {{- end }}
-<link rel="stylesheet" href="//fonts.loli.net/css?family=Open+Sans:300,400,600,700|Noto+Serif+SC:300,600&display=swap">
 
 {{- /* 主题色 CSS 变量 - 使用动态计算而不是手动配置 */ -}}
 {{- partial "head/theme-color-calculator.html" . -}}
 
-<script src="{{ "/assets/argon_js_merged.js" | relURL }}"></script>
-<script src="{{ "/assets/js/argon.min.js" | relURL }}"></script>
-<script src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+<script defer src="{{ $argonJS.RelPermalink }}" integrity="{{ $argonJS.Data.Integrity }}" crossorigin="anonymous"></script>
+{{- if $isContentPage }}
+<link rel="stylesheet" href="{{ "/assets/vendor/headindex/headindex.css" | relURL }}">
+<script defer src="{{ "/assets/vendor/headindex/headindex.js" | relURL }}"></script>
+{{- end }}
+<script defer src="{{ "/assets/js/argon.min.js" | relURL }}"></script>
+{{- if .Site.Params.enableBusuanzi }}
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+{{- end }}
 
 <script>
+    var argonPickrAssets = {
+        css: "{{ "/assets/vendor/pickr/themes/monolith.min.css" | relURL }}",
+        js: "{{ "/assets/vendor/pickr/pickr.es5.min.js" | relURL }}"
+    };
+    var argonOptionalAssets = {
+        nouislider: "{{ "/assets/vendor/nouislider/js/nouislider.min.js" | relURL }}",
+        highlight: "{{ "/assets/vendor/highlight/highlight.pack.js" | relURL }}",
+        highlightLineNumbers: "{{ "/assets/vendor/highlight/highlightjs-line-numbers.min.js" | relURL }}",
+        clipboard: "{{ "/assets/vendor/clipboard/clipboard.min.js" | relURL }}",
+        codeModule: "{{ "/js/argon-code.js" | relURL }}",
+        shareModule: "{{ "/js/argon-share.js" | relURL }}",
+        shareVendor: "{{ "/assets/vendor/sharejs/share.min.js" | relURL }}",
+        githubModule: "{{ "/js/argon-github.js" | relURL }}",
+        hitokotoModule: "{{ "/js/argon-hitokoto.js" | relURL }}",
+        outdateModule: "{{ "/js/argon-outdate.js" | relURL }}",
+        commentImageModule: "{{ "/js/argon-comment-image.js" | relURL }}",
+        collapseModule: "{{ "/js/argon-collapse.js" | relURL }}",
+        panguModule: "{{ "/js/argon-pangu.js" | relURL }}",
+        panguVendor: "{{ "/assets/vendor/pangu/pangu.min.js" | relURL }}",
+        clampModule: "{{ "/js/argon-clamp.js" | relURL }}",
+        zoomifyModule: "{{ "/js/argon-zoomify.js" | relURL }}",
+        zoomifyVendor: "{{ "/assets/vendor/zoomify/zoomify.js" | relURL }}",
+        lazyloadModule: "{{ "/js/argon-lazyload.js" | relURL }}",
+        lazyloadVendor: "{{ "/assets/vendor/lazyload/jquery.lazyload.min.js" | relURL }}",
+        bannerModule: "{{ "/js/argon-banner.js" | relURL }}",
+        searchModule: "{{ "/js/argon-search.js" | relURL }}",
+        highlightStyle: "{{ printf "/assets/vendor/highlight/styles/%s.css" $codeHighlightStyle | relURL }}",
+        mathjax3: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+        mathjax2: "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML",
+        katexCss: "https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css",
+        katex: "https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js",
+        katexAutoRender: "https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/contrib/auto-render.min.js"
+    };
+    var argonMathConfig = {
+        renderer: {{ $mathRender | jsonify | safeJS }},
+        enabled: {{ if $mathEnabled }}true{{ else }}false{{ end }}
+    };
     var argonConfig = {
         language: "{{ default "zh_CN" .Site.Language.Lang }}",
-        {{- if ne .Site.Params.enableZoomify false }}
+        {{- if $zoomifyEnabled }}
         zoomify: {
             duration: {{ default 200 .Site.Params.zoomifyDuration }},
             easing: "{{ default "cubic-bezier(0.4,0,0,1)" .Site.Params.zoomifyEasing }}",
@@ -99,7 +155,7 @@
         fancybox: false,
         {{- end }}
         pangu: {{ default false .Site.Params.enablePangu }},
-        {{- if ne .Site.Params.enableLazyload false }}
+        {{- if $lazyloadEnabled }}
         lazyload: {
             threshold: {{ default 800 .Site.Params.lazyloadThreshold }},
             effect: "{{ default "fadeIn" .Site.Params.lazyloadEffect }}"

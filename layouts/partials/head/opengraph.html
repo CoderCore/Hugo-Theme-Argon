@@ -1,15 +1,37 @@
-{{- /* OpenGraph and Twitter Cards */ -}}
-<meta property="og:title" content="{{ .Title }}" />
-<meta property="og:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}" />
-<meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}" />
-<meta property="og:url" content="{{ .Permalink }}" />
-{{- with .Params.image }}
-<meta property="og:image" content="{{ . | absURL }}" />
+{{- $description := "" -}}
+{{- with .Description -}}
+    {{- $description = . | plainify -}}
+{{- else with .Summary -}}
+    {{- $description = . | plainify -}}
+{{- else with .Site.Params.description -}}
+    {{- $description = . | plainify -}}
+{{- end -}}
+{{- if eq $description "" -}}
+    {{- $description = .Site.Title -}}
+{{- end -}}
+{{- $description = $description | truncate 160 -}}
+{{- $image := partial "article/thumbnail.html" . -}}
+
+<link rel="canonical" href="{{ .Permalink }}">
+<meta property="og:locale" content="{{ .Site.LanguageCode }}">
+<meta property="og:site_name" content="{{ .Site.Title }}">
+<meta property="og:title" content="{{ .Title }}">
+<meta property="og:description" content="{{ $description }}">
+<meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}">
+<meta property="og:url" content="{{ .Permalink }}">
+{{- with $image }}
+<meta property="og:image" content="{{ . | absURL }}">
+<meta property="og:image:alt" content="{{ $.Title }}">
+{{- end }}
+{{- if .IsPage }}
+<meta property="article:published_time" content="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
+<meta property="article:modified_time" content="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}">
+    {{- with .Section }}<meta property="article:section" content="{{ . }}">{{ end -}}
+    {{- range .Params.tags }}<meta property="article:tag" content="{{ . }}">{{ end -}}
 {{- end }}
 
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="{{ .Title }}" />
-<meta name="twitter:description" content="{{ with .Description }}{{ . }}{{ else }}{{ .Site.Params.description }}{{ end }}" />
-{{- with .Params.image }}
-<meta name="twitter:image" content="{{ . | absURL }}" />
-{{- end }}
+<meta name="description" content="{{ $description }}">
+<meta name="twitter:card" content="{{ if $image }}summary_large_image{{ else }}summary{{ end }}">
+<meta name="twitter:title" content="{{ .Title }}">
+<meta name="twitter:description" content="{{ $description }}">
+{{- with $image }}<meta name="twitter:image" content="{{ . | absURL }}">{{ end }}

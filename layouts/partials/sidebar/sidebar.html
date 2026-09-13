@@ -9,7 +9,7 @@
     {{- with (index $sidebar "announcement") }}
     <div id="leftbar_announcement" class="card bg-white shadow-sm border-0">
         <div class="leftbar-announcement-body">
-            <div class="leftbar-announcement-title text-white">公告</div>
+            <div class="leftbar-announcement-title text-white">{{ T "announcement" }}</div>
             <div class="leftbar-announcement-content text-white">{{ . }}</div>
         </div>
     </div>
@@ -59,7 +59,7 @@
         {{- end }}
         <div class="card-body text-center leftbar-search-button">
             <button id="leftbar_search" class="btn btn-secondary btn-lg active btn-sm btn-block border-0" role="button" data-toggle="modal" data-target="#argon_search_modal" >
-                <i class="menu-item-icon fa fa-search mr-0"></i> 搜索
+                <i class="menu-item-icon fa fa-search mr-0"></i> {{ T "search" }}
             </button>
         </div>
     </div>
@@ -70,10 +70,10 @@
             <div id="leftbar_page_tabs" class="nav-wrapper" data-page-catalog="{{ if .IsPage }}true{{ else }}false{{ end }}" style="padding-top: 5px;{{ if not .IsPage }} display:none;{{ end }}">
                 <ul class="nav nav-pills nav-fill" role="tablist">
                     <li class="nav-item sidebar-tab-switcher">
-                        <a class="{{ if eq $nowActiveTab 0 }}active show{{ end }}" id="leftbar_tab_catalog_btn" data-toggle="tab" href="#leftbar_tab_catalog" role="tab" aria-controls="leftbar_tab_catalog">文章目录</a>
+                        <a class="{{ if eq $nowActiveTab 0 }}active show{{ end }}" id="leftbar_tab_catalog_btn" data-toggle="tab" href="#leftbar_tab_catalog" role="tab" aria-controls="leftbar_tab_catalog">{{ T "catalog" }}</a>
                     </li>
                     <li class="nav-item sidebar-tab-switcher">
-                        <a class="{{ if eq $nowActiveTab 1 }}active show{{ end }}" id="leftbar_tab_overview_btn" data-toggle="tab" href="#leftbar_tab_overview" role="tab" aria-controls="leftbar_tab_overview">站点概览</a>
+                        <a class="{{ if eq $nowActiveTab 1 }}active show{{ end }}" id="leftbar_tab_overview_btn" data-toggle="tab" href="#leftbar_tab_overview" role="tab" aria-controls="leftbar_tab_overview">{{ T "overview" }}</a>
                     </li>
                 </ul>
             </div>

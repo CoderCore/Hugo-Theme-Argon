@@ -1,0 +1,15 @@
+<article class="shuoshuo-preview-container shuoshuo-foldable card bg-white shadow-sm border-0">
+    {{- with .Title }}
+    <a class="shuoshuo-title" href="{{ $.RelPermalink }}">{{ . }}</a>
+    {{- end }}
+    <div class="shuoshuo-content">{{ .Content }}</div>
+    <div class="shuoshuo-preview-meta">
+        <time datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
+            <i class="fa fa-calendar-o" aria-hidden="true"></i>
+            {{ .Date.Format "2006-01-02 15:04" }}
+        </time>
+        <a class="shuoshuo-preview-link btn btn-outline-primary btn-icon-only rounded-circle" href="{{ .RelPermalink }}" aria-label="{{ T "readMore" }}">
+            <span class="btn-inner--icon"><i class="fa fa-arrow-right" aria-hidden="true"></i></span>
+        </a>
+    </div>
+</article>

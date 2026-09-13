@@ -5,175 +5,253 @@ document.addEventListener('argon:page-ready', function(event) {
     }
 });
 
-/* Cloudflare Worker + D1 article view counter. Site configuration comes from hugo.yaml. */
+/* Comment providers are initialized from the page lifecycle so they also
+ * work after the navigation layer replaces #page-view with a cloned fragment.
+ * External providers are loaded only when a configured host exists. */
 (function(window, document) {
     'use strict';
 
-    function metaContent(name) {
-        var meta = document.querySelector('meta[name="' + name + '"]');
-        return meta ? (meta.getAttribute('content') || '') : '';
+    var scriptPromises = {};
+    var stylePromises = {};
+    var walineInstance = null;
+    var remark42Instance = null;
+    var commentIdleHandle = null;
+    var commentTimeoutHandle = null;
+
+    function isLiveHost(host) {
+        return !!(host && host.isConnected && document.documentElement.contains(host));
     }
 
-    function decodedMetaContent(name) {
-        var encoded = metaContent(name);
-        if (!encoded || typeof window.atob !== 'function') {
-            return '';
+    function destroyInstance(instance) {
+        if (instance && typeof instance.destroy === 'function') {
+            try { instance.destroy(); } catch (error) {}
         }
-        try {
-            var binary = window.atob(encoded);
-            var bytes = new Uint8Array(binary.length);
-            for (var index = 0; index < binary.length; index += 1) {
-                bytes[index] = binary.charCodeAt(index);
+    }
+
+    function cancelCommentSchedule() {
+        if (commentIdleHandle !== null) {
+            if (typeof window.cancelIdleCallback === 'function') {
+                window.cancelIdleCallback(commentIdleHandle);
             }
-            return typeof TextDecoder === 'function' ? new TextDecoder().decode(bytes) : binary;
-        } catch (error) {
-            return '';
+            commentIdleHandle = null;
+        }
+        if (commentTimeoutHandle !== null) {
+            window.clearTimeout(commentTimeoutHandle);
+            commentTimeoutHandle = null;
         }
     }
 
-    function counterConfig() {
-        var config = window.argonViewCounterConfig || {};
-        if (!config.endpoint) {
-            config.endpoint = decodedMetaContent('argon-view-counter-endpoint-b64');
-        }
-        if (!config.key) {
-            config.key = decodedMetaContent('argon-view-counter-key-b64');
-        }
-        return config;
+    function cleanupCommentInstances() {
+        cancelCommentSchedule();
+        destroyInstance(walineInstance);
+        destroyInstance(remark42Instance);
+        walineInstance = null;
+        remark42Instance = null;
     }
 
-    function endpointUrl() {
-        var endpoint = counterConfig().endpoint;
-        return typeof endpoint === 'string' ? endpoint.replace(/\/+$/, '') : '';
-    }
-
-    function formatCount(value) {
-        var count = Number(value);
-        return Number.isFinite(count) ? new Intl.NumberFormat().format(count) : '0';
-    }
-
-    function renderCount(counter, value) {
-        var target = counter.querySelector('.argon-view-count-value') || counter;
-        target.textContent = formatCount(value);
-        counter.hidden = false;
-        counter.classList.remove('d-none');
-        counter.setAttribute('aria-hidden', 'false');
-        counter.setAttribute('data-view-loaded', 'true');
-    }
-
-    function hideCount(counter) {
-        counter.hidden = true;
-        counter.classList.add('d-none');
-        counter.setAttribute('aria-hidden', 'true');
-        counter.removeAttribute('data-view-loaded');
-    }
-
-    function syncMetaDividers() {
-        document.querySelectorAll('.post-meta').forEach(function(meta) {
-            var children = Array.prototype.slice.call(meta.children);
-            children.forEach(function(child, index) {
-                if (!child.classList.contains('post-meta-devide')) return;
-                var previous = index > 0 ? children[index - 1] : null;
-                var next = index + 1 < children.length ? children[index + 1] : null;
-                var previousVisible = previous && !previous.hidden && !previous.classList.contains('d-none');
-                var nextVisible = next && !next.hidden && !next.classList.contains('d-none');
-                var hidden = !(previousVisible && nextVisible);
-                child.hidden = hidden;
-                child.classList.toggle('d-none', hidden);
+    function loadScript(src, attributes) {
+        if (scriptPromises[src]) return scriptPromises[src];
+        scriptPromises[src] = new Promise(function(resolve, reject) {
+            var script = null;
+            Array.prototype.some.call(document.querySelectorAll('script[data-argon-comment-script]'), function(candidate) {
+                if (candidate.getAttribute('data-argon-comment-script') === src) {
+                    script = candidate;
+                    return true;
+                }
+                return false;
             });
+            if (!script) {
+                script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.dataset.argonCommentScript = src;
+                Object.keys(attributes || {}).forEach(function(name) {
+                    script.setAttribute(name, attributes[name]);
+                });
+            }
+            script.addEventListener('load', function() {
+                script.dataset.argonCommentLoaded = 'true';
+                resolve(script);
+            }, {once: true});
+            script.addEventListener('error', function() {
+                if (script.parentNode) script.parentNode.removeChild(script);
+                reject(new Error('Comment provider failed to load'));
+            }, {once: true});
+            if (!script.parentNode) (document.head || document.body).appendChild(script);
+            if (script.dataset.argonCommentLoaded === 'true') resolve(script);
+        });
+        scriptPromises[src] = scriptPromises[src].catch(function(error) {
+            delete scriptPromises[src];
+            throw error;
+        });
+        return scriptPromises[src];
+    }
+
+    function loadStylesheet(src) {
+        if (stylePromises[src]) return stylePromises[src];
+        stylePromises[src] = new Promise(function(resolve, reject) {
+            var link = null;
+            Array.prototype.some.call(document.querySelectorAll('link[data-argon-comment-style]'), function(candidate) {
+                if (candidate.getAttribute('data-argon-comment-style') === src) {
+                    link = candidate;
+                    return true;
+                }
+                return false;
+            });
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = src;
+                link.setAttribute('data-argon-comment-style', src);
+            }
+            link.addEventListener('load', function() { resolve(link); }, {once: true});
+            link.addEventListener('error', function() {
+                if (link.parentNode) link.parentNode.removeChild(link);
+                reject(new Error('Comment provider stylesheet failed to load'));
+            }, {once: true});
+            if (!link.parentNode) (document.head || document.body).appendChild(link);
+        });
+        stylePromises[src] = stylePromises[src].catch(function(error) {
+            delete stylePromises[src];
+            throw error;
+        });
+        return stylePromises[src];
+    }
+
+    function loadGiscus(root) {
+        root = root || document;
+        var host = root.querySelector ? root.querySelector('.giscus') : null;
+        if (!isLiveHost(host) || host.dataset.loaded === 'true' || host.dataset.loaded === 'loading') return;
+        if (!host.dataset.repo || !host.dataset.repoId || !host.dataset.category || !host.dataset.categoryId) return;
+        host.dataset.loaded = 'loading';
+        host.dataset.failed = 'false';
+        var script = document.createElement('script');
+        script.src = 'https://giscus.app/client.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        [['data-repo', 'repo'], ['data-repo-id', 'repoId'], ['data-category', 'category'], ['data-category-id', 'categoryId'], ['data-mapping', 'mapping'], ['data-lang', 'lang']].forEach(function (pair) {
+            script.setAttribute(pair[0], host.dataset[pair[1]]);
+        });
+        script.setAttribute('data-reactions-enabled', '1');
+        script.setAttribute('data-emit-metadata', '0');
+        script.setAttribute('data-input-position', 'top');
+        script.addEventListener('load', function() {
+            host.dataset.loaded = 'true';
+        }, {once: true});
+        script.addEventListener('error', function() {
+            host.dataset.loaded = 'false';
+            host.dataset.failed = 'true';
+            if (script.parentNode) script.parentNode.removeChild(script);
+        }, {once: true});
+        host.appendChild(script);
+    }
+
+    function loadWaline(root) {
+        var host = root.querySelector ? root.querySelector('#waline[data-server-url]') : null;
+        if (!isLiveHost(host) || host.dataset.loaded === 'true' || host.dataset.failed === 'true') return;
+        host.dataset.loaded = 'loading';
+        loadStylesheet('https://unpkg.com/@waline/client@3.15.2/dist/waline.css').catch(function() {}).then(function() {
+            return import('https://unpkg.com/@waline/client@3.15.2/dist/waline.js');
+        }).then(function(module) {
+            if (!module || typeof module.init !== 'function') throw new Error('Waline init is unavailable');
+            if (!isLiveHost(host)) return;
+            walineInstance = module.init({
+                el: host,
+                serverURL: host.dataset.serverUrl,
+                path: host.dataset.path || window.location.pathname,
+                lang: host.dataset.lang || undefined
+            });
+            host.dataset.loaded = 'true';
+        }).catch(function() {
+            host.dataset.loaded = 'false';
+            host.dataset.failed = 'true';
         });
     }
 
-    async function requestBatchCounts(ids, increment) {
-        var endpoint = endpointUrl();
-        if (!endpoint || !ids.length) return null;
-        var config = counterConfig();
-        var controller = typeof AbortController === 'function' ? new AbortController() : null;
-        var timeout = Number(config.requestTimeout) || 4000;
-        var timer = controller ? window.setTimeout(function() { controller.abort(); }, timeout) : null;
-        try {
-            var requestUrl = new URL(endpoint, window.location.href);
-            requestUrl.pathname = requestUrl.pathname.replace(/\/+$/, '') + '/batch';
-            requestUrl.search = '';
-            requestUrl.hash = '';
-            var headers = {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
+    function loadTwikoo(root) {
+        var host = root.querySelector ? root.querySelector('#twikoo[data-env-id]') : null;
+        if (!isLiveHost(host) || host.dataset.loaded === 'true' || host.dataset.failed === 'true') return;
+        host.dataset.loaded = 'loading';
+        loadScript('https://cdn.jsdelivr.net/npm/twikoo@1.7.20/dist/twikoo.min.js').then(function() {
+            if (!isLiveHost(host)) return;
+            if (!window.twikoo || typeof window.twikoo.init !== 'function') throw new Error('Twikoo init is unavailable');
+            var options = {
+                envId: host.dataset.envId,
+                el: host,
+                path: host.dataset.path || window.location.pathname,
+                lang: host.dataset.lang || undefined
             };
-            if (typeof config.key === 'string' && config.key) {
-                headers['X-View-Counter-Key'] = config.key;
-            }
-            var body = {ids: ids};
-            if (increment) body.increment = increment;
-            var response = await fetch(requestUrl.href, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(body),
-                signal: controller ? controller.signal : undefined,
-                credentials: 'omit'
+            if (host.dataset.region) options.region = host.dataset.region;
+            return window.twikoo.init(options);
+        }).then(function() {
+            host.dataset.loaded = 'true';
+        }).catch(function() {
+            host.dataset.loaded = 'false';
+            host.dataset.failed = 'true';
+        });
+    }
+
+    function loadRemark42(root) {
+        var host = root.querySelector ? root.querySelector('#remark42[data-host][data-site-id]') : null;
+        if (!isLiveHost(host) || host.dataset.loaded === 'true' || host.dataset.failed === 'true') return;
+        host.dataset.loaded = 'loading';
+        var remarkHost = host.dataset.host.replace(/\/+$/, '');
+        var src = remarkHost + '/web/embed.mjs';
+        loadScript(src, {type: 'module'}).then(function() {
+            if (window.REMARK42 && typeof window.REMARK42.createInstance === 'function') return;
+            return new Promise(function(resolve, reject) {
+                var timer = window.setTimeout(function() { reject(new Error('Remark42 init timed out')); }, 8000);
+                window.addEventListener('REMARK42::ready', function() {
+                    window.clearTimeout(timer);
+                    resolve();
+                }, {once: true});
             });
-            if (!response.ok) return null;
-            var data = await response.json();
-            return data && data.counts && typeof data.counts === 'object' ? data : null;
-        } catch (error) {
-            return null;
-        } finally {
-            if (timer) window.clearTimeout(timer);
+        }).then(function() {
+            if (!isLiveHost(host)) return;
+            if (!window.REMARK42 || typeof window.REMARK42.createInstance !== 'function') throw new Error('Remark42 init is unavailable');
+            destroyInstance(remark42Instance);
+            remark42Instance = window.REMARK42.createInstance({
+                node: host,
+                host: remarkHost,
+                site_id: host.dataset.siteId,
+                url: host.dataset.url || window.location.href,
+                page_title: host.dataset.pageTitle || document.title,
+                locale: host.dataset.locale || 'en',
+                theme: host.dataset.theme || 'light',
+                components: ['embed']
+            });
+            host.dataset.loaded = 'true';
+        }).catch(function() {
+            host.dataset.loaded = 'false';
+            host.dataset.failed = 'true';
+        });
+    }
+
+    function loadComments(root) {
+        loadGiscus(root);
+        loadWaline(root);
+        loadTwikoo(root);
+        loadRemark42(root);
+    }
+
+    function scheduleCommentLoad(root) {
+        cancelCommentSchedule();
+        var schedule = function() {
+            commentIdleHandle = null;
+            commentTimeoutHandle = null;
+            loadComments(root);
+        };
+        if ('requestIdleCallback' in window) {
+            commentIdleHandle = window.requestIdleCallback(schedule, {timeout: 2500});
+        } else {
+            commentTimeoutHandle = window.setTimeout(schedule, 1200);
         }
     }
 
-    async function refreshPageCounters() {
-        var config = counterConfig();
-        var counters = Array.prototype.slice.call(document.querySelectorAll('[data-view-count][data-view-id]'));
-        if (!config.enabled || !endpointUrl()) {
-            counters.forEach(hideCount);
-            syncMetaDividers();
-            return;
-        }
-        counters.forEach(hideCount);
-        var fullArticle = document.querySelector('article.post-full');
-        var fullCounter = fullArticle ? fullArticle.querySelector('[data-view-count][data-view-id]') : null;
-        var visibleCounters = counters.filter(function(counter) {
-            return counter !== fullCounter && (config.showOnPreview !== false || !counter.closest('article.post-preview'));
-        });
-        if (fullCounter) visibleCounters.push(fullCounter);
-        var ids = [];
-        visibleCounters.forEach(function(counter) {
-            var id = counter.getAttribute('data-view-id');
-            if (id && ids.indexOf(id) < 0) ids.push(id);
-        });
-        if (!ids.length) {
-            syncMetaDividers();
-            return;
-        }
+    document.addEventListener('argon:navigation-start', cleanupCommentInstances);
 
-        /* One request serves all visible cards. The current article is also
-         * incremented in that request, avoiding a second round trip. */
-        var chunks = [];
-        for (var start = 0; start < ids.length; start += 100) chunks.push(ids.slice(start, start + 100));
-        var results = await Promise.all(chunks.map(function(chunk) {
-            var increment = fullCounter ? fullCounter.getAttribute('data-view-id') : '';
-            return requestBatchCounts(chunk, chunk.indexOf(increment) >= 0 ? increment : '');
-        }));
-        var values = {};
-        var successful = true;
-        results.forEach(function(result) {
-            if (!result) { successful = false; return; }
-            Object.keys(result.counts).forEach(function(id) { values[id] = result.counts[id]; });
-        });
-        visibleCounters.forEach(function(counter) {
-            var id = counter.getAttribute('data-view-id');
-            if (successful && Object.prototype.hasOwnProperty.call(values, id)) renderCount(counter, values[id]);
-            else hideCount(counter);
-        });
-        syncMetaDividers();
-    }
-
-    async function handlePageReady() {
-        await refreshPageCounters();
-    }
-
-    document.addEventListener('argon:page-ready', function() {
-        handlePageReady();
+    document.addEventListener('argon:page-ready', function(event) {
+        var root = event.detail && event.detail.root ? event.detail.root : document;
+        scheduleCommentLoad(root);
     });
 })(window, document);

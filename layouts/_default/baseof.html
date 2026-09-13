@@ -18,11 +18,13 @@
 {{- if eq .Site.Params.font "serif" -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "use-serif " -}}
 {{- end -}}
-{{- if eq .Site.Params.pageLayout "double" -}}
-    {{- $htmlClasses = printf "%s%s" $htmlClasses "pagelayout-double " -}}
-{{- end -}}
-{{- if .Site.Params.articleListWaterflow -}}
-    {{- $htmlClasses = printf "%s%s" $htmlClasses "article-list-layout-waterflow " -}}
+{{- $pageLayout := default "double" .Site.Params.pageLayout -}}
+{{- if eq $pageLayout "single" -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "single-column " -}}
+{{- else if eq $pageLayout "double-reverse" -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "double-column-reverse " -}}
+{{- else if eq $pageLayout "triple" -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "triple-column " -}}
 {{- end -}}
 {{- if .Site.Params.transparentBanner -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "argon-yaml-transparent-banner " -}}
@@ -62,12 +64,15 @@
         {{- partial "sidebar/sidebar.html" . -}}
 
         <div id="primary" class="content-area">
-            <main id="main" class="site-main" role="main">
+            <main id="main" class="site-main{{ block "main-class" . }}{{ end }}" role="main">
                 {{- block "main" . }}{{- end }}
 
                 {{- partial "footer/footer.html" . -}}
             </main>
         </div>
+        {{- if eq $pageLayout "triple" }}
+            {{- partial "sidebar/rightbar.html" . -}}
+        {{- end }}
       </div>
     </div>
     {{- partial "footer/include.html" . -}}

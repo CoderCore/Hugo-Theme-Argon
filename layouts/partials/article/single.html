@@ -7,7 +7,7 @@
 <article class="post post-full card bg-white shadow-sm border-0 article-header-style-{{ $headerStyle }}{{ if .Site.Params.enableIntoArticleAnimation }} post-preview{{ end }}">
     <header class="post-header text-center{{ if and $hasThumbnail (not $thumbnailInBanner) }} post-header-with-thumbnail{{ end }}">
         {{- if and $hasThumbnail (not $thumbnailInBanner) }}
-        <img class='post-thumbnail' src='{{ $thumbnail | relURL }}' decoding='async' alt='thumbnail'>
+        {{- partial "article/image.html" (dict "page" . "src" $thumbnail "class" "post-thumbnail" "alt" .Title "loading" "eager" "fetchpriority" "high" "sizes" "(max-width: 900px) 100vw, 800px") -}}
         <div class='post-header-text-container'>
         {{- end }}
         {{- if and $hasThumbnail $thumbnailInBanner }}
@@ -28,9 +28,9 @@
 
     {{- with .Site.Params.donateQrcodeUrl }}
     <div class="post-donate">
-        <button class="btn donate-btn btn-danger">赞赏</button>
+        <button class="btn donate-btn btn-danger">{{ T "donate" }}</button>
         <div class="donate-qrcode card shadow-sm bg-white">
-            <img src="{{ . | relURL }}" alt="赞赏二维码">
+            <img src="{{ . | relURL }}" alt="{{ T "donateQrCode" }}">
         </div>
     </div>
     {{- end }}
@@ -51,7 +51,9 @@
     {{- end -}}
 </article>
 
-{{- partial "article/share.html" . -}}
+{{- if ne .Site.Params.showShareBtn false -}}
+    {{- partial "article/share.html" . -}}
+{{- end -}}
 
 {{- partial "article/navigation.html" . -}}
 

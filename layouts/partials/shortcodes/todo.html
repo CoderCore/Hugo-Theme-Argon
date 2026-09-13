@@ -1,0 +1,6 @@
+{{- $checked := eq (lower (default "false" (.Get "checked"))) "true" -}}
+{{- $inline := eq (lower (default "false" (.Get "inline"))) "true" -}}
+<div class="shortcode-todo custom-control custom-checkbox{{ if $inline }} inline{{ end }}">
+    <input class="custom-control-input" type="checkbox"{{ if $checked }} checked{{ end }} disabled>
+    <label class="custom-control-label"><span>{{ $.Inner | plainify }}</span></label>
+</div>

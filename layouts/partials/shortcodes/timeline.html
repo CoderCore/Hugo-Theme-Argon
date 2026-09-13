@@ -1,0 +1,29 @@
+{{- $lines := split (strings.TrimSpace .Inner) "\n" -}}
+<div class="argon-timeline">
+    {{- range $line := $lines -}}
+        {{- $line = strings.TrimSpace $line -}}
+        {{- if ne $line "" -}}
+            {{- $parts := split $line "|" -}}
+            {{- $time := strings.TrimSpace (index $parts 0) -}}
+            <div class="argon-timeline-node">
+                <div class="argon-timeline-time">
+                    {{- range $index, $timePart := split $time "/" -}}
+                        {{- if gt $index 0 }}<br>{{ end -}}
+                        {{- $timePart -}}
+                    {{- end -}}
+                </div>
+                <div class="argon-timeline-card card bg-gradient-secondary shadow-sm">
+                    {{- if gt (len $parts) 1 -}}
+                        {{- with strings.TrimSpace (index $parts 1) }}
+                        <div class="argon-timeline-title">{{ . }}</div>
+                        {{- end -}}
+                    {{- end -}}
+                    {{- if gt (len $parts) 2 -}}
+                        {{- $body := delimit (after 2 $parts) " | " -}}
+                        <div class="argon-timeline-content">{{ $body | markdownify }}</div>
+                    {{- end -}}
+                </div>
+            </div>
+        {{- end -}}
+    {{- end -}}
+</div>

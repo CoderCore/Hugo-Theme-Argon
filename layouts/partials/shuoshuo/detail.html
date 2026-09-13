@@ -1,0 +1,21 @@
+<div class="shuoshuo-container">
+    <div class="shuoshuo-meta shadow-sm">
+        <time datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
+            <i class="fa fa-calendar-o" aria-hidden="true"></i>
+            {{ .Date.Format "2006-01-02" }}
+            <span class="post-meta-devide">|</span>
+            <i class="fa fa-clock-o" aria-hidden="true"></i>
+            {{ .Date.Format "15:04:05" }}
+        </time>
+    </div>
+    <article class="card shuoshuo-main bg-white shadow-sm border-0">
+        {{- with .Title }}<h1 class="shuoshuo-title">{{ . }}</h1>{{ end }}
+        <div class="shuoshuo-content">{{ .Content }}</div>
+        <div class="shuoshuo-operations">
+            <a class="btn btn-icon btn-outline-primary btn-sm" href="{{ .RelPermalink }}#comments">
+                <span class="btn-inner--icon"><i class="fa fa-comments-o" aria-hidden="true"></i></span>
+                <span class="btn-inner--text">{{ T "comments" }}</span>
+            </a>
+        </div>
+    </article>
+</div>

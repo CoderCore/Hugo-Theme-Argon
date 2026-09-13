@@ -1,0 +1,24 @@
+{{- $description := "" -}}
+{{- with .Description -}}
+    {{- $description = . | plainify -}}
+{{- else with .Summary -}}
+    {{- $description = . | plainify -}}
+{{- else with .Site.Params.description -}}
+    {{- $description = . | plainify -}}
+{{- end -}}
+{{- if eq $description "" }}{{ $description = .Site.Title }}{{ end -}}
+{{- $description = $description | truncate 160 -}}
+{{- $image := partial "article/thumbnail.html" . -}}
+{{- $authorName := default .Site.Title .Site.Params.author -}}
+{{- if reflect.IsMap .Site.Params.sidebar }}
+    {{- $authorName = default $authorName (index .Site.Params.sidebar "authorName") -}}
+{{- end -}}
+{{- if .IsPage -}}
+    {{- $data := dict "@context" "https://schema.org" "@type" "Article" "headline" .Title "description" $description "url" .Permalink "datePublished" (.Date.Format "2006-01-02T15:04:05Z07:00") "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00") "author" (dict "@type" "Person" "name" $authorName) "publisher" (dict "@type" "Organization" "name" .Site.Title) -}}
+    {{- with $image }}{{ $data = merge $data (dict "image" (slice (. | absURL))) }}{{ end -}}
+    <script type="application/ld+json">{{ $data | jsonify | safeJS }}</script>
+{{- else -}}
+    {{- $data := dict "@context" "https://schema.org" "@type" "WebPage" "name" .Title "description" $description "url" .Permalink -}}
+    {{- if .IsHome }}{{ $data = merge $data (dict "@type" "WebSite") }}{{ end -}}
+    <script type="application/ld+json">{{ $data | jsonify | safeJS }}</script>
+{{- end -}}

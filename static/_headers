@@ -1,0 +1,5 @@
+/argon_css_merged.*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+/argon_js_merged.*.js
+  Cache-Control: public, max-age=31536000, immutable

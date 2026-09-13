@@ -1,0 +1,38 @@
+{{ define "information-card" }}
+<div class="information-card card bg-white shadow-sm border-0">
+    <div class="card-body">
+        <h1 class="information-card-title">{{ .Title | default (T "timeline") }}</h1>
+        {{ with .Description }}<p class="mb-0 text-muted">{{ . }}</p>{{ end }}
+    </div>
+</div>
+{{ end }}
+
+{{ define "main" }}
+{{- $sections := .Site.Params.mainSections | default (slice "post") -}}
+{{- $pages := where .Site.RegularPages "Type" "in" $sections -}}
+<article class="post card bg-white shadow-sm border-0 archive-timeline-page">
+    {{ with .Content }}<div class="post-content mb-4">{{ . }}</div>{{ end }}
+    <div class="archive-timeline">
+        {{- range ($pages.ByDate.Reverse.GroupByDate "2006") }}
+        <section class="archive-timeline-year-group">
+            <h2 class="archive-timeline-year">{{ .Key }}</h2>
+            {{- range (.Pages.ByDate.Reverse.GroupByDate "01") }}
+            <div class="archive-timeline-month-group">
+                <h3 class="archive-timeline-month">{{ printf (T "monthHeading") .Key }}</h3>
+                {{- range .Pages.ByDate.Reverse }}
+                <div class="archive-timeline-title">
+                    <a href="{{ .RelPermalink }}">
+                        <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "01-02" }}</time>
+                        <span>{{ .LinkTitle }}</span>
+                    </a>
+                </div>
+                {{- end }}
+            </div>
+            {{- end }}
+        </section>
+        {{- else }}<p class="text-muted">{{ T "noPosts" }}</p>{{ end }}
+    </div>
+</article>
+{{ end }}
+
+{{ define "main-class" }} archive-timeline-page{{ end }}

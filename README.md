@@ -39,19 +39,106 @@ hugo --gc --minify --baseURL "https://example.com/"
 ```yaml
 params:
   themeColor: "#5e72e4"
+  description: "站点默认描述，用于 description、OG 和 Twitter Card"
   firstImageAsThumbnail: true
+  imageProcessing: true
+  # 可选：time|edittime|views|comments|categories|words|readingtime（read 为 views 兼容别名）
   articleMeta: "time|views|categories"
+  showReadingtime: true
+  readingSpeedCn: 300
+  readingSpeedEn: 160
+  showShareBtn: true
+  enableExternalFonts: false # 按需加载 fonts.loli.net 的主题字体
   enableCodeHighlight: true
   codeHighlightStyle: "vs2015"
+  enableBusuanzi: false
   viewCounter:
     enabled: false
     endpoint: ""
     key: ""
     showOnPreview: true
     requestTimeout: 4000
+  shuoshuo:
+    showOnHome: false
+    homeLimit: 3
+    homeTitle: "说说"
 ```
 
 文章头图优先使用 front matter 的 `image`，其次使用页面资源或正文首图；旧文章中的 `featured_image` 仍作为最后的兼容字段。主题不会把旧图片地址自动改写成其他域名。
+
+当封面是页面 Bundle 中的图片且 `imageProcessing` 开启时，主题会在构建时生成 480、800、1200 像素的 WebP 版本，并输出 `srcset`、`sizes` 和图片尺寸。放在 `static/` 中的图片、外链图片和无法识别的格式会保留原地址。仓库自带的 Banner 已缩放至 1920×1280 并压缩；没有封面时不会强行使用 Banner，而是按页面资源、正文首图和 `featured_image` 顺序回退。
+
+## 基础短代码
+
+主题提供不依赖后端的 `alert`、`tip`、`tag`、`todo`、`collapse`、`hidden`、`video`、`progressbar` 和 `timeline` 短代码；同时兼容原主题常用的 `admonition`、`label`、`checkbox`、`fold` 和 `spoiler` 名称。`github` 短代码会在浏览器空闲时读取 GitHub API，也可以传入 `description`、`stars`、`forks` 作为静态数据。
+
+```md
+{{< alert color="green" icon="check" title="提示" >}}
+内容支持 Markdown。
+{{< /alert >}}
+
+{{< tip color="orange" title="注意" >}}
+这是一段提示内容。
+{{< /tip >}}
+
+{{< tag color="blue" shape="round" >}}Hugo{{< /tag >}}
+{{< todo checked="true" >}}已完成的事项{{< /todo >}}
+
+{{< collapse title="展开详情" color="indigo" collapsed="true" >}}
+折叠内容。
+{{< /collapse >}}
+
+{{< hidden type="blur" tip="鼠标悬停显示" >}}隐藏文字{{< /hidden >}}
+
+{{< progressbar progress="75" color="green" >}}完成度{{< /progressbar >}}
+
+{{< timeline >}}
+2024-01|主题开始迁移|从 WordPress 迁移到 Hugo。
+2024-02/10|完成基础功能|增加短代码支持。
+{{< /timeline >}}
+
+{{< video url="/media/demo.mp4" >}}
+
+{{< github author="gohugoio" project="hugo" size="mini" />}}
+```
+
+## 静态内容页面
+
+主题支持 Hugo 的 `shuoshuo` 内容类型：在站点的 `content/shuoshuo/` 中新增 Markdown 文件即可生成 `/shuoshuo/` 列表和详情页。首页展示默认关闭，可通过 `params.shuoshuo.showOnHome` 开启。
+
+时间线页面可在站点内容中创建 `layout: timeline` 的页面；主题会按主栏目文章的年份和月份生成静态链接。归档页可创建 `content/archives/_index.md`，并通过 `archive.monthly` 控制是否显示月份分组。留言板可创建 `layout: msgboard` 的页面，页面正文和评论容器已经就绪，评论服务仍需通过评论适配器接入。
+
+作者页可创建 `layout: author` 的页面，自动复用 `params.sidebar.authorImage`、`authorName`、`authorDescription` 和 `authorLinks`，并列出 `mainSections` 中的文章。
+
+设置 `params.pageLayout: triple` 可开启三栏布局；在 `params.sidebar.rightbar` 中用 `title`、`content` 或 `items` 配置右栏卡片。默认右栏为空，因此不会影响双栏站点。
+
+`params.pageLayout` 控制页面外壳和左/右栏，`params.articleListWaterflow` 独立控制文章列表是否使用瀑布流。关闭 `articleListWaterflow` 即为单列文章列表；开启后可用 `params.articleListWaterflowColumns: 2` 或 `3` 明确指定桌面端列数，移动端仍自动保持单列。
+
+评论适配器支持按页面空闲时加载的 Giscus、Waline、Twikoo 和 Remark42。默认不加载第三方脚本；启用时在 `params.comments` 中设置 `enabled: true`，并填写所选服务的必要参数：Giscus 使用 `repository`、`repositoryID`、`category`、`categoryID`；Waline 使用 `serverURL`；Twikoo 使用 `envId`（可选 `region`）；Remark42 使用 `host` 和 `siteId`（可选 `language`、`theme`）。初始化挂接到统一页面生命周期，因此跨页导航后也能加载；参数缺失或第三方服务失败时会静默降级。Waline 客户端固定使用 v3.15.2，Twikoo 前端固定使用 1.7.20，便于构建结果可复现。
+
+单篇文章可以在 front matter 中使用 `comments: false` 关闭评论，或用 `comments: true` 显式开启；Giscus 配置缺少必要字段时会自动静默降级。
+
+数学公式通过 `params.mathRender` 选择 `mathjax3`、`mathjax2` 或 `katex`；留空或设为 `none` 时关闭。公式渲染器仅在启用后且当前页面实际包含 `$...$`、`$$...$$`、`\(...\)` 或 `\[...\]` 公式时，才在浏览器端按需加载，跨页导航时也会复用已加载的资源。
+
+主题脚本使用 `defer` 保持执行顺序并避免阻塞 HTML 解析；核心 CSS/JS 通过 Hugo Pipes 生成带 SHA-256 指纹和 SRI 的 URL，可配合 immutable 缓存。使用 Cloudflare Pages 时，仓库内的 `static/_headers` 会为这两个指纹资源设置一年缓存；Brotli/Gzip 压缩和 CDN 分发仍由托管平台负责。目录索引只在页面内容页加载，分享只在文章/内容页加载，代码高亮仅在实际含代码块的页面加载，懒加载、Zoomify、取色器、Pangu 和阅读量脚本等按配置按需加载。Busuanzi 默认关闭，只有实际使用页脚统计时才设置 `enableBusuanzi: true`。
+
+本地搜索使用 Hugo 的 `Search` 输出格式生成 `/search.json`，只有用户聚焦搜索框时才下载索引；索引加载期间输入的关键词会在加载完成后继续搜索。搜索地址会跟随 `Site.Home.RelPermalink`，因此部署在子路径时也能正确定位索引。
+
+相关文章默认关闭。启用时，在站点配置中加入：
+
+```yaml
+params:
+  relatedPosts:
+    enabled: true
+    limit: 6
+
+related:
+  indices:
+    - name: tags
+      weight: 100
+    - name: categories
+      weight: 80
+```
 
 ## 可选：Cloudflare Worker + D1 阅读量
 

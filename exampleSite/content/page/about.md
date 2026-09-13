@@ -1,6 +1,9 @@
 ---
 title: "关于"
 date: 2024-01-12
+url: "/about/"
+aliases:
+  - /page/about/
 ---
 
 # 关于本站

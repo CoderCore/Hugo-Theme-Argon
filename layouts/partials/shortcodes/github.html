@@ -1,0 +1,27 @@
+{{- $author := replaceRE "[^A-Za-z0-9_.-]" "" (default "" (.Get "author")) -}}
+{{- $project := replaceRE "[^A-Za-z0-9_.-]" "" (default "" (.Get "project")) -}}
+{{- $size := lower (default "full" (.Get "size")) -}}
+{{- if not (in (slice "full" "mini") $size) }}{{ $size = "full" }}{{ end -}}
+{{- $description := default "" (.Get "description") -}}
+{{- $stars := default "" (.Get "stars") -}}
+{{- $forks := default "" (.Get "forks") -}}
+{{- $staticData := and (ne $description "") (or (ne $stars "") (ne $forks "")) -}}
+<div class="github-info-card github-info-card-{{ $size }} card shadow-sm" data-author="{{ $author }}" data-project="{{ $project }}" data-getdata="{{ if $staticData }}backend{{ else }}frontend{{ end }}" data-description="{{ $description }}" data-stars="{{ $stars }}" data-forks="{{ $forks }}">
+    <div class="github-info-card-header">
+        <a href="https://github.com/" rel="nofollow noopener" target="_blank" title="GitHub" no-pjax>
+            <span><i class="fa fa-github" aria-hidden="true"></i>{{ if ne $size "mini" }} GitHub{{ end }}</span>
+        </a>
+    </div>
+    <div class="github-info-card-body">
+        <div class="github-info-card-name-a">
+            <a href="https://github.com/{{ $author }}/{{ $project }}" rel="noopener" target="_blank" no-pjax>
+                <span class="github-info-card-name">{{ $author }}/{{ $project }}</span>
+            </a>
+        </div>
+        <div class="github-info-card-description" aria-live="polite"></div>
+    </div>
+    <div class="github-info-card-bottom">
+        <span class="github-info-card-meta github-info-card-meta-stars"><i class="fa fa-star" aria-hidden="true"></i> <span class="github-info-card-stars"></span></span>
+        <span class="github-info-card-meta github-info-card-meta-forks"><i class="fa fa-code-fork" aria-hidden="true"></i> <span class="github-info-card-forks"></span></span>
+    </div>
+</div>

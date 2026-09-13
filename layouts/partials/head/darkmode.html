@@ -1,15 +1,11 @@
 <script>
     var darkmodeAutoSwitch = "{{ default false .Site.Params.darkmodeAutoswitch }}";
     function setDarkmode(enable){
-        if (enable == true){
-            $("html").addClass("darkmode");
-        }else{
-            $("html").removeClass("darkmode");
-        }
-        $(window).trigger("scroll");
+        document.documentElement.classList.toggle("darkmode", enable == true);
+        window.dispatchEvent(new Event("scroll"));
     }
     function toggleDarkmode(){
-        if ($("html").hasClass("darkmode")){
+        if (document.documentElement.classList.contains("darkmode")){
             setDarkmode(false);
             sessionStorage.setItem("Argon_Enable_Dark_Mode", "false");
         }else{
@@ -54,21 +50,21 @@
     }
 
     function toggleAmoledDarkMode(){
-        $("html").toggleClass("amoled-dark");
-        if ($("html").hasClass("amoled-dark")){
+        document.documentElement.classList.toggle("amoled-dark");
+        if (document.documentElement.classList.contains("amoled-dark")){
             localStorage.setItem("Argon_Enable_Amoled_Dark_Mode", "true");
         }else{
             localStorage.setItem("Argon_Enable_Amoled_Dark_Mode", "false");
         }
     }
     if (localStorage.getItem("Argon_Enable_Amoled_Dark_Mode") == "true"){
-        $("html").addClass("amoled-dark");
+        document.documentElement.classList.add("amoled-dark");
     }else if (localStorage.getItem("Argon_Enable_Amoled_Dark_Mode") == "false"){
-        $("html").removeClass("amoled-dark");
+        document.documentElement.classList.remove("amoled-dark");
     }
 </script>
 <script>
     if (navigator.userAgent.indexOf("Safari") !== -1 && navigator.userAgent.indexOf("Chrome") === -1){
-        $("html").addClass("using-safari");
+        document.documentElement.classList.add("using-safari");
     }
 </script>

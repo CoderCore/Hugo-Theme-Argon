@@ -1,0 +1,29 @@
+{{- $config := .Site.Params.relatedPosts -}}
+{{- if and (reflect.IsMap $config) (eq (index $config "enabled") true) -}}
+    {{- $limit := int (default 10 (index $config "limit")) -}}
+    {{- if gt $limit 0 -}}
+        {{- $related := first $limit (.Site.RegularPages.Related .) -}}
+        {{- with $related -}}
+        <section class="related-posts card shadow-sm" aria-labelledby="related-posts-title">
+            <h2 id="related-posts-title" class="post-comment-title related-posts-title">
+                <i class="fa fa-book" aria-hidden="true"></i>
+                <span>{{ T "relatedPosts" }}</span>
+            </h2>
+            <div class="related-posts-scroller">
+                {{- range . -}}
+                    {{- $thumbnail := partial "article/thumbnail.html" . -}}
+                    <a class="related-post-card" href="{{ .RelPermalink }}" aria-label="{{ .Title }}">
+                        <div class="related-post-card-container{{ if ne $thumbnail "" }} has-thumbnail{{ end }}">
+                            <div class="related-post-title clamp" clamp-line="3">{{ .Title }}</div>
+                            <i class="related-post-arrow fa fa-chevron-right" aria-hidden="true"></i>
+                        </div>
+                        {{- if ne $thumbnail "" -}}
+                            {{- partial "article/image.html" (dict "page" . "src" $thumbnail "class" "related-post-thumbnail" "alt" "" "loading" "lazy" "sizes" "180px") -}}
+                        {{- end -}}
+                    </a>
+                {{- end -}}
+            </div>
+        </section>
+        {{- end -}}
+    {{- end -}}
+{{- end -}}

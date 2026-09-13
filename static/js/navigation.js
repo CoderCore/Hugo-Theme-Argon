@@ -235,7 +235,7 @@
         if (!button) {
             return;
         }
-        button.classList.toggle('d-none', !nextView.querySelector('#post_comment, #comments'));
+        button.classList.toggle('d-none', !nextView.querySelector('#post_comment:not([hidden]), #comments:not([hidden])'));
     }
 
     function repairUrl(url, mode) {

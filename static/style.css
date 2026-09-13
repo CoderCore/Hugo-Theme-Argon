@@ -672,6 +672,38 @@ html.is-home.banner-as-cover #content {
 .waterflow-placeholder {
 	pointer-events: none;
 }
+.article-list-container {
+	display: block;
+}
+#main.waterflow .article-list-container {
+	column-count: 2;
+	column-gap: 20px;
+}
+#main.waterflow .article-list-container > .post {
+	display: inline-block;
+	width: 100%;
+	vertical-align: top;
+	break-inside: avoid;
+}
+@media screen and (min-width: 1100px) {
+	#main.waterflow .article-list-container {
+		column-count: 3;
+	}
+}
+@media screen and (max-width: 650px) {
+	#main.waterflow .article-list-container {
+		column-count: 1;
+	}
+}
+/* 瀑布流列数可由 articleListWaterflowColumns 明确指定；移动端仍保持单列。 */
+@media screen and (min-width: 651px) {
+	#main.waterflow.waterflow-columns-2 .article-list-container {
+		column-count: 2;
+	}
+	#main.waterflow.waterflow-columns-3 .article-list-container {
+		column-count: 3;
+	}
+}
 
 /*双栏反转布局*/
 html.double-column-reverse #leftbar {
@@ -1814,6 +1846,11 @@ html.filter-grayscale {
 	opacity: 0.7;
 }
 /*页码*/
+.pagination-nav {
+	width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
 .pagination {
 	width: max-content;
 	width: -moz-max-content;
@@ -2216,6 +2253,13 @@ html.darkmode .tippy-box[data-theme~="light"] {
 	margin-bottom: 25px;
 	padding: 0;
 	padding-bottom: 0;
+}
+.related-posts-title {
+	margin: 1.2rem 1.5rem 0;
+}
+.related-posts-scroller {
+	overflow-x: auto;
+	padding: 0.8rem 1.5rem;
 }
 .related-post-card {
 	display: inline-block;
@@ -4090,7 +4134,7 @@ html[lang] {
 }
 .shuoshuo-title {
 	font-size: 18px;
-	color: #555;
+	color: var(--color-text-deeper);
 	font-weight: bold;
 	margin-bottom: 10px;
 	width: max-content;
@@ -4098,7 +4142,13 @@ html[lang] {
 	max-width: 100%;
 }
 .shuoshuo-content {
+	color: var(--color-text-deeper);
 	padding-bottom: 10px;
+}
+.shuoshuo-content code {
+	color: var(--color-text-deeper);
+	background-color: var(--color-border-on-foreground);
+	border: 1px solid var(--color-border-on-foreground-deeper);
 }
 .shuoshuo-content p {
 	margin-bottom: 0;
@@ -4438,9 +4488,10 @@ article table.hljs-ln > thead > tr > th {
 	overflow-x: auto;
 }
 pre.hljs-codeblock {
-	overflow: visible;
+	overflow: hidden;
 	position: relative;
 	tab-size: 4;
+	border-radius: 8px;
 }
 pre.hljs-codeblock:before {
 	content: "";
@@ -4523,8 +4574,20 @@ code[hljs-codeblock-inner]::-webkit-scrollbar {
 	background: transparent;
 	height: 6px;
 }
+code[hljs-codeblock-inner]::selection,
 code[hljs-codeblock-inner] *::selection {
-	background-color: rgba(var(--color-selection-rgbstr), 0.2) !important;
+	background-color: var(--color-selection) !important;
+	color: var(--color-text-deeper) !important;
+}
+code[hljs-codeblock-inner]::-moz-selection,
+code[hljs-codeblock-inner] *::-moz-selection {
+	background-color: var(--color-selection) !important;
+	color: var(--color-text-deeper) !important;
+}
+code[hljs-codeblock-inner]::-webkit-selection,
+code[hljs-codeblock-inner] *::-webkit-selection {
+	background-color: var(--color-selection) !important;
+	color: var(--color-text-deeper) !important;
 }
 pre.hljs-codeblock.hljs-codeblock-fullscreen {
 	position: fixed;
@@ -5083,10 +5146,12 @@ html.darkmode.amoled-dark #content:after {
 		margin-left: -10px;
 		margin-right: -10px;
 	}
-	/*显示更少的页码*/
-	.pagination:not(.pagination-mobile) {
-		display: none;
+	/* 分页模板只输出一个普通 pagination，窄屏不能把它隐藏。 */
+	.pagination-nav {
+		padding-left: 5px;
+		padding-right: 5px;
 	}
+	.pagination:not(.pagination-mobile),
 	.pagination.pagination-mobile {
 		display: flex;
 	}

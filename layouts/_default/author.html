@@ -1,0 +1,39 @@
+{{ define "information-card" }}
+{{- $sidebar := dict -}}
+{{- with .Site.Params.sidebar }}{{ if reflect.IsMap . }}{{ $sidebar = . }}{{ end }}{{ end -}}
+<div class="information-card card bg-white shadow-sm border-0">
+    <div class="card-body text-center">
+        <h1 class="information-card-title">{{ .Title | default (T "author") }}</h1>
+        {{- with (index $sidebar "authorName") }}<p class="mb-0 text-muted">{{ . }}</p>{{ end }}
+    </div>
+</div>
+{{ end }}
+
+{{ define "main" }}
+{{- $sidebar := dict -}}
+{{- with .Site.Params.sidebar }}{{ if reflect.IsMap . }}{{ $sidebar = . }}{{ end }}{{ end -}}
+{{- $sections := .Site.Params.mainSections | default (slice "post") -}}
+{{- $posts := where .Site.RegularPages "Type" "in" $sections -}}
+<article class="post card bg-white shadow-sm border-0 author-page">
+    <div class="author-profile text-center">
+        {{- with (index $sidebar "authorImage") }}
+        <img class="author-profile-image rounded-circle shadow-sm" src="{{ . | relURL }}" alt="{{ index $sidebar "authorName" | default $.Site.Title }}" width="120" height="120">
+        {{- end }}
+        <h2>{{ index $sidebar "authorName" | default .Site.Title }}</h2>
+        {{- with (index $sidebar "authorDescription") }}<p class="text-muted">{{ . }}</p>{{ end }}
+        {{- with (index $sidebar "authorLinks") }}
+        <nav class="site-author-links" aria-label="{{ T "authorLinks" }}">
+            {{- range . }}<a href="{{ .url }}" rel="noopener" target="_blank">{{ .name }}</a>{{ end }}
+        </nav>
+        {{- end }}
+    </div>
+    {{- with .Content }}<div class="post-content author-page-content">{{ . }}</div>{{ end }}
+</article>
+
+<section class="author-posts">
+    <h2 class="h4 mb-3">{{ T "authorPosts" }}</h2>
+    {{- range $posts.ByDate.Reverse }}{{ partial "article/preview.html" . }}{{ else }}<p class="text-muted">{{ T "noPosts" }}</p>{{ end }}
+</section>
+{{ end }}
+
+{{ define "main-class" }} author-page{{ end }}

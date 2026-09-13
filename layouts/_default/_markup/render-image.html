@@ -1,0 +1,2 @@
+{{- $alt := default .Page.Title .Text -}}
+{{- partial "article/image.html" (dict "page" .Page "src" .Destination "resourceName" .Destination "class" "article-image" "alt" $alt "loading" "lazy" "sizes" "(max-width: 900px) 100vw, 800px") -}}

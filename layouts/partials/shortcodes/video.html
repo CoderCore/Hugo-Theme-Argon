@@ -1,0 +1,5 @@
+{{- $url := default "" (.Get "mp4") -}}
+{{- with $.Get "url" }}{{ $url = . }}{{ end -}}
+<video{{ with $.Get "width" }} width="{{ . }}"{{ end }}{{ with $.Get "height" }} height="{{ . }}"{{ end }} controls playsinline preload="metadata"{{ if eq (lower (default "false" (.Get "autoplay"))) "true" }} autoplay{{ end }}>
+    {{- with $url }}<source src="{{ . }}" type="video/mp4">{{ end -}}
+</video>

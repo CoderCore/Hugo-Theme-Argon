@@ -1,0 +1,64 @@
+{{- $page := .page -}}
+{{- $src := default "" .src -}}
+{{- if ne $src "" -}}
+    {{- $resource := false -}}
+    {{- $hasResource := false -}}
+    {{- $resourceName := default "" .resourceName -}}
+    {{- if eq $resourceName "" }}
+        {{- with $page.Params.image }}{{ $resourceName = . }}{{ end -}}
+        {{- if eq $resourceName "" }}{{ with $page.Params.thumbnail }}{{ $resourceName = . }}{{ end }}{{ end -}}
+    {{- end -}}
+
+    {{- $hasExplicitImage := ne $resourceName "" -}}
+    {{- $isLocalName := and $hasExplicitImage (not (or (strings.HasPrefix $resourceName "http://") (strings.HasPrefix $resourceName "https://") (strings.HasPrefix $resourceName "/"))) -}}
+    {{- if $isLocalName }}
+        {{- with $page.Resources.GetMatch $resourceName }}{{ $resource = . }}{{ $hasResource = true }}{{ end -}}
+    {{- end -}}
+
+    {{- $isLocalSource := not (or (strings.HasPrefix $src "http://") (strings.HasPrefix $src "https://") (strings.HasPrefix $src "data:")) -}}
+    {{- if and (not $hasResource) (not $hasExplicitImage) $isLocalSource (ne $src "") -}}
+        {{- $srcName := $src -}}
+        {{- if strings.Contains $srcName "/" }}{{ $srcName = path.Base $srcName }}{{ end -}}
+        {{- with $page.Resources.GetMatch $srcName }}{{ $resource = . }}{{ $hasResource = true }}{{ end -}}
+    {{- end -}}
+
+    {{- if and (not $hasResource) (not $hasExplicitImage) $isLocalSource -}}
+        {{- with $page.Resources.ByType "image" }}
+            {{- with .GetMatch "*" -}}
+                {{- $srcName := $src -}}
+                {{- if strings.Contains $srcName "/" }}{{ $srcName = path.Base $srcName }}{{ end -}}
+                {{- if or (eq $src .RelPermalink) (eq $srcName .Name) }}{{ $resource = . }}{{ $hasResource = true }}{{ end -}}
+            {{- end -}}
+        {{- end -}}
+    {{- end -}}
+
+    {{- $processingEnabled := true -}}
+    {{- if isset $page.Site.Params "imageProcessing" }}
+        {{- $processingEnabled = ne $page.Site.Params.imageProcessing false -}}
+    {{- end -}}
+    {{- $canProcess := false -}}
+    {{- if $hasResource -}}
+        {{- $subType := lower $resource.MediaType.SubType -}}
+        {{- $canProcess = not (or (eq $subType "svg") (eq $subType "gif") (eq $subType "x-icon")) -}}
+    {{- end -}}
+
+    {{- $url := $src | relURL -}}
+    {{- $srcset := "" -}}
+    {{- $width := 0 -}}
+    {{- $height := 0 -}}
+    {{- if and $processingEnabled $canProcess -}}
+        {{- $small := $resource.Resize "480x webp q82" -}}
+        {{- $medium := $resource.Resize "800x webp q82" -}}
+        {{- $large := $resource.Resize "1200x webp q82" -}}
+        {{- $url = $medium.RelPermalink -}}
+        {{- $srcset = printf "%s 480w, %s 800w, %s 1200w" $small.RelPermalink $medium.RelPermalink $large.RelPermalink -}}
+        {{- $width = $medium.Width -}}
+        {{- $height = $medium.Height -}}
+    {{- else if $hasResource -}}
+        {{- $url = $resource.RelPermalink -}}
+        {{- $width = $resource.Width -}}
+        {{- $height = $resource.Height -}}
+    {{- end -}}
+
+    <img src="{{ $url }}"{{ with $srcset }} srcset="{{ . }}" sizes="{{ default "(max-width: 650px) 100vw, (max-width: 1200px) 50vw, 800px" $.sizes }}"{{ end }} class="{{ default "" .class }}" alt="{{ default $page.Title .alt }}"{{ if gt $width 0 }} width="{{ $width }}" height="{{ $height }}"{{ end }} loading="{{ default "lazy" .loading }}" decoding="async"{{ with .fetchpriority }} fetchpriority="{{ . }}"{{ end }}>
+{{- end -}}

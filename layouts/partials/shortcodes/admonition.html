@@ -1,0 +1,14 @@
+{{- $color := lower (default "indigo" (.Get "color")) -}}
+{{- $colorClass := default "primary" (index (dict "indigo" "primary" "green" "success" "red" "danger" "orange" "warning" "blue" "info" "black" "default" "grey" "grey") $color) -}}
+{{- $icon := replaceRE "[^A-Za-z0-9-]" "" (default "" (.Get "icon")) -}}
+<div class="admonition shadow-sm admonition-{{ $colorClass }}" role="note">
+    {{- with $.Get "title" }}
+    <div class="admonition-title">
+        {{- with $icon }}<i class="fa fa-{{ . }}" aria-hidden="true"></i>{{ end -}}
+        {{ . }}
+    </div>
+    {{- end }}
+    {{- with $.Inner }}
+    <div class="admonition-body">{{ . | markdownify }}</div>
+    {{- end }}
+</div>

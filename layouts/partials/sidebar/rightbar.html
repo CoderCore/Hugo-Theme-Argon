@@ -1,0 +1,20 @@
+{{- $sidebar := dict -}}
+{{- with .Site.Params.sidebar }}{{ if reflect.IsMap . }}{{ $sidebar = . }}{{ end }}{{ end -}}
+{{- $rightbar := index $sidebar "rightbar" -}}
+{{- if and (reflect.IsSlice $rightbar) (gt (len $rightbar) 0) -}}
+<aside id="rightbar" class="rightbar widget-area" role="complementary">
+    {{- range $rightbar }}
+    <section class="card shadow-sm bg-white border-0">
+        {{- with .title }}<h6 class="font-weight-bold text-black">{{ . }}</h6>{{ end -}}
+        {{- with .content }}<div class="rightbar-content">{{ . | safeHTML }}</div>{{ end -}}
+        {{- with .items }}
+        <ul>
+            {{- range . }}
+            <li><a href="{{ .url | relURL }}">{{ .name }}</a></li>
+            {{- end }}
+        </ul>
+        {{- end }}
+    </section>
+    {{- end }}
+</aside>
+{{- end -}}

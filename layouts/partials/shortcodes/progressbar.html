@@ -1,0 +1,14 @@
+{{- $progress := int (default 100 (.Get "progress")) -}}
+{{- if lt $progress 0 }}{{ $progress = 0 }}{{ end -}}
+{{- if gt $progress 100 }}{{ $progress = 100 }}{{ end -}}
+{{- $color := lower (default "indigo" (.Get "color")) -}}
+{{- $colorClass := default "primary" (index (dict "indigo" "primary" "green" "success" "red" "danger" "orange" "warning" "blue" "info") $color) -}}
+<div class="progress-wrapper">
+    <div class="progress-info">
+        {{- with $.Inner }}<div class="progress-label"><span>{{ . | plainify }}</span></div>{{ end -}}
+        <div class="progress-percentage"><span>{{ $progress }}%</span></div>
+    </div>
+    <div class="progress">
+        <div class="progress-bar bg-{{ $colorClass }}" role="progressbar" style="width: {{ $progress }}%;" aria-valuenow="{{ $progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+</div>

@@ -1,0 +1,28 @@
+{{ define "information-card" }}
+<div class="page-information-card-container">
+    <div class="page-information-card card bg-gradient-secondary shadow-lg border-0">
+        <div class="card-body">
+            <h1 class="text-black">{{ .Title | default (T "shuoshuo") }}</h1>
+            {{ with .Content }}<div class="text-black mt-3">{{ . }}</div>{{ end }}
+            <p class="text-black mt-3 mb-0 opacity-8">
+                <i class="fa fa-quote-left mr-1" aria-hidden="true"></i>
+                {{ len .Pages }} {{ T "shuoshuoCount" }}
+            </p>
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "main" }}
+{{- $paginator := .Paginate .Pages.ByDate.Reverse -}}
+<div class="shuoshuo-list">
+    {{- range $paginator.Pages }}
+        {{- partial "shuoshuo/preview.html" . -}}
+    {{- else }}
+        <div class="card bg-white shadow-sm border-0"><div class="card-body text-center">{{ T "noPosts" }}</div></div>
+    {{- end }}
+</div>
+{{- if gt $paginator.TotalPages 1 }}{{ partial "pagination.html" . }}{{ end }}
+{{ end }}
+
+{{ define "main-class" }} shuoshuo-page{{ end }}

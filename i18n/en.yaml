@@ -7,12 +7,57 @@ search: Search
 about: About
 posts: Posts
 pages: Pages
+shuoshuo: Notes
+shuoshuoCount: notes
+timeline: Timeline
+msgboard: Message Board
+noPosts: No content yet
+no_posts_desc: There are no posts to display.
+author: Author
+authorLinks: Author links
+authorPosts: Author posts
+articleCount: "%d articles"
+monthHeading: "%s"
+publishedEdited: "Published %s | Edited %s"
+viewCount: Views
+commentCount: "%d comments"
+wordCount: "%d words"
+allTags: All Tags
+allCategories: All Categories
+no_posts: No content yet
+pagination: Pagination
+previousPage: Previous page
+nextPage: Next page
+close: Close
+toggleNavigation: Toggle navigation
+siteVisitors: "%s visitors"
+shareToWeChat: Share to WeChat
+shareToDouban: Share to Douban
+shareToQQ: Share to QQ
+shareToQzone: Share to Qzone
+shareToWeibo: Share to Weibo
+shareToFacebook: Share to Facebook
+shareToTwitter: Share to Twitter
+shareToTelegram: Share to Telegram
+copyLink: Copy link
+blackMode: Black mode
+lightShadow: Light shadow
+deepShadow: Deep shadow
+filterOff: Off
+sunset: Sunset
+darken: Darken
+grayscale: Grayscale
+resetDefault: Reset default
+readingProgress: Reading progress
 
 # Article
 readMore: Read More
 words: Words
 readingTime: Reading Time
 minutes: Minutes
+hours: Hours
+fewSeconds: A few seconds
+withinMinute: Under 1 minute
 publishedOn: Published on
 updatedOn: Updated on
 prevPost: Previous Post
@@ -61,3 +106,18 @@ shadow: Shadow
 filter: Filter
 borderRadius: Border Radius
 themeColor: Theme Color
+backToTop: Back to top
+comment: Comment
+menu: Menu
+share: Share
+donate: Donate
+moveToLeft: Move to left
+moveToRight: Move to right
+switchToDarkMode: Switch to dark mode
+switchToBlackMode: Switch to black mode
+tagTitle: "Tag: %s"
+categoryTitle: "Category: %s"
+archiveTitle: Archives
+donateQrCode: Donation QR code
+theme: Theme
+poweredBy: Powered by

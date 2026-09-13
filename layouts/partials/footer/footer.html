@@ -2,8 +2,8 @@
     {{- with .Site.Params.footerHtml }}
         {{ . | safeHTML }}
     {{- end }}
-    <div>Theme <a href="https://github.com/solstice23/argon-theme"><strong>Argon</strong></a> | Powered by <a href="https://gohugo.io/">Hugo</a></div>
+    <div>{{ T "theme" }} <a href="https://github.com/solstice23/argon-theme"><strong>Argon</strong></a> | {{ T "poweredBy" }} <a href="https://gohugo.io/">Hugo</a></div>
     <!-- <span id="busuanzi_container_site_uv">
-        本站访客数 <span id="busuanzi_value_site_uv"></span> 人次
+        {{ printf (T "siteVisitors") "<span id=\"busuanzi_value_site_uv\"></span>" | safeHTML }}
     </span> -->
 </footer>

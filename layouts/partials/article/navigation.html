@@ -2,7 +2,7 @@
 <div class="post-navigation card shadow-sm">
 	{{- if .PrevInSection -}}
 	<div class="post-navigation-item post-navigation-pre">
-		<span class="page-navigation-extra-text"><i class="fa fa-arrow-circle-o-left" aria-hidden="true"></i>上一篇</span>
+		<span class="page-navigation-extra-text"><i class="fa fa-arrow-circle-o-left" aria-hidden="true"></i>{{ T "prevPost" }}</span>
 		<a href="{{ .PrevInSection.RelPermalink }}" rel="prev">{{ .PrevInSection.Title }}</a>
 	</div>
 	{{- else -}}
@@ -10,7 +10,7 @@
 	{{- end -}}
 	{{- if .NextInSection -}}
 	<div class="post-navigation-item post-navigation-next">
-		<span class="page-navigation-extra-text">下一篇 <i class="fa fa-arrow-circle-o-right" aria-hidden="true"></i></span>
+		<span class="page-navigation-extra-text">{{ T "nextPost" }} <i class="fa fa-arrow-circle-o-right" aria-hidden="true"></i></span>
 		<a href="{{ .NextInSection.RelPermalink }}" rel="next">{{ .NextInSection.Title }}</a>
 	</div>
 	{{- else -}}
