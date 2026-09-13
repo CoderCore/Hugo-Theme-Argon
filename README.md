@@ -106,7 +106,7 @@ params:
 
 主题支持 Hugo 的 `shuoshuo` 内容类型：在站点的 `content/shuoshuo/` 中新增 Markdown 文件即可生成 `/shuoshuo/` 列表和详情页。首页展示默认关闭，可通过 `params.shuoshuo.showOnHome` 开启。
 
-时间线页面可在站点内容中创建 `layout: timeline` 的页面；主题会按主栏目文章的年份和月份生成静态链接。归档页可创建 `content/archives/_index.md`，并通过 `archive.monthly` 控制是否显示月份分组。留言板可创建 `layout: msgboard` 的页面，页面正文和评论容器已经就绪，评论服务仍需通过评论适配器接入。
+时间线页面可在站点内容中创建 `layout: timeline` 的页面；主题会按主栏目文章的年份和月份生成静态链接。归档页可创建 `content/archives/_index.md`，并通过 `archive.monthly` 控制是否显示月份分组。留言板可创建 `layout: msgboard` 的页面，页面正文和评论容器已经就绪，评论区域保留自建评论系统的挂载点。
 
 作者页可创建 `layout: author` 的页面，自动复用 `params.sidebar.authorImage`、`authorName`、`authorDescription` 和 `authorLinks`，并列出 `mainSections` 中的文章。
 
@@ -114,9 +114,9 @@ params:
 
 `params.pageLayout` 控制页面外壳和左/右栏，`params.articleListWaterflow` 独立控制文章列表是否使用瀑布流。关闭 `articleListWaterflow` 即为单列文章列表；开启后可用 `params.articleListWaterflowColumns: 2` 或 `3` 明确指定桌面端列数，移动端仍自动保持单列。
 
-评论适配器支持按页面空闲时加载的 Giscus、Waline、Twikoo 和 Remark42。默认不加载第三方脚本；启用时在 `params.comments` 中设置 `enabled: true`，并填写所选服务的必要参数：Giscus 使用 `repository`、`repositoryID`、`category`、`categoryID`；Waline 使用 `serverURL`；Twikoo 使用 `envId`（可选 `region`）；Remark42 使用 `host` 和 `siteId`（可选 `language`、`theme`）。初始化挂接到统一页面生命周期，因此跨页导航后也能加载；参数缺失或第三方服务失败时会静默降级。Waline 客户端固定使用 v3.15.2，Twikoo 前端固定使用 1.7.20，便于构建结果可复现。
+评论区域暂保留通用挂载点和生命周期占位，不加载任何第三方评论脚本。后续自建 Worker/D1 评论系统完成后，在 `layouts/partials/comments/comments.html` 和 `static/js/custom.js` 的占位处接入。
 
-单篇文章可以在 front matter 中使用 `comments: false` 关闭评论，或用 `comments: true` 显式开启；Giscus 配置缺少必要字段时会自动静默降级。
+单篇文章可以在 front matter 中使用 `comments: false` 关闭评论，或用 `comments: true` 显式开启；自建评论接口完成前，评论挂载点保持空白。
 
 数学公式通过 `params.mathRender` 选择 `mathjax3`、`mathjax2` 或 `katex`；留空或设为 `none` 时关闭。公式渲染器仅在启用后且当前页面实际包含 `$...$`、`$$...$$`、`\(...\)` 或 `\[...\]` 公式时，才在浏览器端按需加载，跨页导航时也会复用已加载的资源。
 

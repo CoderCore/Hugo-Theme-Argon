@@ -1,65 +1,19 @@
-{{- $settings := .Site.Params.comments -}}
-{{- $enabled := false -}}
-{{- $provider := "" -}}
 {{- $pageEnabled := true -}}
 {{- if isset .Params "comments" -}}
     {{- $pageEnabled = ne .Params.comments false -}}
 {{- end -}}
-{{- if reflect.IsMap $settings -}}
-    {{- $enabled = eq (index $settings "enabled") true -}}
-    {{- $provider = default "giscus" (index $settings "provider") -}}
+{{- $enabled := false -}}
+{{- with .Site.Params.comments -}}
+    {{- if reflect.IsMap . -}}
+        {{- $enabled = eq (index . "enabled") true -}}
+    {{- end -}}
 {{- end -}}
-{{- if and $pageEnabled $enabled (eq $provider "giscus") -}}
-    {{- $repository := index $settings "repository" -}}
-    {{- $repositoryID := index $settings "repositoryID" -}}
-    {{- $category := index $settings "category" -}}
-    {{- $categoryID := index $settings "categoryID" -}}
-    {{- $mapping := default "pathname" (index $settings "mapping") -}}
-    {{- $lang := default .Site.Language.Lang (index $settings "language") -}}
-{{- $configured := and (eq (printf "%T" $repository) "string") (ne $repository "") (eq (printf "%T" $repositoryID) "string") (ne $repositoryID "") (eq (printf "%T" $category) "string") (ne $category "") (eq (printf "%T" $categoryID) "string") (ne $categoryID "") -}}
-{{- if $configured }}
+{{- if and $pageEnabled $enabled -}}
 <section id="comments" class="comments-section" aria-label="{{ T "comments" }}">
-    <div class="giscus" data-repo="{{ $repository }}" data-repo-id="{{ $repositoryID }}" data-category="{{ $category }}" data-category-id="{{ $categoryID }}" data-mapping="{{ $mapping }}" data-lang="{{ $lang }}"></div>
+    {{- /* TODO: 自建评论系统接口占位。
+    后续在此挂载自建 Worker/D1 评论列表、GitHub 登录、发表评论、回复、分页和管理界面。
+    */ -}}
 </section>
-{{- else }}
-<section id="comments" class="comments-section comments-unconfigured" aria-label="{{ T "comments" }}" hidden></section>
-{{- end }}
-{{- else if and $pageEnabled $enabled (eq $provider "waline") -}}
-    {{- $serverURL := index $settings "serverURL" -}}
-    {{- $lang := default .Site.Language.Lang (index $settings "language") -}}
-    {{- $configured := and (eq (printf "%T" $serverURL) "string") (ne $serverURL "") -}}
-    {{- if $configured }}
-<section id="comments" class="comments-section" aria-label="{{ T "comments" }}">
-    <div id="waline" class="waline-container" data-server-url="{{ $serverURL }}" data-lang="{{ $lang }}" data-path="{{ .RelPermalink }}"></div>
-</section>
-    {{- else }}
-<section id="comments" class="comments-section comments-unconfigured" aria-label="{{ T "comments" }}" hidden></section>
-    {{- end }}
-{{- else if and $pageEnabled $enabled (eq $provider "twikoo") -}}
-    {{- $envID := index $settings "envId" -}}
-    {{- $region := index $settings "region" -}}
-    {{- $lang := default .Site.Language.Lang (index $settings "language") -}}
-    {{- $configured := and (eq (printf "%T" $envID) "string") (ne $envID "") -}}
-    {{- if $configured }}
-<section id="comments" class="comments-section" aria-label="{{ T "comments" }}">
-    <div id="twikoo" class="twikoo-container" data-env-id="{{ $envID }}" data-region="{{ $region }}" data-lang="{{ $lang }}" data-path="{{ .RelPermalink }}"></div>
-</section>
-    {{- else }}
-<section id="comments" class="comments-section comments-unconfigured" aria-label="{{ T "comments" }}" hidden></section>
-    {{- end }}
-{{- else if and $pageEnabled $enabled (eq $provider "remark42") -}}
-    {{- $host := index $settings "host" -}}
-    {{- $siteID := index $settings "siteId" -}}
-    {{- $locale := default "en" (index $settings "language") -}}
-    {{- $theme := default "light" (index $settings "theme") -}}
-    {{- $configured := and (eq (printf "%T" $host) "string") (ne $host "") (eq (printf "%T" $siteID) "string") (ne $siteID "") -}}
-    {{- if $configured }}
-<section id="comments" class="comments-section" aria-label="{{ T "comments" }}">
-    <div id="remark42" class="remark42-container" data-host="{{ $host }}" data-site-id="{{ $siteID }}" data-locale="{{ $locale }}" data-theme="{{ $theme }}" data-url="{{ .Permalink }}" data-page-title="{{ .Title }}"></div>
-</section>
-    {{- else }}
-<section id="comments" class="comments-section comments-unconfigured" aria-label="{{ T "comments" }}" hidden></section>
-    {{- end }}
 {{- else -}}
 <section id="comments" class="comments-section comments-unconfigured" aria-label="{{ T "comments" }}" hidden></section>
 {{- end -}}

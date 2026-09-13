@@ -13,10 +13,18 @@
 
 更新时间：2026-09-13
 
+### 本轮评论方案切换
+
+- `[x]` 删除四种第三方评论方案的模板分支、配置字段、外部脚本/样式加载、初始化、失败重试和跨页实例清理逻辑。
+- `[x]` 留言板和文章底部继续保留通用 `#comments` 挂载点；`static/js/custom.js` 保留 `argonCustomComments.init/destroy` 生命周期占位，不发起评论网络请求。
+- `[x]` 更新主题默认配置、示例站点配置、留言板说明和本进度文档；`worker.js` 未修改。
+- `[x]` 通过主题仓库残留搜索、全部主题 JS 语法检查、差异检查，以及示例站点和博客项目本地 Hugo 构建。
+- `[ ]` 自建评论系统下一阶段：先确定 Worker API 契约和 D1 数据模型，再实现 GitHub OAuth 登录、评论读取/发表/回复/分页、审核权限和前端渲染；完成接口设计前不写临时评论逻辑。
+
 1. `[x]` 第一批配置与基础模板：配置项生效、短代码、相关文章、文章列表布局、SEO/社交卡片和图片处理均已完成，并有本地 Hugo 产物或页面回归证据。
-2. `[-]` 第二批静态内容：多语言、Shuoshuo、时间线、归档、作者页和留言板静态结构已完成；留言板的真实评论显示属于外部服务验收，不在当前无参数工作树内重复测试。
-3. `[-]` 第三批主题内代码：评论适配器、阅读量 Worker/D1 客户端、Hugo JSON 搜索、GitHub 卡片和统一页面导航的本地实现已完成；评论生命周期/失败降级已通过代码检查，搜索已改为首次交互加载，剩余仅是少量 fixture 缺口和可选性能收敛。
-4. `[x]` 外部能力边界：已记录 Giscus/Waline/Twikoo/Remark42、Cloudflare Worker/D1 所需参数、域名和 CORS 要求；由于用户尚未提供任何外接服务，不进行真实评论、域名/CORS 或生产 D1 验收。
+2. `[-]` 第二批静态内容：多语言、Shuoshuo、时间线、归档、作者页和留言板静态结构已完成；留言板评论区现在只保留自建评论系统挂载点。
+3. `[-]` 第三批主题内代码：阅读量 Worker/D1 客户端、Hugo JSON 搜索、GitHub 卡片和统一页面导航的本地实现已完成；四种第三方评论适配器已删除，主题只保留自建评论接口注释占位。
+4. `[x]` 评论方案边界：已停止对四种第三方评论系统的空配置和无后端测试；后续评论系统改为自建 Worker/D1，且本轮不修改 `worker.js`。
 5. `[-]` 本地性能优化：页面级初始化、按需模块、指纹化/SRI、缓存头和资源清理已完成大部分；本轮已移除代码高亮、分享、Pangu、Zoomify、旧格式 lazyload 的 head 提前加载，并让依赖由目标模块按需补载；Clamp/旧格式 lazyload/Banner 正向 fixture 仍缺，核心 CSS/JS 和高亮资源只在发现明确收益时继续处理，禁止无目标重复 DOM 扫描。
 6. `[ ]` 公网性能与平台配置：仅在获得公开部署地址或 Lighthouse/WebPageTest 工具后补齐 LCP、INP、CLS；Brotli/Gzip、CDN 和长期缓存由实际托管平台配置。
 
@@ -25,12 +33,12 @@
 ### 已完成：不再重复验证
 
 - `[x]` 主题主体迁移：配置、模板、短代码、相关文章、列表布局、SEO、图片处理、i18n、Shuoshuo、时间线、归档、作者页和留言板静态结构已经落地。
-- `[x]` 本地动态实现：统一 `navigation.js`、评论适配器的配置/降级/生命周期代码、Cloudflare Worker+D1 客户端、Hugo JSON 搜索、GitHub 信息卡以及页面级可选模块均已写入工作树。
+- `[x]` 本地动态实现：统一 `navigation.js`、Cloudflare Worker+D1 客户端、Hugo JSON 搜索、GitHub 信息卡以及页面级可选模块均已写入工作树；评论只保留自建接口占位。
 - `[x]` 本地交付检查：普通/minify Hugo 构建、JS 语法检查、差异检查、静态路由和基础暗色模式回归已有记录；`tode.md` 已合并并删除，`todo.md` 是唯一进度文档。
 
 ### 等待外部输入：当前不执行空测
 
-- `[ ]` 评论生产验收：需要用户提供并选择 Giscus、Waline、Twikoo 或 Remark42 的真实参数、部署地址和域名/CORS 条件后，才测试真实评论加载、发帖和跨页行为。
+- `[ ]` 自建评论系统：待定义 Worker API、D1 数据表、GitHub OAuth 登录流程、评论审核/回复/分页及前端渲染协议；worker.js 当前不在本轮修改范围内。
 - `[ ]` 阅读量生产验收：需要 Cloudflare Worker URL、D1 绑定和管理凭据后，才测试真实读写；现有内存 D1 smoke test 只证明本地协议逻辑，不等同于生产部署。
 - `[ ]` 公网性能验收：需要公开部署地址或本地可用 Lighthouse/WebPageTest 工具；在条件出现前不反复测 LCP/INP/CLS。
 - `[ ]` Pagefind：只有文章规模需要或用户明确要求时接入；当前 Hugo JSON 搜索已满足示例站点和中小规模内容。
@@ -76,8 +84,8 @@
 
 ### 当前执行子目标
 
-- `[x]` 评论适配器：跨页导航开始时取消旧页面的空闲加载调度，并保证 Giscus 脚本加载失败后可以重新尝试。
-- `[x]` 验证上述生命周期改动：`node --check`、普通构建、minify 构建均已通过；已有本地导航和失败降级回归证据，Giscus 网络失败重试路径由脚本状态逻辑覆盖。
+- `[x]` 评论接口清理：删除四种第三方评论的模板分支、配置字段、外部脚本/样式加载、初始化、失败重试和跨页实例清理逻辑；保留通用 `#comments` 挂载点与注释占位。
+- `[x]` 验证评论接口清理：通过仓库残留搜索确认不再引用四种第三方服务；通过 JavaScript 语法检查、普通 Hugo 构建和差异检查；`worker.js` 未修改。
 - `[x]` 页面级初始化：目录索引、卡片圆角、搜索和取色器接收当前页面根节点；保留首次加载的 `document` 兼容路径，并修复跨页设置面板初始化风险。
 - `[x]` 验证页面级初始化：全新本地浏览器标签首屏未加载取色器资源，打开设置后按需生成取色器；跨页进入文章页后目录、搜索绑定和代码高亮正常，干净标签无新增警告/错误。
 - `[x]` 核心资源拆分：将 Highlight.js 渲染、行号、复制、全屏和折行控制移至 `static/js/argon-code.js`；仅在当前页面存在代码块时动态加载，保留可配置高亮主题及语言资源。
@@ -188,13 +196,13 @@
 - `[x]` 多语言：常见模板 UI、页脚、分享提示、分页无障碍标签、主题设置和主要脚本提示均已迁移到 `i18n`；主要页面标题、空状态文案与图片替代文本已补齐。Cloudflare 阅读量管理页属于独立管理工具，保持中文管理界面。
 - `[x]` Shuoshuo：增加 `content/shuoshuo` 内容类型、列表页和首页展示方式。
 - `[x]` 时间线：用日期排序的静态内容页替代 WordPress 时间线模板。
-- `[-]` 留言板页面：已完成静态页面结构，并复用评论适配器；仍需站点配置外部评论服务。
+- `[-]` 留言板页面：已完成静态页面结构，并保留自建评论系统挂载点；评论界面和 API 待后续自建系统实现。
 - `[x]` 归档页增加月度分组、文章数量和可配置显示方式。
 - `[x]` 增加复用侧栏资料的作者介绍页；多作者 taxonomy 暂不实现。
 
 ## 第三批：需要外部服务或较多 JavaScript 的功能
 
-- `[-]` 评论系统适配器：已加入按页面空闲时加载、页面级开关、缺省降级、跨页导航清理和 Giscus 失败重试，支持 Giscus、Waline、Twikoo、Remark42；各服务的后端部署、域名、跨域和生产参数仍需站点自行配置。
+- `[-]` 评论系统：四种第三方适配器、配置分支和外部脚本加载代码已删除；`#comments` 模板挂载点和 `argonCustomComments` 生命周期占位已保留，待自建 Worker/D1 接口确定后实现。
 - `[-]` 阅读量：保留 Cloudflare Worker + D1 方案，并让请求只在启用阅读量的页面执行；已通过内存 D1 smoke test 验证鉴权、CORS、批量读写和管理员操作，真实 Cloudflare D1 部署仍需站点配置。
 - `[-]` 搜索：已改为首次交互时按需加载的 Hugo 精简 JSON 模块，使用原生 DOM 渲染并支持索引请求失败后重试；文章较多时仍可继续接入 Pagefind。
 - `[x]` GitHub 信息卡：设计失败状态、10 分钟会话缓存和 API 限流处理。
@@ -205,7 +213,7 @@
 
 - `[x]` Gutenberg 编辑器和 WordPress 后台小工具：明确不迁移，改用 Hugo Markdown/短代码和站点配置。
 - `[x]` WordPress 更新检查、后台设置页：明确不迁移，主题发布随 Git/构建流程管理。
-- `[x]` 服务端评论编辑历史、邮件通知、验证码后台：明确不迁移，交由 Giscus 等评论服务处理。
+- `[x]` 服务端评论编辑历史、邮件通知、验证码后台：不从 WordPress 迁移；未来由自建评论系统按实际需求设计。
 - `[x]` 依赖 WordPress 查询接口的动态文章类型筛选：明确不迁移，使用 Hugo 内容类型、分类、标签和本地搜索替代。
 
 ## 性能任务
@@ -241,13 +249,13 @@
 - 配置项：分享按钮、阅读时间、中文/英文阅读速度、`articleMeta` 字段及 `comments`/`read` 别名均已接入；`commentsCount: 0` 能正确显示，并已补齐默认值、最小示例和说明。
 - 第一批模板：文章列表布局、瀑布流、相关文章、SEO/Open Graph/Twitter Card/Article JSON-LD、robots.txt、sitemap 和图片 Page Resources 处理已完成；图片支持 WebP、srcset、尺寸属性、首图优先加载及列表懒加载。
 - 短代码：已加入 `alert`、`tip`、`tag`、`todo`、`collapse`、`hidden`、`video`、`progressbar`、`timeline`、`github`，并兼容原主题常用别名。
-- 第二批页面：中文/英文 i18n、Shuoshuo、时间线、归档页和作者介绍页已完成；留言板的静态结构已完成并复用评论适配器。
-- 动态功能：已加入 Giscus、Waline、Twikoo、Remark42 适配器；保留 Cloudflare Worker + D1 阅读量方案；搜索改为按需加载的 Hugo 精简 JSON；GitHub 信息卡支持静态数据、API、失败状态、5 秒超时、旧数据和 10 分钟会话缓存。
+- 第二批页面：中文/英文 i18n、Shuoshuo、时间线、归档页和作者介绍页已完成；留言板的静态结构已完成并保留自建评论挂载点。
+- 动态功能：已移除四种第三方评论适配器；保留 Cloudflare Worker + D1 阅读量方案；搜索改为按需加载的 Hugo 精简 JSON；GitHub 信息卡支持静态数据、API、失败状态、5 秒超时、旧数据和 10 分钟会话缓存。
 - 静态站点边界：未实现不安全的客户端密码保护；WordPress 后台、Gutenberg、更新检查、服务端评论历史/邮件/验证码和依赖 WordPress 查询接口的筛选均明确不迁移。
 - 导航与性能：`navigation.js` 已成为唯一页面导航入口；可选的分享、数学公式、代码高亮、取色器、阅读量、GitHub、Hitokoto、过时文章提示、评论图片预览、折叠交互、Pangu、Clamp、正文图片 Zoomify、旧格式 lazyload、Banner 打字和搜索能力按需或延迟加载；代码高亮渲染控制已拆至 `argon-code.js`，分享控制已拆至 `argon-share.js`，GitHub 信息卡已拆至 `argon-github.js`，Hitokoto 已拆至 `argon-hitokoto.js`，过时文章提示已拆至 `argon-outdate.js`，评论图片预览已拆至 `argon-comment-image.js`，折叠交互已拆至 `argon-collapse.js`，Pangu 初始化已拆至 `argon-pangu.js`，Clamp 初始化已拆至 `argon-clamp.js`，Zoomify 初始化已拆至 `argon-zoomify.js`，lazyload 初始化已拆至 `argon-lazyload.js`，Banner 打字和搜索实现已分别拆至 `argon-banner.js`、`argon-search.js`，均按页面内容、配置或首次交互加载；当前页面图片仍使用原生 `loading="lazy"`；指纹化核心资源已设置 SRI，并提供 Cloudflare Pages `_headers` 的 immutable 缓存策略。
 - 资源清理：已删除旧 PJAX、Dragula、SVG loader、source map、bootstrap-datepicker 及未直接引用的重复 Bootstrap/NProgress/OnScreen 目录；Pickr 仅保留实际使用的 `monolith` 主题。
-- 跨页生命周期：图片懒加载、Zoomify、Pangu、Clamp、过时提示、GitHub 卡片、阅读量和人性化时间刷新已限定到当前页面根节点，并清理可销毁的 Waline/Remark42 实例，避免旧页面响应污染新页面。
-- 评论生命周期：导航开始时会取消尚未执行的评论 idle/timeout 调度；Giscus 脚本采用 `loading`/`loaded` 状态，失败时移除脚本并保留可重试状态。
+- 跨页生命周期：图片懒加载、Zoomify、Pangu、Clamp、过时提示、GitHub 卡片、阅读量和人性化时间刷新已限定到当前页面根节点，避免旧页面响应污染新页面。
+- 评论生命周期：四种第三方评论的 idle/timeout 调度、脚本状态和实例清理代码已删除；未来自建评论系统的生命周期从 `argonCustomComments` 占位扩展。
 - 页面级初始化：目录索引、卡片圆角和搜索使用当前 `#page-view` 根节点；取色器保留固定浮动设置区域的 `document` 兼容路径，并在首次加载后避免重复实例化。
 - 代码高亮拆分：核心脚本仅保留高亮依赖加载器，渲染、行号、复制及控制栏逻辑移入 `static/js/argon-code.js`；动态导航到代码页时可继续复用同一模块。
 - 分享模块拆分：核心脚本仅保留分享数据初始化，展开分享区和复制链接逻辑移入 `static/js/argon-share.js`；动态导航到文章页时按内容加载该模块。
@@ -267,7 +275,7 @@
 - 使用 Hugo v0.154.4 对 `exampleSite` 做普通构建和 minify 构建，均通过：32 个页面、27 个 HTML、317 个静态文件、359 个总文件；新增的代码、分享、GitHub、Hitokoto、过时提示、评论图片预览、折叠交互、Pangu、Clamp、Zoomify、lazyload、Banner 和搜索模块文件计入静态文件增长。
 - 构建输出中未发现已清理的 bootstrap-datepicker、`/css/bootstrap/`、`/vendor/bootstrap/`、`/vendor/nprogress/` 或 `/vendor/onscreen/` 引用。
 - `node --check` 已通过 `static/argontheme.js`、`static/js/custom.js`、`static/js/navigation.js` 和 `static/js/view-counter.js`；`git diff --check` 无内容错误，仅有 CRLF 转换和 Git 全局 ignore 权限提示。
-- 配置矩阵已验证取色器开关、分享按钮、阅读时间、`articleMeta`、`commentsCount: 0` 和 Giscus 错误配置降级；默认未配置评论时不会注入四种评论服务脚本，未启用阅读量时不会注入 `view-counter.js`。
+- 配置矩阵已验证取色器开关、分享按钮、阅读时间、`articleMeta`、`commentsCount: 0` 和评论关闭状态；评论接口未实现前不会注入任何评论服务脚本，未启用阅读量时不会注入 `view-counter.js`。
 - 已验证 MathJax 3、MathJax 2、KaTeX 的按需配置；默认无公式页面不注入外部公式脚本。
 - 本地 Hugo server 和浏览器回归已验证：默认文章显示分享按钮和阅读时间，关闭配置后正确隐藏；搜索框聚焦时才加载 `/search.json`；从首页导航到含 2 个代码块的文章页后能动态高亮；取色器首次打开设置面板时才加载；阅读量 Worker smoke test 返回计数 `41`；测试服务、配置和构建输出均已清理。
 - 短代码产物复核：普通构建得到 32 个页面、27 个 HTML、317 个静态文件；示例文章 HTML 包含 `admonition`、`collapse-block`、`argon-hidden-text`、`progress-wrapper`、`argon-timeline`、`github-info-card`、`badge-pill` 和 `custom-control-input`，首页摘要和 RSS 均包含文章内容且不含原始 `{{< ... >}}` 短代码标记，暗色模式 CSS 选择器存在，临时构建目录已清理。
@@ -295,7 +303,7 @@
 
 ### 尚未完成或需要站点侧配置
 
-- 留言板、评论适配器和阅读量的生产参数、评论服务后端、域名/CORS 及真实 Cloudflare D1 部署仍需站点部署者提供并配置。
+- 留言板的自建评论界面、Worker API、D1 表结构、GitHub OAuth 登录、权限/审核/通知和真实 Cloudflare D1 接入仍未实现；本轮仅保留接口注释占位，且不修改 `worker.js`。
 - 搜索尚未接入可选的 Pagefind；当前按需加载的 Hugo JSON 搜索适合中小规模文章量。
 - 尚未取得公开部署地址或可用 Lighthouse/WebPageTest 工具，因此没有真实公网 LCP、INP、CLS 基线。
 - 性能清单仍有有限后续空间：核心 CSS/JS 体积、仍被模板引用的高亮资源和固定壳初始化可做一次静态审计；只有发现真实收益才修改，禁止继续进行无目标的全局 DOM 扫描。Brotli/Gzip/CDN 属于平台配置，搜索实现已拆分，固定搜索壳的触发器按需保留。
@@ -303,4 +311,4 @@
 
 ### 当前结论
 
-第一项“已有配置项生效逻辑”及第一批基础迁移已完成；第二批页面和第三批本地动态代码也基本完成，当前未完成项主要分为两类：一是 Clamp、旧格式 lazyload、Banner 打字效果缺少正向 fixture，二是评论生产服务、真实 D1、Pagefind 和公网性能属于尚未提供条件的外部事项。本轮已完成一次有边界的静态完整性审计，并修复 favicon 路径及可选 vendor 提前加载问题；不再对空配置的评论服务重复测试，后续只在出现真实本地缺陷或外部输入时继续。
+第一项“已有配置项生效逻辑”及第一批基础迁移已完成；第二批页面和第三批本地动态代码也基本完成。当前评论方向已从四种第三方方案切换为自建 Worker/D1：旧适配器代码和配置已清理，后续需要先设计接口与数据模型，再实现前端挂载。其余未完成项主要是 Clamp、旧格式 lazyload、Banner 打字效果缺少正向 fixture，Pagefind 和公网性能属于可选事项。本轮不修改 `worker.js`，也不再对没有后端和参数的评论服务重复测试。

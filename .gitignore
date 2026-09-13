@@ -19,6 +19,14 @@
 **/.tmp-public/
 **/.hugo-cache/
 **/.go-build-cache/
+**/.cache/
+**/.hugo/
+**/.sass-cache/
+**/.parcel-cache/
+**/.vite/
+**/.eslintcache
+**/.pytest_cache/
+**/coverage/
 
 # Cloudflare / 本地敏感配置
 **/.wrangler/

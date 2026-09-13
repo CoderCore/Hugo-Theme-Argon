@@ -118,19 +118,7 @@ params:
     homeTitle: "最近说说"
   comments:
     enabled: false
-    provider: "giscus" # giscus、waline、twikoo、remark42
-    repository: ""
-    repositoryID: ""
-    category: ""
-    categoryID: ""
-    mapping: "pathname"
-    language: "zh-CN"
-    serverURL: "" # Waline 服务地址
-    envId: "" # Twikoo 环境 ID 或服务地址
-    region: "" # Twikoo 腾讯云地域，例如 ap-guangzhou
-    host: "" # Remark42 服务地址
-    siteId: "" # Remark42 SITE 值
-    theme: "light" # Remark42 light 或 dark
+    # endpoint: "" # TODO: 自建 Worker/D1 评论 API 地址
 
   # 背景
   pageBackgroundUrl: ""
