@@ -13,6 +13,14 @@
 {{- if eq .Site.Params.showReadingtime false -}}
     {{- $showReadingtime = false -}}
 {{- end -}}
+{{- $commentsConfigured := false -}}
+{{- with .Site.Params.comments -}}
+    {{- if reflect.IsMap . -}}
+        {{- $commentEndpoint := index . "endpoint" -}}
+        {{- $commentsConfigured = and (eq (index . "enabled") true) (eq (printf "%T" $commentEndpoint) "string") (ne $commentEndpoint "") -}}
+    {{- end -}}
+{{- end -}}
+{{- $hasCommentCount := ne (printf "%T" .Params.commentsCount) "<nil>" -}}
 {{- $renderedCount := 0 -}}
 {{- range $meta := $metaList }}
     {{- $shouldRender := false -}}
@@ -23,9 +31,13 @@
     {{- else if or (eq $meta "views") (eq $meta "read") -}}
         {{- $shouldRender = $showViews -}}
     {{- else if eq $meta "comments" -}}
-        {{- $shouldRender = ne (printf "%T" $.Params.commentsCount) "<nil>" -}}
+        {{- $shouldRender = or $hasCommentCount $commentsConfigured -}}
     {{- else if eq $meta "categories" -}}
         {{- with $.Params.categories -}}
+            {{- $shouldRender = true -}}
+        {{- end -}}
+    {{- else if eq $meta "tags" -}}
+        {{- with $.Params.tags -}}
             {{- $shouldRender = true -}}
         {{- end -}}
     {{- end -}}
@@ -59,9 +71,17 @@
             <span class="argon-view-count-value"></span>
         </div>
         {{- else if eq $meta "comments" -}}
-        <div class="post-meta-detail post-meta-detail-comments">
+        <div class="post-meta-detail post-meta-detail-comments" data-comment-count data-comment-count-id="{{ $.RelPermalink }}"{{ if not $hasCommentCount }} hidden aria-hidden="true"{{ end }}>
             <i class="fa fa-comments-o" aria-hidden="true"></i>
-            <span>{{ printf (T "commentCount") $.Params.commentsCount }}</span>
+            <span data-comment-count-value>{{ if $hasCommentCount }}{{ printf (T "commentCount") $.Params.commentsCount }}{{ end }}</span>
+        </div>
+        {{- else if eq $meta "tags" -}}
+        <div class="post-meta-detail post-meta-detail-tags">
+            <i class="fa fa-tags" aria-hidden="true"></i>
+            {{- range $idx, $tag := $.Params.tags }}
+                {{- if gt $idx 0 }} , {{ end -}}
+                <a href="{{ "/tags/" | relLangURL }}{{ $tag | urlize }}" class="post-meta-detail-tag">{{ $tag }}</a>
+            {{- end }}
         </div>
         {{- else if eq $meta "words" -}}
         <div class="post-meta-detail post-meta-detail-words">

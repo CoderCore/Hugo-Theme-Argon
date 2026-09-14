@@ -26,6 +26,7 @@
             commentLoginRequired: '请先使用 GitHub 登录后再发表评论',
             commentGuestMode: '当前以访客身份发表评论',
             commentAuthFailed: 'GitHub 登录状态获取失败，请稍后重试',
+            commentCount: '%s 条评论',
             commentEdit: '编辑',
             commentDelete: '删除',
             commentConfirmDelete: '确认删除',
@@ -54,6 +55,7 @@
             commentLoginRequired: 'Sign in with GitHub before posting a comment',
             commentGuestMode: 'Posting as a guest',
             commentAuthFailed: 'Could not load GitHub login state. Please try again.',
+            commentCount: '%s comments',
             commentEdit: 'Edit',
             commentDelete: 'Delete',
             commentConfirmDelete: 'Confirm',
@@ -66,7 +68,8 @@
             commentDeleteFailed: 'Could not delete the comment. Please try again.',
             commentDeletedLabel: 'Comment deleted'
         };
-        return (messages[name] || name).replace('%s', value || '');
+        var replacement = value === undefined || value === null ? '' : value;
+        return (messages[name] || name).replace('%s', replacement);
     }
 
     function setStatus(section, text, isError) {
@@ -89,6 +92,19 @@
         var operations = state && state.section ? state.section.querySelectorAll('.comment-operations') : [];
         Array.prototype.forEach.call(operations, function(container) {
             container.hidden = !loggedIn;
+        });
+    }
+
+    function updateCommentCount(postPath, total) {
+        var count = Number(total);
+        if (!Number.isFinite(count) || count < 0) count = 0;
+        var nodes = document.querySelectorAll('[data-comment-count]');
+        Array.prototype.forEach.call(nodes, function(node) {
+            if (node.getAttribute('data-comment-count-id') !== postPath) return;
+            var value = node.querySelector('[data-comment-count-value]');
+            if (value) value.textContent = message('commentCount', count);
+            node.hidden = false;
+            node.setAttribute('aria-hidden', 'false');
         });
     }
 
@@ -350,17 +366,12 @@
         item.style.setProperty('--comment-depth', depth);
         if (comment.deleted) item.classList.add('comment-item-deleted');
 
-        var inner = document.createElement('div');
-        inner.className = 'comment-item-inner';
-        var title = document.createElement('div');
-        title.className = 'comment-item-title';
+        var leftWrapper = document.createElement('div');
+        leftWrapper.className = 'comment-item-left-wrapper';
         if (comment.deleted) {
-            var deletedLabel = document.createElement('span');
-            deletedLabel.className = 'comment-deleted-label';
-            deletedLabel.textContent = message('commentDeletedLabel');
-            title.appendChild(deletedLabel);
+            leftWrapper.classList.add('comment-item-left-wrapper-deleted');
         } else {
-            var avatar = document.createElement('span');
+            var avatar = document.createElement('div');
             avatar.className = 'comment-item-avatar text-avatar';
             var fallbackInitial = (comment.authorName || message('anonymous')).trim().charAt(0).toUpperCase();
             avatar.textContent = fallbackInitial;
@@ -385,21 +396,36 @@
                     console.warn('Invalid comment avatar URL', error);
                 }
             }
-            title.appendChild(avatar);
-            var name = document.createElement('span');
+            leftWrapper.appendChild(avatar);
+        }
+
+        var inner = document.createElement('div');
+        inner.className = 'comment-item-inner';
+        var title = document.createElement('div');
+        title.className = 'comment-item-title';
+        if (comment.deleted) {
+            var deletedLabel = document.createElement('span');
+            deletedLabel.className = 'comment-deleted-label';
+            deletedLabel.textContent = message('commentDeletedLabel');
+            title.appendChild(deletedLabel);
+        } else {
+            var name = document.createElement('div');
             name.className = 'comment-name';
-            name.textContent = comment.authorName || message('anonymous');
-            title.appendChild(name);
+            var author = document.createElement('div');
+            author.className = 'comment-author';
+            author.textContent = comment.authorName || message('anonymous');
+            name.appendChild(author);
             if (parent) {
-                var parentInfo = document.createElement('span');
+                var parentInfo = document.createElement('div');
                 parentInfo.className = 'comment-parent-info';
                 var parentIcon = document.createElement('i');
                 parentIcon.className = 'fa fa-reply';
                 parentIcon.setAttribute('aria-hidden', 'true');
                 parentInfo.appendChild(parentIcon);
                 parentInfo.appendChild(document.createTextNode(' ' + parent.authorName));
-                title.appendChild(parentInfo);
+                name.appendChild(parentInfo);
             }
+            title.appendChild(name);
         }
         var info = document.createElement('div');
         info.className = 'comment-info text-muted';
@@ -432,7 +458,7 @@
         if (state.user && !comment.deleted) {
             var reply = document.createElement('button');
             reply.type = 'button';
-            reply.className = 'btn btn-link btn-sm p-0';
+            reply.className = 'btn btn-sm btn-outline-primary';
             reply.textContent = message('reply');
             reply.addEventListener('click', function() { onReply(comment); });
             operations.appendChild(reply);
@@ -441,7 +467,7 @@
         if (!comment.deleted && comment.canEdit && state.user) {
             var edit = document.createElement('button');
             edit.type = 'button';
-            edit.className = 'btn btn-link btn-sm p-0';
+            edit.className = 'btn btn-sm btn-outline-primary';
             edit.textContent = message('commentEdit');
             edit.addEventListener('click', function() {
                 beginEdit(comment, item, text, operations, state);
@@ -451,7 +477,7 @@
         if (!comment.deleted && comment.canDelete && state.user) {
             var remove = document.createElement('button');
             remove.type = 'button';
-            remove.className = 'btn btn-link btn-sm p-0 comment-delete';
+            remove.className = 'btn btn-sm btn-outline-primary comment-delete';
             remove.textContent = message('commentDelete');
             remove.addEventListener('click', function() {
                 deleteComment(comment, item, state);
@@ -462,6 +488,7 @@
         inner.appendChild(title);
         if (!comment.deleted) inner.appendChild(text);
         inner.appendChild(operations);
+        item.appendChild(leftWrapper);
         item.appendChild(inner);
         return item;
     }
@@ -543,7 +570,7 @@
             cancel.textContent = message('commentCancelDelete');
             cancel.addEventListener('click', function() {
                 button.dataset.confirming = 'false';
-                button.className = 'btn btn-link btn-sm p-0 comment-delete';
+                button.className = 'btn btn-sm btn-outline-primary comment-delete';
                 button.textContent = message('commentDelete');
                 cancel.remove();
             });
@@ -578,6 +605,7 @@
 
         list.replaceChildren();
         var comments = Array.isArray(data.comments) ? data.comments : [];
+        updateCommentCount(state.postPath, data.total);
         var byId = Object.create(null);
         var childrenByParent = Object.create(null);
         var roots = [];
@@ -693,6 +721,7 @@
                 form: form,
                 endpoint: endpoint,
                 authEndpoint: (section.getAttribute('data-comments-auth-endpoint') || '').trim(),
+                postPath: postPath,
                 allowGuests: section.getAttribute('data-comments-allow-guests') === 'true',
                 user: null,
                 csrfToken: '',

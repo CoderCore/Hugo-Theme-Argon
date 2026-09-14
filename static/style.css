@@ -2452,14 +2452,27 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 }
 .comment-item {
 	margin-bottom: 1px;
-	display: block;
+	display: flex;
+	flex-wrap: wrap;
 }
 #comments .comment-item > .children {
-	width: 100%;
-	padding-inline-start: 55px;
+	flex: 0 0 calc(100% - 55px);
+	width: calc(100% - 55px);
+	margin-left: 55px;
+	padding-inline-start: 0;
 }
 .comment-item-left-wrapper {
-	display: none;
+	display: block;
+	width: 40px;
+	flex: 0 0 40px;
+	margin-top: 26px;
+	margin-right: 15px;
+	position: relative;
+}
+.comment-item-left-wrapper-deleted {
+	width: 0;
+	flex-basis: 0;
+	margin-right: 10px;
 }
 .comment-item-avatar {
 	display: inline-flex;
@@ -2491,7 +2504,7 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 	margin-top: 20px;
 	padding-bottom: 18px;
 	border-bottom: var(--color-border-on-foreground) solid 1px;
-	width: 100%;
+	width: calc(100% - 55px);
 }
 #comments .comment-item:last-child .comment-item-inner {
 	border-bottom: 0;
@@ -2550,6 +2563,7 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 }
 .comment-operations .comment-delete {
 	color: var(--color-danger, #f5365c) !important;
+	border-color: var(--color-danger, #f5365c) !important;
 }
 .comment-operations .comment-delete-confirm {
 	color: #fff !important;
@@ -2593,7 +2607,7 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	border-color: var(--themecolor-light);
 }
 .comment-name {
-	flex: 0 1 auto;
+	flex: 1;
 	font-weight: bold;
 	line-height: 1.25;
 }
@@ -2657,6 +2671,9 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	padding: 2px 6px;
 	transition: all 0.3s ease;
 	opacity: 0;
+}
+.comment-operations .btn + .btn {
+	margin-left: 2px;
 }
 .comment-item:hover .comment-operations {
 	opacity: 1;

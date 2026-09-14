@@ -36,7 +36,8 @@ params:
   themeColor: "#5e72e4"
   firstImageAsThumbnail: true
   imageProcessing: true
-  articleMeta: "time|views|categories"
+  # 可选：time、edittime、views、comments、tags、categories、words、readingtime
+  articleMeta: "time|views|comments|categories|words|readingtime"
   showReadingtime: true
   readingSpeedCn: 300
   readingSpeedEn: 160
@@ -60,6 +61,8 @@ params:
     endpoint: ""
     authEndpoint: ""
 ```
+
+`articleMeta` 支持 `time`、`edittime`、`views`、`comments`、`tags`、`categories`、`words` 和 `readingtime`。其中 `comments` 会在文章评论接口返回后更新实时数量；如果评论接口未配置，该项不会显示。
 
 `baseURL` 建议保持为空，在部署时指定：
 
