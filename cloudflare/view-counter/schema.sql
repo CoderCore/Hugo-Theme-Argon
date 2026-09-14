@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS comments (
   author_name TEXT NOT NULL,
   content TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  github_id TEXT
+  github_id TEXT,
+  updated_at TEXT,
+  deleted_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_comments_post_created
@@ -28,6 +30,9 @@ CREATE INDEX IF NOT EXISTS idx_comments_post_created
 
 CREATE INDEX IF NOT EXISTS idx_comments_parent
   ON comments(parent_id);
+
+CREATE INDEX IF NOT EXISTS idx_comments_github_post
+  ON comments(github_id, post_path, id);
 
 -- GitHub identity is the only supported login provider.
 CREATE TABLE IF NOT EXISTS auth_users (

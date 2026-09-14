@@ -2518,6 +2518,32 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 	min-height: 24px;
 	margin: 0 0 1rem;
 }
+.comment-item-deleted {
+	font-style: italic;
+	opacity: 0.65;
+}
+.comment-edit-form {
+	margin: 0 0 1rem;
+}
+.comment-edit-form textarea {
+	min-height: 90px;
+	resize: vertical;
+}
+.comment-edit-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 10px;
+}
+.comment-operations .comment-delete {
+	color: var(--color-danger, #f5365c);
+}
+.comment-item-editing .comment-operations {
+	display: none;
+}
+.comment-item-editing .comment-item-text {
+	margin-bottom: 0;
+}
 .argon-comments .comment-item-text {
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
@@ -2614,6 +2640,14 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 }
 .comment-item:hover .comment-operations {
 	opacity: 1;
+}
+@media screen and (max-width: 767px) {
+	.comment-operations {
+		position: static;
+		padding: 4px 0 0;
+		text-align: right;
+		opacity: 1;
+	}
 }
 .comment-useragent {
 	display: inline-block;

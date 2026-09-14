@@ -30,7 +30,7 @@ const SCHEMA_SQL = [
   "CREATE TABLE IF NOT EXISTS view_counts (slug TEXT PRIMARY KEY, views INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);",
   "CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at ON view_counts(updated_at);",
   `INSERT OR IGNORE INTO view_counts (slug, views) VALUES ('${TOTAL_SLUG}', COALESCE((SELECT SUM(views) FROM view_counts WHERE slug <> '${TOTAL_SLUG}'), 0));`,
-  "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);",
+  "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
   "CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_path, created_at DESC, id DESC);",
   "CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);",
   "CREATE TABLE IF NOT EXISTS auth_users (github_id TEXT PRIMARY KEY, login TEXT NOT NULL, display_name TEXT, avatar_url TEXT, profile_url TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);",
@@ -54,9 +54,16 @@ async function ensureSchema(env) {
     initialization = (async () => {
       await database.exec(SCHEMA_SQL);
       const columns = await database.prepare("PRAGMA table_info(comments)").all();
-      if (!(columns.results || []).some((column) => column.name === "github_id")) {
-        await database.exec("ALTER TABLE comments ADD COLUMN github_id TEXT;");
+      const columnNames = new Set((columns.results || []).map((column) => column.name));
+      const migrations = [
+        ["github_id", "ALTER TABLE comments ADD COLUMN github_id TEXT;"],
+        ["updated_at", "ALTER TABLE comments ADD COLUMN updated_at TEXT;"],
+        ["deleted_at", "ALTER TABLE comments ADD COLUMN deleted_at TEXT;"],
+      ];
+      for (const [name, statement] of migrations) {
+        if (!columnNames.has(name)) await database.exec(statement);
       }
+      await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_github_post ON comments(github_id, post_path, id);");
     })().catch((error) => {
       schemaInitialization.delete(database);
       throw error;
@@ -497,6 +504,11 @@ function normalizeParentId(value) {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+function normalizeCommentId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
 function queryIds(url) {
   const values = [...url.searchParams.getAll("id"), ...url.searchParams.getAll("ids")];
   const expanded = values.flatMap((value) => value.split(","));
@@ -569,15 +581,20 @@ async function writeAndReadCounts(env, ids, increment) {
 }
 
 function commentRow(row) {
+  const deleted = !!row.deleted_at;
   return {
     id: Number(row.id),
     postPath: row.post_path,
     parentId: row.parent_id === null ? null : Number(row.parent_id),
-    authorName: row.author_name,
-    avatarUrl: row.avatar_url || "",
-    profileUrl: row.profile_url || "",
-    content: row.content,
+    authorName: deleted ? "" : row.author_name,
+    avatarUrl: deleted ? "" : row.avatar_url || "",
+    profileUrl: deleted ? "" : row.profile_url || "",
+    content: deleted ? "" : row.content,
     createdAt: row.created_at,
+    updatedAt: deleted ? "" : row.updated_at || "",
+    deleted,
+    canEdit: !deleted && Number(row.can_edit) === 1,
+    canDelete: !deleted && Number(row.can_delete) === 1,
   };
 }
 
@@ -587,6 +604,8 @@ async function handleCommentsGet(request, url, env, origin) {
   const limit = normalizePage(url.searchParams.get("limit"), 20, MAX_COMMENT_PAGE_SIZE);
   if (!postPath || !page || !limit) return json({ error: "invalid_query" }, 400, origin);
 
+  const user = await authenticatedUser(request, env);
+  const githubId = user ? user.githubId : "";
   const totalResult = await env.DB.prepare(
     "SELECT COUNT(*) AS total FROM comments WHERE post_path = ?",
   ).bind(postPath).first();
@@ -594,10 +613,12 @@ async function handleCommentsGet(request, url, env, origin) {
   const offset = (page - 1) * limit;
   const result = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
-      "u.avatar_url AS avatar_url, u.profile_url AS profile_url " +
+      "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
+      "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_edit, " +
+      "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id " +
       "WHERE c.post_path = ? ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
-  ).bind(postPath, limit, offset).all();
+  ).bind(githubId, githubId, postPath, limit, offset).all();
 
   return json({
     comments: (result.results || []).map(commentRow),
@@ -649,10 +670,60 @@ async function handleCommentsPost(request, env, origin) {
   if (!Number.isSafeInteger(id) || id < 1) return json({ error: "insert_failed" }, 500, origin);
   const row = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
-      "u.avatar_url AS avatar_url, u.profile_url AS profile_url " +
+      "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
+      "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(id).first();
   return json({ comment: row ? commentRow(row) : null }, 201, origin);
+}
+
+async function findOwnedComment(request, commentId, env, origin) {
+  const user = await authenticatedUser(request, env);
+  if (!user) return { response: json({ error: "auth_required" }, 401, origin) };
+  const row = await env.DB.prepare(
+    "SELECT id, post_path, github_id, deleted_at FROM comments WHERE id = ?",
+  ).bind(commentId).first();
+  if (!row || row.deleted_at) return { response: json({ error: "comment_not_found" }, 404, origin) };
+  if (String(row.github_id || "") !== user.githubId) {
+    return { response: json({ error: "comment_forbidden" }, 403, origin) };
+  }
+  if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, `user:${user.githubId}`))) {
+    return { response: json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" }) };
+  }
+  return { user, row };
+}
+
+async function handleCommentPut(request, commentId, env, origin) {
+  if (!requireJsonContentType(request) || !validMutationContext(request) || !validCsrfToken(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
+  const body = await readBody(request);
+  const content = normalizeCommentContent(body && body.content);
+  if (!content) return json({ error: "invalid_comment" }, 400, origin);
+  const ownership = await findOwnedComment(request, commentId, env, origin);
+  if (ownership.response) return ownership.response;
+  await env.DB.prepare(
+    "UPDATE comments SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
+  ).bind(content, commentId, ownership.user.githubId).run();
+  const row = await env.DB.prepare(
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
+      "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
+      "1 AS can_edit, 1 AS can_delete " +
+      "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
+  ).bind(commentId).first();
+  return json({ comment: row ? commentRow(row) : null }, 200, origin);
+}
+
+async function handleCommentDelete(request, commentId, env, origin) {
+  if (!validMutationContext(request) || !validCsrfToken(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
+  const ownership = await findOwnedComment(request, commentId, env, origin);
+  if (ownership.response) return ownership.response;
+  await env.DB.prepare(
+    "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
+  ).bind(commentId, ownership.user.githubId).run();
+  return json({ deleted: true, id: commentId }, 200, origin);
 }
 
 function singleResponse(id, data, origin) {
@@ -696,12 +767,15 @@ export default {
     const isViewsPath = url.pathname === VIEWS_PATH || url.pathname === `${VIEWS_PATH}/`;
     const isBatchPath = url.pathname === BATCH_PATH || url.pathname === `${BATCH_PATH}/`;
     const isCommentsPath = url.pathname === COMMENTS_PATH || url.pathname === `${COMMENTS_PATH}/`;
+    const commentItemMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/?$/);
+    const commentItemId = commentItemMatch ? normalizeCommentId(commentItemMatch[1]) : null;
+    const isCommentItemPath = !!commentItemId;
     const isAuthStartPath = url.pathname === AUTH_START_PATH || url.pathname === `${AUTH_START_PATH}/`;
     const isAuthCallbackPath = url.pathname === AUTH_CALLBACK_PATH || url.pathname === `${AUTH_CALLBACK_PATH}/`;
     const isAuthMePath = url.pathname === AUTH_ME_PATH || url.pathname === `${AUTH_ME_PATH}/`;
     const isAuthLogoutPath = url.pathname === AUTH_LOGOUT_PATH || url.pathname === `${AUTH_LOGOUT_PATH}/`;
     const isAuthPath = isAuthStartPath || isAuthCallbackPath || isAuthMePath || isAuthLogoutPath;
-    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
+    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentItemPath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
     try {
@@ -728,6 +802,10 @@ export default {
         operation = () => handleCommentsGet(request, url, env, origin);
       } else if (request.method === "POST" && isCommentsPath) {
         operation = () => handleCommentsPost(request, env, origin);
+      } else if (request.method === "PUT" && isCommentItemPath) {
+        operation = () => handleCommentPut(request, commentItemId, env, origin);
+      } else if (request.method === "DELETE" && isCommentItemPath) {
+        operation = () => handleCommentDelete(request, commentItemId, env, origin);
       } else if (request.method === "GET" && isViewsPath) {
         // Validate authentication and query shape before initialization.
         if (url.searchParams.get("all") === "1") {

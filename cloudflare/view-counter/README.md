@@ -209,6 +209,23 @@ X-CSRF-Token: <GET /api/auth/me 返回的 csrfToken>
 {"postPath":"/post/example/","content":"你好","parentId":null}
 ```
 
+评论作者可以编辑或删除自己的评论。Worker 只根据登录会话对应的 GitHub ID 做授权，前端传入的作者名不能获得权限：
+
+```http
+PUT /api/comments/123
+Content-Type: application/json
+X-CSRF-Token: <csrfToken>
+
+{"content":"修改后的内容"}
+```
+
+```http
+DELETE /api/comments/123
+X-CSRF-Token: <csrfToken>
+```
+
+删除采用软删除：评论会显示为占位内容，原有回复树不会断裂；评论正文不会再通过公开接口返回。编辑和删除都要求有效会话、CSRF Token、允许的 Origin/Fetch Metadata，并受评论限流保护。无权操作返回 `403 comment_forbidden`，目标不存在或已删除返回 `404 comment_not_found`。
+
 认证接口：
 
 | 接口 | 作用 |
@@ -224,6 +241,7 @@ X-CSRF-Token: <GET /api/auth/me 返回的 csrfToken>
 - 缺失或错误 CSRF 返回 `403 csrf_failed`。
 - 非 JSON 写请求返回 `415 invalid_content_type` 或 `403 csrf_failed`。
 - 未登录且不允许访客评论时返回 `401 auth_required`。
+- 编辑和删除只允许评论所属 GitHub 用户操作；删除保留回复关系，不执行物理删除。
 - OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
 - 评论 Markdown 在主题端安全渲染，不执行 JavaScript 或不可信 HTML。
 

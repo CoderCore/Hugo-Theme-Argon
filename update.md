@@ -38,3 +38,11 @@
 - 根目录 README 增加后端教程入口，集中说明主题安装、配置、页面、短代码和后端边界。
 - 重写 `cloudflare/view-counter/README.md`，补充 D1、Worker、GitHub OAuth、评论配置、本地开发、安全规则和验证步骤。
 - 将 `todo.md` 收敛为 Goal 与清单；本文件只保留精简时间线。
+
+## 2026-09-14：评论作者管理
+
+- 增加 `PUT /api/comments/:id` 编辑接口和 `DELETE /api/comments/:id` 软删除接口。
+- 后端以 GitHub ID 做最终授权，补充 `updated_at`、`deleted_at` 字段和迁移索引；删除保留回复树并隐藏原正文。
+- 评论列表返回作者操作权限，前端增加 Argon 风格行内编辑、删除确认、已编辑标记和删除占位内容。
+- 评论脚本缓存版本更新为 `comments-6`，避免旧浏览器继续使用没有编辑/删除控件的脚本。
+- 未登录、错误 CSRF、跨来源和越权请求均在本地 Worker 验证为拒绝；生产部署尚未执行。

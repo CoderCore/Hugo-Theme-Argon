@@ -25,7 +25,17 @@
             commentLoggedIn: '已登录 GitHub：%s',
             commentLoginRequired: '请先使用 GitHub 登录后再发表评论',
             commentGuestMode: '当前以访客身份发表评论',
-            commentAuthFailed: 'GitHub 登录状态获取失败，请稍后重试'
+            commentAuthFailed: 'GitHub 登录状态获取失败，请稍后重试',
+            commentEdit: '编辑',
+            commentDelete: '删除',
+            commentSave: '保存',
+            commentCancel: '取消',
+            commentDeleteConfirm: '确定删除这条评论吗？删除后评论内容不可恢复，但回复会保留。',
+            commentEdited: '已编辑',
+            commentDeleted: '评论已删除。',
+            commentEditFailed: '评论编辑失败，请稍后重试。',
+            commentDeleteFailed: '评论删除失败，请稍后重试。',
+            commentDeletedLabel: '评论已删除'
         } : {
             loading: 'Loading comments…',
             empty: 'No comments yet. Be the first to comment.',
@@ -42,7 +52,17 @@
             commentLoggedIn: 'Signed in with GitHub: %s',
             commentLoginRequired: 'Sign in with GitHub before posting a comment',
             commentGuestMode: 'Posting as a guest',
-            commentAuthFailed: 'Could not load GitHub login state. Please try again.'
+            commentAuthFailed: 'Could not load GitHub login state. Please try again.',
+            commentEdit: 'Edit',
+            commentDelete: 'Delete',
+            commentSave: 'Save',
+            commentCancel: 'Cancel',
+            commentDeleteConfirm: 'Delete this comment? The content cannot be recovered, but replies will be preserved.',
+            commentEdited: 'Edited',
+            commentDeleted: 'Comment deleted.',
+            commentEditFailed: 'Could not edit the comment. Please try again.',
+            commentDeleteFailed: 'Could not delete the comment. Please try again.',
+            commentDeletedLabel: 'Comment deleted'
         };
         return (messages[name] || name).replace('%s', value || '');
     }
@@ -58,6 +78,10 @@
         var separator = endpoint.indexOf('?') === -1 ? '?' : '&';
         return endpoint + separator + 'post=' + encodeURIComponent(postPath) +
             '&page=' + encodeURIComponent(page) + '&limit=' + pageSize;
+    }
+
+    function commentItemUrl(endpoint, id) {
+        return endpoint.replace(/\/+$/, '') + '/' + encodeURIComponent(id);
     }
 
     function authUrl(endpoint, configured, path) {
@@ -285,7 +309,7 @@
         renderLines(container, lines);
     }
 
-    function makeComment(comment, depth, parent, onReply) {
+    function makeComment(comment, depth, parent, state, onReply) {
         var item = document.createElement('li');
         item.className = 'comment-item';
         item.id = 'comment-' + comment.id;
@@ -342,11 +366,22 @@
         time.dateTime = comment.createdAt || '';
         time.textContent = formatTime(comment.createdAt);
         info.appendChild(time);
+        if (comment.updatedAt) {
+            var edited = document.createElement('span');
+            edited.className = 'comment-edited text-muted';
+            edited.textContent = ' · ' + message('commentEdited');
+            info.appendChild(edited);
+        }
         title.appendChild(info);
 
         var text = document.createElement('div');
         text.className = 'comment-item-text';
-        renderMarkdown(text, comment.content || '');
+        if (comment.deleted) {
+            text.classList.add('comment-item-deleted');
+            text.textContent = message('commentDeletedLabel');
+        } else {
+            renderMarkdown(text, comment.content || '');
+        }
 
         var operations = document.createElement('div');
         operations.className = 'comment-operations';
@@ -355,13 +390,119 @@
         reply.className = 'btn btn-link btn-sm p-0';
         reply.textContent = message('reply');
         reply.addEventListener('click', function() { onReply(comment); });
-        operations.appendChild(reply);
+        if (!comment.deleted) operations.appendChild(reply);
+
+        if (!comment.deleted && comment.canEdit && state.user) {
+            var edit = document.createElement('button');
+            edit.type = 'button';
+            edit.className = 'btn btn-link btn-sm p-0';
+            edit.textContent = message('commentEdit');
+            edit.addEventListener('click', function() {
+                beginEdit(comment, item, text, operations, state);
+            });
+            operations.appendChild(edit);
+        }
+        if (!comment.deleted && comment.canDelete && state.user) {
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'btn btn-link btn-sm p-0 comment-delete';
+            remove.textContent = message('commentDelete');
+            remove.addEventListener('click', function() {
+                deleteComment(comment, item, state);
+            });
+            operations.appendChild(remove);
+        }
 
         inner.appendChild(title);
         inner.appendChild(text);
         inner.appendChild(operations);
         item.appendChild(inner);
         return item;
+    }
+
+    function beginEdit(comment, item, text, operations, state) {
+        if (item.classList.contains('comment-item-editing')) return;
+        item.classList.add('comment-item-editing');
+        var form = document.createElement('form');
+        form.className = 'comment-edit-form';
+        var textarea = document.createElement('textarea');
+        textarea.className = 'form-control form-control-alternative';
+        textarea.maxLength = 5000;
+        textarea.required = true;
+        textarea.value = comment.content || '';
+        var controls = document.createElement('div');
+        controls.className = 'comment-edit-actions';
+        var save = document.createElement('button');
+        save.type = 'submit';
+        save.className = 'btn btn-primary btn-sm';
+        save.textContent = message('commentSave');
+        var cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'btn btn-outline-primary btn-sm';
+        cancel.textContent = message('commentCancel');
+        controls.appendChild(save);
+        controls.appendChild(cancel);
+        form.appendChild(textarea);
+        form.appendChild(controls);
+        text.hidden = true;
+        operations.hidden = true;
+        text.parentNode.insertBefore(form, text);
+        textarea.focus();
+
+        cancel.addEventListener('click', function() {
+            form.remove();
+            text.hidden = false;
+            operations.hidden = false;
+            item.classList.remove('comment-item-editing');
+        });
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            var content = textarea.value.trim();
+            if (!content) {
+                textarea.focus();
+                return;
+            }
+            save.disabled = true;
+            cancel.disabled = true;
+            fetch(commentItemUrl(state.endpoint, comment.id), {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-Token': state.csrfToken
+                },
+                credentials: 'include',
+                body: JSON.stringify({content: content})
+            }).then(parseResponse).then(function() {
+                return state.load(state.page);
+            }).catch(function(error) {
+                setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentEditFailed'), true);
+                console.error('Argon comment edit failed', error);
+                save.disabled = false;
+                cancel.disabled = false;
+            });
+        });
+    }
+
+    function deleteComment(comment, item, state) {
+        if (!window.confirm(message('commentDeleteConfirm'))) return;
+        var button = item.querySelector('.comment-delete');
+        if (button) button.disabled = true;
+        fetch(commentItemUrl(state.endpoint, comment.id), {
+            method: 'DELETE',
+            headers: {
+                Accept: 'application/json',
+                'X-CSRF-Token': state.csrfToken
+            },
+            credentials: 'include'
+        }).then(parseResponse).then(function() {
+            setStatus(state.section, message('commentDeleted'), false);
+            return state.load(state.page);
+        }).catch(function(error) {
+            if (button) button.disabled = false;
+            setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentDeleteFailed'), true);
+            console.error('Argon comment delete failed', error);
+        });
     }
 
     function render(section, data, state) {
@@ -390,7 +531,7 @@
         function appendComment(comment, depth, parent, parentList) {
             if (!comment || rendered[comment.id]) return;
             rendered[comment.id] = true;
-            var item = makeComment(comment, depth, parent, function(replyParent) {
+            var item = makeComment(comment, depth, parent, state, function(replyParent) {
                 state.form.elements.parentId.value = replyParent.id;
                 state.replyNotice.hidden = false;
                 state.replyText.textContent = message('replying') + ': ' + replyParent.authorName;
@@ -510,6 +651,7 @@
                 page: 1,
                 requestSerial: 0
             };
+            state.load = function(page) { return load(page); };
             if (state.authorName && !state.authorName.dataset.commentsAuthValue) {
                 state.authorName.dataset.commentsAuthValue = state.authorName.value || '';
             }
@@ -533,6 +675,7 @@
                     credentials: 'include'
                 }).then(parseResponse).then(function() {
                     updateAuthUi(state, null);
+                    return load(state.page);
                 }).catch(function(error) {
                     setAuthStatus(state, message('commentAuthFailed'), true);
                     console.error('Argon comment logout failed', error);
@@ -615,8 +758,7 @@
             });
             section.setAttribute('data-comments-initialized', 'true');
             activeSections.push(section);
-            loadAuth(state);
-            load(1);
+            loadAuth(state).then(function() { return load(1); });
         });
     }
 
