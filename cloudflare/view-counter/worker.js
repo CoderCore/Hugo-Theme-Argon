@@ -35,7 +35,6 @@ const SCHEMA_SQL = [
   `INSERT OR IGNORE INTO view_counts (slug, views) VALUES ('${TOTAL_SLUG}', 0);`,
   "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, upvotes INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
   "CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_path, created_at DESC, id DESC);",
-  "CREATE INDEX IF NOT EXISTS idx_comments_post_rank ON comments(post_path, upvotes DESC, created_at DESC, id DESC);",
   "CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);",
   "CREATE TABLE IF NOT EXISTS comment_votes (comment_id INTEGER NOT NULL, voter_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (comment_id, voter_key));",
   "CREATE INDEX IF NOT EXISTS idx_comment_votes_comment ON comment_votes(comment_id);",
@@ -75,6 +74,9 @@ async function ensureSchema(env) {
           "UPDATE comments SET upvotes = (SELECT COUNT(*) FROM comment_votes WHERE comment_votes.comment_id = comments.id);",
         );
       }
+      await database.exec(
+        "CREATE INDEX IF NOT EXISTS idx_comments_post_rank ON comments(post_path, upvotes DESC, created_at DESC, id DESC);",
+      );
       const totalCache = await database.prepare(
         "SELECT value FROM view_counter_meta WHERE key = ?",
       ).bind("site_total_cache_v1").first();
