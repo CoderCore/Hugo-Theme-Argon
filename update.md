@@ -144,6 +144,7 @@
 - 配置 Cloudflare Rate Limiting：OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
 - 生产 `ALLOWED_ORIGINS` 收紧为真实站点来源，移除本地开发来源；本地调试需使用本地变量覆盖。
 - 生产 Worker 部署版本：`0a396b3d-f075-437c-94c6-a476cadb6bc5`，保留现有 D1、Secrets 和自定义域名绑定。
+- 随后重新部署限流客户端标识修正，当前生产 Worker 版本为 `c872e8f6-cce8-481d-be25-37bd5e38d630`。
 - 生产模拟测试通过：`auth/me=200`、CSRF Cookie 下发、缺失/错误 Token=`403`、错误 Content-Type=`403`、有效 Token 但未登录=`401`、非法来源=`403`、预检=`204`、评论读取=`200`、非法 OAuth returnTo=`400`；安全响应头和 `X-CSRF-Token` CORS 白名单存在。
 - 本地 Wrangler 4.105 的旧 workerd 在当前配置启动阶段崩溃，未能完成本地 Worker 运行时测试；Worker `deploy --dry-run` 和生产边界测试通过。后续可升级 Wrangler 后补做本地限流绑定测试。
 - GitHub Client Secret 曾出现在对话中，未自动猜测新值或替换；待用户在 GitHub 生成新 Secret 后再更新 Worker Secret。
