@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <meta name="theme-color" content="#5e72e4">
+    <title>管理员登录 · Argon 后台</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body data-admin-page="login">
+<main class="settings-shell admin-login-shell">
+    <header class="settings-header">
+        <a class="brand" href="/">Argon 后台</a>
+        <a class="back-link" href="/">返回站点</a>
+    </header>
+    <section class="settings-hero">
+        <p class="eyebrow">ARGON ADMIN / SIGN IN</p>
+        <h1>管理员登录</h1>
+        <p>登录后可在后台页面之间自由切换，不需要重复填写密钥。</p>
+    </section>
+    <section class="panel admin-login-card" aria-labelledby="login-title">
+        <div class="panel-heading">
+            <div><p class="panel-kicker">SECURE SESSION</p><h2 id="login-title">登录后台</h2></div>
+        </div>
+        <form id="admin-login-form">
+            <label for="admin-login-key">管理员密钥</label>
+            <input id="admin-login-key" type="password" autocomplete="current-password" spellcheck="false" placeholder="VIEW_COUNTER_ADMIN_KEY" required>
+            <p class="help">密钥只用于登录验证，不会写入网页、Hugo 配置或浏览器存储。登录后由 Worker 使用 HttpOnly 会话 Cookie 保持登录态。</p>
+            <button id="admin-login-button" class="button button-primary button-wide" type="submit">登录</button>
+        </form>
+        <div class="admin-login-divider"><span>后续登录方式</span></div>
+        <button class="button button-github button-wide" type="button" disabled aria-disabled="true">GitHub 登录（即将支持）</button>
+        <p class="message" id="login-message" role="status" aria-live="polite"></p>
+        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
+        <dl class="endpoint-details">
+            <div><dt>发现的 Worker</dt><dd id="endpoint-label">尚未发现</dd></div>
+            <div><dt>页面 Origin</dt><dd id="origin-label"></dd></div>
+        </dl>
+    </section>
+</main>
+<script src="/admin/admin.js?v=admin-2" defer></script>
+</body>
+</html>

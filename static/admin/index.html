@@ -8,17 +8,17 @@
     <title>Argon 后台</title>
     <link rel="stylesheet" href="/admin/admin.css">
 </head>
-<body>
+<body data-admin-page="home">
 <main class="settings-shell admin-home">
     <header class="settings-header">
         <a class="brand" href="/admin/">Argon 后台</a>
-        <a class="back-link" href="/">返回站点</a>
+        <div class="admin-header-actions"><button id="logout-button" class="button button-quiet button-small" type="button">退出登录</button><a class="back-link" href="/">返回站点</a></div>
     </header>
     <section class="settings-hero">
         <p class="eyebrow">ARGON ADMIN</p>
         <h1>站点管理</h1>
         <p>管理阅读量和评论。进入具体页面后再验证管理员密钥，未认证时不会读取管理数据。</p>
-        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">请选择管理模块</div>
+        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在验证管理员会话…</div>
     </section>
     <section class="admin-module-grid" aria-label="管理模块">
         <a class="admin-module panel" href="/admin/views/">
@@ -39,5 +39,6 @@
         <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
     </footer>
 </main>
+<script src="/admin/admin.js?v=admin-2" defer></script>
 </body>
 </html>

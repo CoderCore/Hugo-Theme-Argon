@@ -12,21 +12,13 @@
 <main class="settings-shell">
     <header class="settings-header">
         <a class="brand" href="/admin/">Argon 后台</a>
-        <a class="back-link" href="/">返回站点</a>
+        <div class="admin-header-actions"><button id="logout-button" class="button button-quiet button-small" type="button">退出登录</button><a class="back-link" href="/">返回站点</a></div>
     </header>
     <section class="settings-hero">
         <p class="eyebrow">ARGON ADMIN / COMMENTS</p>
         <h1>评论管理</h1>
         <p>评论按页从 Worker 读取。筛选条件由服务端处理，不加载整站评论。</p>
-        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
-    </section>
-    <section class="panel panel-connection">
-        <div class="panel-heading"><div><p class="panel-kicker">ACCESS</p><h2>管理员连接</h2></div><span id="auth-badge" class="badge">未连接</span></div>
-        <label for="admin-key">Worker 管理员密钥</label>
-        <input id="admin-key" type="password" autocomplete="off" spellcheck="false" placeholder="VIEW_COUNTER_ADMIN_KEY">
-        <div class="button-row"><button id="connect-button" class="button button-primary" type="button">连接并读取</button><button id="forget-button" class="button button-quiet" type="button">清除</button></div>
-        <p class="help">密钥只保存于当前标签页的 sessionStorage，不会写入站点配置。</p>
-        <dl class="endpoint-details"><div><dt>发现的 Worker</dt><dd id="endpoint-label">尚未发现</dd></div><div><dt>页面 Origin</dt><dd id="origin-label"></dd></div></dl>
+        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在验证管理员会话…</div>
     </section>
     <section class="panel panel-comments">
         <div class="panel-heading"><div><p class="panel-kicker">D1 COMMENTS</p><h2>全站评论</h2></div><button id="reload-comments" class="button button-quiet button-small" type="button">重新读取</button></div>
@@ -41,6 +33,6 @@
     </section>
     <footer class="settings-footer"><span>Argon · admin surface</span><a href="/admin/views/">阅读量管理</a></footer>
 </main>
-<script src="/admin/admin.js?v=admin-1" defer></script>
+<script src="/admin/admin.js?v=admin-2" defer></script>
 </body>
 </html>

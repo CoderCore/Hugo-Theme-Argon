@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS auth_sessions (
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires
   ON auth_sessions(expires_at);
 
+-- Short-lived administrator sessions; the browser stores only the HttpOnly
+-- session cookie, never VIEW_COUNTER_ADMIN_KEY.
+CREATE TABLE IF NOT EXISTS admin_sessions (
+  token_hash TEXT PRIMARY KEY,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires
+  ON admin_sessions(expires_at);
+
 -- Short-lived OAuth state and PKCE verifier; callback deletes the row.
 CREATE TABLE IF NOT EXISTS oauth_states (
   state_hash TEXT PRIMARY KEY,

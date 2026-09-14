@@ -9,11 +9,18 @@ const AUTH_LOGOUT_PATH = "/api/auth/logout";
 const ADMIN_STATUS_PATH = "/api/admin/status";
 const ADMIN_VIEWS_PATH = "/api/admin/views";
 const ADMIN_COMMENTS_PATH = "/api/admin/comments";
+const ADMIN_LOGIN_PATH = "/api/admin/auth/login";
+const ADMIN_ME_PATH = "/api/admin/auth/me";
+const ADMIN_LOGOUT_PATH = "/api/admin/auth/logout";
 const TOTAL_SLUG = "__site_total__";
 const SESSION_COOKIE = "argon_session";
+const ADMIN_SESSION_COOKIE = "argon_admin_session";
+const ADMIN_CSRF_COOKIE = "argon_admin_csrf";
+const ADMIN_CSRF_HEADER = "X-Admin-CSRF-Token";
 const OAUTH_STATE_COOKIE = "argon_oauth_state";
 const VOTE_COOKIE = "argon_vote_id";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const OAUTH_STATE_TTL_SECONDS = 60 * 10;
 const VOTE_COOKIE_TTL_SECONDS = 60 * 60 * 24 * 365;
 const MAX_ID_LENGTH = 512;
@@ -47,6 +54,8 @@ const SCHEMA_SQL = [
   "CREATE TABLE IF NOT EXISTS auth_users (github_id TEXT PRIMARY KEY, login TEXT NOT NULL, display_name TEXT, avatar_url TEXT, profile_url TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);",
   "CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, github_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
   "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at);",
+  "CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
+  "CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);",
   "CREATE TABLE IF NOT EXISTS oauth_states (state_hash TEXT PRIMARY KEY, code_verifier TEXT NOT NULL, return_to TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
   "CREATE INDEX IF NOT EXISTS idx_oauth_states_expires ON oauth_states(expires_at);",
 ].join("\n");
@@ -98,6 +107,8 @@ async function ensureSchema(env) {
       }
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_github_post ON comments(github_id, post_path, id);");
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_admin_created ON comments(deleted_at, created_at DESC, id DESC);");
+      await database.exec("CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);");
+      await database.exec("CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);");
       // Older releases used soft deletion. Remove only trees whose every node
       // is already deleted; a deleted parent with live replies must remain as a
       // compact placeholder so the reply tree stays navigable.
@@ -148,7 +159,7 @@ function responseHeaders(origin) {
     headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     headers.set(
       "Access-Control-Allow-Headers",
-      "Content-Type, X-CSRF-Token, X-View-Counter-Key, X-View-Counter-Admin-Key",
+      "Content-Type, X-CSRF-Token, X-Admin-CSRF-Token, X-View-Counter-Key, X-View-Counter-Admin-Key",
     );
     headers.set("Access-Control-Allow-Credentials", "true");
     headers.set("Access-Control-Max-Age", "600");
@@ -468,18 +479,41 @@ async function handleAuthCallback(request, url, env) {
   }
 }
 
-function authorizedView(request, env) {
-  return (
-    secretsMatch(request.headers.get("X-View-Counter-Key"), env.VIEW_COUNTER_KEY) ||
-    secretsMatch(request.headers.get("X-View-Counter-Admin-Key"), env.VIEW_COUNTER_ADMIN_KEY)
-  );
+async function authorizedView(request, env) {
+  if (secretsMatch(request.headers.get("X-View-Counter-Key"), env.VIEW_COUNTER_KEY)) return true;
+  // Public view requests normally have no admin cookie. Avoid a D1 session
+  // lookup for them; only a request carrying an admin session can use the
+  // legacy admin-compatible view endpoint.
+  if (!parseCookies(request)[ADMIN_SESSION_COOKIE]) return false;
+  return await authorizedAdmin(request, env);
 }
 
-function authorizedAdmin(request, env) {
+function authorizedAdminKey(request, env) {
   return secretsMatch(
     request.headers.get("X-View-Counter-Admin-Key"),
     env.VIEW_COUNTER_ADMIN_KEY,
   );
+}
+
+async function authorizedAdmin(request, env) {
+  if (authorizedAdminKey(request, env)) return true;
+  const token = parseCookies(request)[ADMIN_SESSION_COOKIE];
+  if (!token) return false;
+  const row = await env.DB.prepare(
+    "SELECT token_hash FROM admin_sessions WHERE token_hash = ? AND expires_at > ?",
+  ).bind(await sha256(token), Math.floor(Date.now() / 1000)).first();
+  return !!row;
+}
+
+function validAdminCsrfToken(request) {
+  const cookieToken = parseCookies(request)[ADMIN_CSRF_COOKIE] || "";
+  const headerToken = request.headers.get(ADMIN_CSRF_HEADER) || "";
+  return !!cookieToken && secretsMatch(headerToken, cookieToken);
+}
+
+function validAdminMutation(request, env) {
+  return authorizedAdminKey(request, env) ||
+    (validMutationContext(request) && validAdminCsrfToken(request));
 }
 
 function normalizeAdminSearch(value) {
@@ -499,13 +533,72 @@ function adminPageResponse(rows, page, limit, key) {
   return { [key]: pageRows, page, limit, hasNext };
 }
 
+async function handleAdminLogin(request, env, origin) {
+  if (!requireJsonContentType(request) || !validMutationContext(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
+  const body = await readBody(request);
+  const key = typeof body?.key === "string" ? body.key : "";
+  if (!secretsMatch(key, env.VIEW_COUNTER_ADMIN_KEY)) {
+    return json({ error: "unauthorized" }, 401, origin);
+  }
+
+  const token = randomToken(32);
+  const csrfToken = randomToken(32);
+  const now = Math.floor(Date.now() / 1000);
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO admin_sessions (token_hash, expires_at, created_at) VALUES (?, ?, ?)",
+    ).bind(await sha256(token), now + ADMIN_SESSION_TTL_SECONDS, now),
+    env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at <= ?").bind(now),
+  ]);
+  return json({ authenticated: true, csrfToken }, 200, origin, {
+    "Set-Cookie": [
+      cookieHeader(ADMIN_SESSION_COOKIE, token, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax"),
+      cookieHeader(ADMIN_CSRF_COOKIE, csrfToken, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax"),
+    ],
+  });
+}
+
+async function handleAdminMe(request, env, origin) {
+  if (!(await authorizedAdmin(request, env))) {
+    return json({ authenticated: false }, 401, origin);
+  }
+  const cookies = parseCookies(request);
+  const csrfToken = cookies[ADMIN_CSRF_COOKIE] || randomToken(32);
+  const extraHeaders = cookies[ADMIN_CSRF_COOKIE]
+    ? undefined
+    : { "Set-Cookie": cookieHeader(ADMIN_CSRF_COOKIE, csrfToken, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax") };
+  return json({ authenticated: true, csrfToken }, 200, origin, extraHeaders);
+}
+
+async function handleAdminLogout(request, env, origin) {
+  const adminKey = authorizedAdminKey(request, env);
+  if (!(await authorizedAdmin(request, env))) {
+    return json({ authenticated: false }, 401, origin);
+  }
+  if (!adminKey && (!validMutationContext(request) || !validAdminCsrfToken(request))) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
+  const token = parseCookies(request)[ADMIN_SESSION_COOKIE];
+  if (token) {
+    await env.DB.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
+  }
+  return json({ authenticated: false }, 200, origin, {
+    "Set-Cookie": [
+      clearCookieHeader(ADMIN_SESSION_COOKIE, request, "/"),
+      clearCookieHeader(ADMIN_CSRF_COOKIE, request, "/"),
+    ],
+  });
+}
+
 async function handleAdminStatus(request, env, origin) {
-  if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
   return json({ ok: true, scope: "admin" }, 200, origin);
 }
 
 async function handleAdminViewsGet(request, url, env, origin) {
-  if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
   const pagination = adminPageQuery(url);
   const search = normalizeAdminSearch(url.searchParams.get("search"));
   if (!pagination) return json({ error: "invalid_query" }, 400, origin);
@@ -536,7 +629,7 @@ async function handleAdminViewsGet(request, url, env, origin) {
 }
 
 async function handleAdminCommentsGet(request, url, env, origin) {
-  if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
   const pagination = adminPageQuery(url);
   const post = normalizeAdminSearch(url.searchParams.get("post"));
   const author = normalizeAdminSearch(url.searchParams.get("author"));
@@ -848,7 +941,7 @@ async function handleCommentsPost(request, env, origin) {
 }
 
 async function findOwnedComment(request, commentId, env, origin) {
-  const admin = authorizedAdmin(request, env);
+  const admin = await authorizedAdmin(request, env);
   // A valid admin key is sufficient for admin operations; avoid an extra
   // session lookup on those requests. Ordinary users still require GitHub
   // session ownership below.
@@ -868,8 +961,10 @@ async function findOwnedComment(request, commentId, env, origin) {
 }
 
 async function handleCommentPut(request, commentId, env, origin) {
-  const admin = authorizedAdmin(request, env);
-  if (!requireJsonContentType(request) || !validMutationContext(request) || (!admin && !validCsrfToken(request))) {
+  const adminKey = authorizedAdminKey(request, env);
+  const admin = await authorizedAdmin(request, env);
+  if (!requireJsonContentType(request) || !validMutationContext(request) ||
+      (admin ? (!adminKey && !validAdminCsrfToken(request)) : !validCsrfToken(request))) {
     return json({ error: "csrf_failed" }, 403, origin);
   }
   const body = await readBody(request);
@@ -898,8 +993,10 @@ async function handleCommentPut(request, commentId, env, origin) {
 }
 
 async function handleCommentDelete(request, commentId, env, origin) {
-  const admin = authorizedAdmin(request, env);
-  if (!validMutationContext(request) || (!admin && !validCsrfToken(request))) {
+  const adminKey = authorizedAdminKey(request, env);
+  const admin = await authorizedAdmin(request, env);
+  if (!validMutationContext(request) ||
+      (admin ? (!adminKey && !validAdminCsrfToken(request)) : !validCsrfToken(request))) {
     return json({ error: "csrf_failed" }, 403, origin);
   }
   const ownership = await findOwnedComment(request, commentId, env, origin);
@@ -997,7 +1094,7 @@ function singleResponse(id, data, origin) {
 
 async function handleGet(request, url, env, origin) {
   if (url.searchParams.get("all") === "1") {
-    if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+    if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
     const result = await env.DB.prepare(
       "SELECT slug, views, updated_at FROM view_counts ORDER BY slug",
     ).all();
@@ -1010,7 +1107,7 @@ async function handleGet(request, url, env, origin) {
     return json({ counts, total }, 200, origin);
   }
 
-  if (!authorizedView(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  if (!(await authorizedView(request, env))) return json({ error: "unauthorized" }, 401, origin);
   const ids = queryIds(url);
   if (!ids) return json({ error: "invalid_ids" }, 400, origin);
   const data = await readCounts(env, ids);
@@ -1043,10 +1140,14 @@ export default {
     const isAuthMePath = url.pathname === AUTH_ME_PATH || url.pathname === `${AUTH_ME_PATH}/`;
     const isAuthLogoutPath = url.pathname === AUTH_LOGOUT_PATH || url.pathname === `${AUTH_LOGOUT_PATH}/`;
     const isAuthPath = isAuthStartPath || isAuthCallbackPath || isAuthMePath || isAuthLogoutPath;
+    const isAdminLoginPath = url.pathname === ADMIN_LOGIN_PATH || url.pathname === `${ADMIN_LOGIN_PATH}/`;
+    const isAdminMePath = url.pathname === ADMIN_ME_PATH || url.pathname === `${ADMIN_ME_PATH}/`;
+    const isAdminLogoutPath = url.pathname === ADMIN_LOGOUT_PATH || url.pathname === `${ADMIN_LOGOUT_PATH}/`;
     const isAdminStatusPath = url.pathname === ADMIN_STATUS_PATH || url.pathname === `${ADMIN_STATUS_PATH}/`;
     const isAdminViewsPath = url.pathname === ADMIN_VIEWS_PATH || url.pathname === `${ADMIN_VIEWS_PATH}/`;
     const isAdminCommentsPath = url.pathname === ADMIN_COMMENTS_PATH || url.pathname === `${ADMIN_COMMENTS_PATH}/`;
-    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath && !isAdminStatusPath && !isAdminViewsPath && !isAdminCommentsPath) return json({ error: "not_found" }, 404, origin);
+    const isAdminAuthPath = isAdminLoginPath || isAdminMePath || isAdminLogoutPath;
+    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath && !isAdminAuthPath && !isAdminStatusPath && !isAdminViewsPath && !isAdminCommentsPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
     try {
@@ -1069,6 +1170,17 @@ export default {
         operation = () => handleAuthMe(request, env, origin);
       } else if (request.method === "POST" && isAuthLogoutPath) {
         operation = () => handleAuthLogout(request, env, origin);
+      } else if (request.method === "POST" && isAdminLoginPath) {
+        operation = async () => {
+          if (!(await enforceRateLimit(env.AUTH_RATE_LIMITER, `admin-login:${clientKey(request)}`))) {
+            return json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" });
+          }
+          return handleAdminLogin(request, env, origin);
+        };
+      } else if (request.method === "GET" && isAdminMePath) {
+        operation = () => handleAdminMe(request, env, origin);
+      } else if (request.method === "POST" && isAdminLogoutPath) {
+        operation = () => handleAdminLogout(request, env, origin);
       } else if (request.method === "GET" && isAdminStatusPath) {
         operation = () => handleAdminStatus(request, env, origin);
       } else if (request.method === "GET" && isAdminViewsPath) {
@@ -1090,15 +1202,15 @@ export default {
       } else if (request.method === "GET" && isViewsPath) {
         // Validate authentication and query shape before initialization.
         if (url.searchParams.get("all") === "1") {
-          if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
-        } else if (!authorizedView(request, env)) {
+          if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
+        } else if (!(await authorizedView(request, env))) {
           return json({ error: "unauthorized" }, 401, origin);
         } else if (!queryIds(url)) {
           return json({ error: "invalid_ids" }, 400, origin);
         }
         operation = () => handleGet(request, url, env, origin);
       } else if (request.method === "POST" && (isViewsPath || isBatchPath)) {
-        if (!authorizedView(request, env)) return json({ error: "unauthorized" }, 401, origin);
+        if (!(await authorizedView(request, env))) return json({ error: "unauthorized" }, 401, origin);
         if (!requireJsonContentType(request)) return json({ error: "invalid_content_type" }, 415, origin);
         const body = normalizeBatchBody(await readBody(request), isViewsPath);
         if (!body) return json({ error: "invalid_body" }, 400, origin);
@@ -1108,7 +1220,8 @@ export default {
             : json(data, 200, origin),
         );
       } else if (request.method === "PUT" && isViewsPath) {
-        if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+        if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
+        if (!validAdminMutation(request, env)) return json({ error: "csrf_failed" }, 403, origin);
         if (!requireJsonContentType(request)) return json({ error: "invalid_content_type" }, 415, origin);
         const body = await readBody(request);
         const id = normalizeId(body && body.id, true);
@@ -1116,7 +1229,8 @@ export default {
         if (!id || views === null) return json({ error: "invalid_views" }, 400, origin);
         operation = () => handlePutBody(id, views, env, origin);
       } else if (request.method === "DELETE" && isViewsPath) {
-        if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+        if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
+        if (!validAdminMutation(request, env)) return json({ error: "csrf_failed" }, 403, origin);
         if (!requireJsonContentType(request)) return json({ error: "invalid_content_type" }, 415, origin);
         const body = await readBody(request);
         const id = normalizeId(body && body.id);

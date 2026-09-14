@@ -8,18 +8,18 @@
     <title>阅读量管理 · Argon 后台</title>
     <link rel="stylesheet" href="/admin/admin.css">
 </head>
-<body>
+<body data-admin-page="views">
 <main class="settings-shell">
     <header class="settings-header">
         <a class="brand" href="/admin/">Argon 后台</a>
-        <a class="back-link" href="/">返回站点</a>
+        <div class="admin-header-actions"><button id="logout-button" class="button button-quiet button-small" type="button">退出登录</button><a class="back-link" href="/">返回站点</a></div>
     </header>
 
     <section class="settings-hero">
         <p class="eyebrow">ARGON ADMIN / VIEWS</p>
         <h1>阅读量管理</h1>
         <p>按页读取 D1 中的阅读量记录。网站和主题配置仍统一读取仓库中的 <code>hugo.yaml</code>。</p>
-        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
+        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在验证管理员会话…</div>
     </section>
 
     <section id="offline-guide" class="notice notice-warning" hidden>
@@ -29,27 +29,6 @@
     </section>
 
     <div class="settings-grid">
-        <section class="panel panel-connection">
-            <div class="panel-heading">
-                <div>
-                    <p class="panel-kicker">ACCESS</p>
-                    <h2>阅读量管理员连接</h2>
-                </div>
-                <span id="auth-badge" class="badge">未连接</span>
-            </div>
-            <label for="admin-key">Worker 管理员密钥</label>
-            <input id="admin-key" type="password" autocomplete="off" spellcheck="false" placeholder="VIEW_COUNTER_ADMIN_KEY">
-            <div class="button-row">
-                <button id="connect-button" class="button button-primary" type="button">连接并读取</button>
-                <button id="forget-button" class="button button-quiet" type="button">清除</button>
-            </div>
-            <p class="help">管理员密钥仅保存于当前标签页的 sessionStorage，不会写入 Hugo 配置、网页源码或 D1。</p>
-            <dl class="endpoint-details">
-                <div><dt>发现的 Worker</dt><dd id="endpoint-label">尚未发现</dd></div>
-                <div><dt>页面 Origin</dt><dd id="origin-label"></dd></div>
-            </dl>
-        </section>
-
         <section class="panel panel-views">
             <div class="panel-heading">
                 <div>
@@ -90,6 +69,6 @@
         <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
     </footer>
 </main>
-<script src="/admin/admin.js?v=admin-1" defer></script>
+<script src="/admin/admin.js?v=admin-2" defer></script>
 </body>
 </html>
