@@ -24,14 +24,13 @@ const CSRF_COOKIE = "argon_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
 const GITHUB_REQUEST_TIMEOUT_MS = 10000;
 
-// D1 is the only persistent state used by this Worker. The reserved row keeps
-// the site-wide total in the same table as the article counters.
+// D1 is the only persistent state used by this Worker. The site-wide total is
+// calculated from article rows; the legacy reserved row is ignored.
 // D1 exec() accepts multiple queries separated by newlines. Keep each query
 // on one line so the API does not split a multiline CREATE statement midway.
 const SCHEMA_SQL = [
   "CREATE TABLE IF NOT EXISTS view_counts (slug TEXT PRIMARY KEY, views INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);",
   "CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at ON view_counts(updated_at);",
-  `INSERT OR IGNORE INTO view_counts (slug, views) VALUES ('${TOTAL_SLUG}', COALESCE((SELECT SUM(views) FROM view_counts WHERE slug <> '${TOTAL_SLUG}'), 0));`,
   "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
   "CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_path, created_at DESC, id DESC);",
   "CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);",
@@ -570,45 +569,55 @@ function normalizeBatchBody(body, singleRequest) {
 
 function buildSelect(ids) {
   const placeholders = ids.map(() => "?").join(", ");
-  return `SELECT slug, views FROM view_counts WHERE slug IN (${placeholders}) OR slug = ?`;
+  return `SELECT slug, views FROM view_counts WHERE slug IN (${placeholders}) AND slug <> ?`;
 }
 
 function parseCountRows(result, ids) {
   const counts = Object.fromEntries(ids.map((id) => [id, 0]));
-  let total = 0;
   for (const row of result.results || []) {
     const views = Number(row.views);
     if (!Number.isSafeInteger(views) || views < 0) continue;
-    if (row.slug === TOTAL_SLUG) total = views;
-    else if (hasOwn(counts, row.slug)) counts[row.slug] = views;
+    if (hasOwn(counts, row.slug)) counts[row.slug] = views;
   }
-  return { counts, total };
+  return counts;
+}
+
+function parseSiteTotal(result) {
+  const total = Number(result?.total);
+  return Number.isSafeInteger(total) && total >= 0 ? total : 0;
 }
 
 async function readCounts(env, ids) {
-  const result = await env.DB.prepare(buildSelect(ids)).bind(...ids, TOTAL_SLUG).all();
-  return parseCountRows(result, ids);
+  const [result, totalResult] = await Promise.all([
+    env.DB.prepare(buildSelect(ids)).bind(...ids, TOTAL_SLUG).all(),
+    env.DB.prepare(
+      "SELECT COALESCE(SUM(views), 0) AS total FROM view_counts WHERE slug <> ?",
+    ).bind(TOTAL_SLUG).first(),
+  ]);
+  return { counts: parseCountRows(result, ids), total: parseSiteTotal(totalResult) };
 }
 
 async function writeAndReadCounts(env, ids, increment) {
   const statements = [];
-  if (increment) {
+  if (increment && increment !== TOTAL_SLUG) {
     statements.push(
       env.DB.prepare(
         "INSERT INTO view_counts (slug, views) VALUES (?, 1) " +
           "ON CONFLICT(slug) DO UPDATE SET views = MIN(?, view_counts.views + 1), updated_at = CURRENT_TIMESTAMP",
       ).bind(increment, MAX_VIEWS),
     );
-    statements.push(
-      env.DB.prepare(
-        "INSERT INTO view_counts (slug, views) VALUES (?, 1) " +
-          "ON CONFLICT(slug) DO UPDATE SET views = MIN(?, view_counts.views + 1), updated_at = CURRENT_TIMESTAMP",
-      ).bind(TOTAL_SLUG, MAX_VIEWS),
-    );
   }
   statements.push(env.DB.prepare(buildSelect(ids)).bind(...ids, TOTAL_SLUG));
+  statements.push(
+    env.DB.prepare(
+      "SELECT COALESCE(SUM(views), 0) AS total FROM view_counts WHERE slug <> ?",
+    ).bind(TOTAL_SLUG),
+  );
   const results = await env.DB.batch(statements);
-  return parseCountRows(results[results.length - 1], ids);
+  return {
+    counts: parseCountRows(results[results.length - 2], ids),
+    total: parseSiteTotal(results[results.length - 1]),
+  };
 }
 
 function commentRow(row) {
@@ -841,16 +850,19 @@ function singleResponse(id, data, origin) {
 async function handleGet(request, url, env, origin) {
   if (url.searchParams.get("all") === "1") {
     if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
-    const result = await env.DB.prepare(
-      "SELECT slug, views, updated_at FROM view_counts ORDER BY slug",
-    ).all();
+    const [result, totalResult] = await Promise.all([
+      env.DB.prepare(
+        "SELECT slug, views, updated_at FROM view_counts WHERE slug <> ? ORDER BY slug",
+      ).bind(TOTAL_SLUG).all(),
+      env.DB.prepare(
+        "SELECT COALESCE(SUM(views), 0) AS total FROM view_counts WHERE slug <> ?",
+      ).bind(TOTAL_SLUG).first(),
+    ]);
     const counts = [];
-    let total = 0;
     for (const row of result.results || []) {
-      if (row.slug === TOTAL_SLUG) total = Number(row.views) || 0;
-      else counts.push(row);
+      counts.push(row);
     }
-    return json({ counts, total }, 200, origin);
+    return json({ counts, total: parseSiteTotal(totalResult) }, 200, origin);
   }
 
   if (!authorizedView(request, env)) return json({ error: "unauthorized" }, 401, origin);
@@ -967,6 +979,7 @@ export default {
 };
 
 async function handlePutBody(id, views, env, origin) {
+  if (id === TOTAL_SLUG) return json({ error: "site_total_is_calculated" }, 400, origin);
   await env.DB.prepare(
     "INSERT INTO view_counts (slug, views) VALUES (?, ?) " +
       "ON CONFLICT(slug) DO UPDATE SET views = excluded.views, updated_at = CURRENT_TIMESTAMP",
@@ -976,6 +989,7 @@ async function handlePutBody(id, views, env, origin) {
 }
 
 async function handleDeleteId(id, env, origin) {
+  if (id === TOTAL_SLUG) return json({ error: "site_total_is_calculated" }, 400, origin);
   await env.DB.prepare("DELETE FROM view_counts WHERE slug = ?").bind(id).run();
   const data = await readCounts(env, [id]);
   return singleResponse(id, data, origin);

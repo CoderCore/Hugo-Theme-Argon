@@ -217,34 +217,13 @@
         }
     }
 
-    async function saveTotal() {
-        if (!state.adminKey) { setMessage('请先连接管理员密钥。', 'error'); return; }
-        var value = Number(byId('site-total').value);
-        if (!Number.isSafeInteger(value) || value < 0 || value > 2147483647) {
-            setMessage('网站总阅读量必须是 0 到 2147483647 的整数。', 'error');
-            return;
-        }
-        try {
-            var data = await apiRequest('/api/views', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({id: '__site_total__', views: value})
-            });
-            state.total = Number(data.total) || 0;
-            renderViews();
-            setMessage('网站总阅读量已保存。', 'success');
-        } catch (error) {
-            setMessage('保存网站总量失败：' + error.message, 'error');
-        }
-    }
-
     async function loadAdminData() {
         if (!state.adminKey) throw new Error('请输入管理员密钥');
         await Promise.all([loadCounts(), loadSlugs()]);
         renderViews();
         byId('auth-badge').textContent = '已连接';
         byId('auth-badge').className = 'badge';
-        setStatus('Worker 已连接，可以管理阅读量和网站总量。', 'ok');
+        setStatus('Worker 已连接；网站总量由 D1 文章记录自动汇总。', 'ok');
         showGuide(false);
     }
 
@@ -288,7 +267,6 @@
 
     byId('connect-button').addEventListener('click', connect);
     byId('forget-button').addEventListener('click', function () { disconnect('管理员密钥已清除。'); });
-    byId('save-total').addEventListener('click', saveTotal);
     byId('reload-views').addEventListener('click', function () { if (state.adminKey) loadAdminData().catch(function (error) { setMessage(error.message, 'error'); }); });
     byId('view-filter').addEventListener('input', renderViews);
     bootstrap();
