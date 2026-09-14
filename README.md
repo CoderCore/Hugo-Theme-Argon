@@ -34,7 +34,6 @@ theme: Hugo-Theme-Argon
 params:
   description: "站点描述"
   themeColor: "#5e72e4"
-  firstImageAsThumbnail: true
   # 可选：time、edittime、views、comments、tags、categories、words、readingtime
   articleMeta: "time|views|comments|categories|words|readingtime"
   showReadingtime: true
@@ -60,6 +59,8 @@ params:
     endpoint: ""
     authEndpoint: ""
 ```
+
+文章头图使用文章包内的 `image` 字段，例如 `image: "cover.png"`。主题不会根据正文首图、WordPress 字段或缩略图配置自动猜测，也不会生成缩放副本。
 
 `articleMeta` 支持 `time`、`edittime`、`views`、`comments`、`tags`、`categories`、`words` 和 `readingtime`。其中 `comments` 会在文章评论接口返回后更新实时数量；如果评论接口未配置，该项不会显示。
 

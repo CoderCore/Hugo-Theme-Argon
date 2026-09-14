@@ -1,70 +1,7 @@
-{{- $thumbnail := "" -}}
-
 {{- with .Params.image -}}
-    {{- $thumbnail = . -}}
-{{- end -}}
-{{- if eq $thumbnail "" -}}
-    {{- with .Params.thumbnail -}}
-        {{- $thumbnail = . -}}
+    {{- if and (not (or (strings.HasPrefix . "http://") (strings.HasPrefix . "https://") (strings.HasPrefix . "/"))) -}}
+        {{- with $.Resources.GetMatch . -}}{{ .RelPermalink }}{{- end -}}
+    {{- else -}}
+        {{- . -}}
     {{- end -}}
 {{- end -}}
-{{- $useFirstImage := true -}}
-{{- if eq .Site.Params.firstImageAsThumbnail false -}}
-    {{- $useFirstImage = false -}}
-{{- end -}}
-{{- with .Params.argon_first_image_as_thumbnail -}}
-    {{- $legacySetting := . -}}
-    {{- if reflect.IsSlice $legacySetting -}}
-        {{- $legacySetting = index $legacySetting 0 -}}
-    {{- end -}}
-    {{- $legacySetting = lower (printf "%v" $legacySetting) -}}
-    {{- if eq $legacySetting "false" -}}
-        {{- $useFirstImage = false -}}
-    {{- else if eq $legacySetting "true" -}}
-        {{- $useFirstImage = true -}}
-    {{- end -}}
-{{- end -}}
-
-{{- /* Resolve a relative front-matter image against the page bundle. */ -}}
-{{- if and (ne $thumbnail "") (not (or (strings.HasPrefix $thumbnail "http://") (strings.HasPrefix $thumbnail "https://") (strings.HasPrefix $thumbnail "/"))) -}}
-    {{- with $.Resources.GetMatch $thumbnail -}}
-        {{- $thumbnail = .RelPermalink -}}
-    {{- end -}}
-{{- end -}}
-
-{{- if and (eq $thumbnail "") $useFirstImage -}}
-    {{- with .Resources.ByType "image" -}}
-        {{- with .GetMatch "*" -}}
-            {{- $thumbnail = .RelPermalink -}}
-        {{- end -}}
-    {{- end -}}
-{{- end -}}
-
-{{- if and (eq $thumbnail "") $useFirstImage .Content -}}
-    {{- $matches := findRE `<img[^>]+>` .Content -}}
-    {{- range $matches -}}
-        {{- if eq $thumbnail "" -}}
-            {{- $dataOriginal := findRE `data-original="([^"]+)"` . 1 -}}
-            {{- if $dataOriginal -}}
-                {{- $thumbnail = index $dataOriginal 0 | replaceRE `data-original="([^"]+)"` "$1" -}}
-            {{- else -}}
-                {{- $src := findRE `src="([^"]+)"` . 1 -}}
-                {{- if $src -}}
-                    {{- $candidate := index $src 0 | replaceRE `src="([^"]+)"` "$1" -}}
-                    {{- if not (strings.HasPrefix $candidate "data:") -}}
-                        {{- $thumbnail = $candidate -}}
-                    {{- end -}}
-                {{- end -}}
-            {{- end -}}
-        {{- end -}}
-    {{- end -}}
-{{- end -}}
-
-{{- /* WordPress exports keep featured_image as a legacy final fallback. */ -}}
-{{- if eq $thumbnail "" -}}
-    {{- with .Params.featured_image -}}
-        {{- $thumbnail = . -}}
-    {{- end -}}
-{{- end -}}
-
-{{- $thumbnail -}}

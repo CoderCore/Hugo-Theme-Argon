@@ -6,7 +6,6 @@
     {{- $resourceName := default "" .resourceName -}}
     {{- if eq $resourceName "" }}
         {{- with $page.Params.image }}{{ $resourceName = . }}{{ end -}}
-        {{- if eq $resourceName "" }}{{ with $page.Params.thumbnail }}{{ $resourceName = . }}{{ end }}{{ end -}}
     {{- end -}}
 
     {{- $hasExplicitImage := ne $resourceName "" -}}
