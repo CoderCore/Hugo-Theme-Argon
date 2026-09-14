@@ -236,7 +236,7 @@ DELETE /api/comments/123
 X-CSRF-Token: <csrfToken>
 ```
 
-删除采用软删除：评论会显示为占位内容，原有回复树不会断裂；评论正文不会再通过公开接口返回。编辑和删除都要求有效会话、CSRF Token、允许的 Origin/Fetch Metadata，并受评论限流保护。无权操作返回 `403 comment_forbidden`，目标不存在或已删除返回 `404 comment_not_found`。
+删除会先软删除当前评论；如果它仍有未删除的回复，回复树会保留，父评论只显示紧凑的“评论已删除”占位。如果当前评论及其全部后代都已删除，Worker 会自动物理清理整棵树，不留下树桩。只有评论所属的 GitHub 用户可以触发删除；编辑和删除都要求有效会话、CSRF Token、允许的 Origin/Fetch Metadata，并受评论限流保护。无权操作返回 `403 comment_forbidden`，目标不存在或已删除返回 `404 comment_not_found`。
 
 认证接口：
 
@@ -253,7 +253,7 @@ X-CSRF-Token: <csrfToken>
 - 缺失或错误 CSRF 返回 `403 csrf_failed`。
 - 非 JSON 写请求返回 `415 invalid_content_type` 或 `403 csrf_failed`。
 - 未登录且不允许访客评论时返回 `401 auth_required`。
-- 编辑和删除只允许评论所属 GitHub 用户操作；删除保留回复关系，不执行物理删除。
+- 编辑只允许评论所属 GitHub 用户操作；删除按“保留仍有内容的回复树、全树删除后再物理清理”的规则执行。
 - OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
 - 评论 Markdown 在主题端安全渲染，不执行 JavaScript 或不可信 HTML。
 

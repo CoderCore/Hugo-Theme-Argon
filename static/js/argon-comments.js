@@ -332,50 +332,58 @@
         item.className = 'comment-item';
         item.id = 'comment-' + comment.id;
         item.style.setProperty('--comment-depth', depth);
+        if (comment.deleted) item.classList.add('comment-item-deleted');
 
         var inner = document.createElement('div');
         inner.className = 'comment-item-inner';
         var title = document.createElement('div');
         title.className = 'comment-item-title';
-        var avatar = document.createElement('span');
-        avatar.className = 'comment-item-avatar text-avatar';
-        var fallbackInitial = (comment.authorName || message('anonymous')).trim().charAt(0).toUpperCase();
-        avatar.textContent = fallbackInitial;
-        if (comment.avatarUrl) {
-            try {
-                var avatarUrl = new URL(comment.avatarUrl, window.location.href);
-                if (avatarUrl.protocol === 'http:' || avatarUrl.protocol === 'https:') {
-                    var avatarImage = document.createElement('img');
-                    avatarImage.className = 'avatar rounded-circle';
-                    avatarImage.src = avatarUrl.href;
-                    avatarImage.alt = '';
-                    avatarImage.loading = 'lazy';
-                    avatarImage.referrerPolicy = 'no-referrer';
-                    avatarImage.addEventListener('error', function() {
-                        avatar.replaceChildren();
-                        avatar.textContent = fallbackInitial;
-                        avatar.classList.add('text-avatar');
-                    });
-                    avatar.replaceChildren(avatarImage);
+        if (comment.deleted) {
+            var deletedLabel = document.createElement('span');
+            deletedLabel.className = 'comment-deleted-label';
+            deletedLabel.textContent = message('commentDeletedLabel');
+            title.appendChild(deletedLabel);
+        } else {
+            var avatar = document.createElement('span');
+            avatar.className = 'comment-item-avatar text-avatar';
+            var fallbackInitial = (comment.authorName || message('anonymous')).trim().charAt(0).toUpperCase();
+            avatar.textContent = fallbackInitial;
+            if (comment.avatarUrl) {
+                try {
+                    var avatarUrl = new URL(comment.avatarUrl, window.location.href);
+                    if (avatarUrl.protocol === 'http:' || avatarUrl.protocol === 'https:') {
+                        var avatarImage = document.createElement('img');
+                        avatarImage.className = 'avatar rounded-circle';
+                        avatarImage.src = avatarUrl.href;
+                        avatarImage.alt = '';
+                        avatarImage.loading = 'lazy';
+                        avatarImage.referrerPolicy = 'no-referrer';
+                        avatarImage.addEventListener('error', function() {
+                            avatar.replaceChildren();
+                            avatar.textContent = fallbackInitial;
+                            avatar.classList.add('text-avatar');
+                        });
+                        avatar.replaceChildren(avatarImage);
+                    }
+                } catch (error) {
+                    console.warn('Invalid comment avatar URL', error);
                 }
-            } catch (error) {
-                console.warn('Invalid comment avatar URL', error);
             }
-        }
-        title.appendChild(avatar);
-        var name = document.createElement('span');
-        name.className = 'comment-name';
-        name.textContent = comment.authorName || message('anonymous');
-        title.appendChild(name);
-        if (parent) {
-            var parentInfo = document.createElement('span');
-            parentInfo.className = 'comment-parent-info';
-            var parentIcon = document.createElement('i');
-            parentIcon.className = 'fa fa-reply';
-            parentIcon.setAttribute('aria-hidden', 'true');
-            parentInfo.appendChild(parentIcon);
-            parentInfo.appendChild(document.createTextNode(' ' + parent.authorName));
-            title.appendChild(parentInfo);
+            title.appendChild(avatar);
+            var name = document.createElement('span');
+            name.className = 'comment-name';
+            name.textContent = comment.authorName || message('anonymous');
+            title.appendChild(name);
+            if (parent) {
+                var parentInfo = document.createElement('span');
+                parentInfo.className = 'comment-parent-info';
+                var parentIcon = document.createElement('i');
+                parentIcon.className = 'fa fa-reply';
+                parentIcon.setAttribute('aria-hidden', 'true');
+                parentInfo.appendChild(parentIcon);
+                parentInfo.appendChild(document.createTextNode(' ' + parent.authorName));
+                title.appendChild(parentInfo);
+            }
         }
         var info = document.createElement('div');
         info.className = 'comment-info text-muted';
@@ -397,7 +405,7 @@
         text.className = 'comment-item-text';
         if (comment.deleted) {
             text.classList.add('comment-item-deleted');
-            text.textContent = message('commentDeletedLabel');
+            text.hidden = true;
         } else {
             renderMarkdown(text, comment.content || '');
         }
@@ -433,7 +441,7 @@
         }
 
         inner.appendChild(title);
-        inner.appendChild(text);
+        if (!comment.deleted) inner.appendChild(text);
         inner.appendChild(operations);
         item.appendChild(inner);
         return item;

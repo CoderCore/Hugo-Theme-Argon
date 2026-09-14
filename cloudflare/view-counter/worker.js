@@ -64,6 +64,21 @@ async function ensureSchema(env) {
         if (!columnNames.has(name)) await database.exec(statement);
       }
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_github_post ON comments(github_id, post_path, id);");
+      // Older releases used soft deletion. Remove only trees whose every node
+      // is already deleted; a deleted parent with live replies must remain as a
+      // compact placeholder so the reply tree stays navigable.
+      await database.exec(
+        "WITH RECURSIVE comment_tree(root_id, id, deleted_at) AS (" +
+          "SELECT id, id, deleted_at FROM comments WHERE parent_id IS NULL " +
+          "UNION ALL " +
+          "SELECT t.root_id, c.id, c.deleted_at FROM comments c JOIN comment_tree t ON c.parent_id = t.id" +
+        "), empty_roots AS (" +
+          "SELECT root_id FROM comment_tree GROUP BY root_id " +
+          "HAVING SUM(CASE WHEN deleted_at IS NULL THEN 1 ELSE 0 END) = 0" +
+        ") DELETE FROM comments WHERE id IN (" +
+          "SELECT id FROM comment_tree WHERE root_id IN (SELECT root_id FROM empty_roots)" +
+        ");",
+      );
     })().catch((error) => {
       schemaInitialization.delete(database);
       throw error;
@@ -586,7 +601,7 @@ function commentRow(row) {
     id: Number(row.id),
     postPath: row.post_path,
     parentId: row.parent_id === null ? null : Number(row.parent_id),
-    authorName: deleted ? "" : row.author_name,
+    authorName: deleted ? "评论已删除" : row.author_name,
     avatarUrl: deleted ? "" : row.avatar_url || "",
     profileUrl: deleted ? "" : row.profile_url || "",
     content: deleted ? "" : row.content,
@@ -721,9 +736,38 @@ async function handleCommentDelete(request, commentId, env, origin) {
   const ownership = await findOwnedComment(request, commentId, env, origin);
   if (ownership.response) return ownership.response;
   await env.DB.prepare(
-    "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
+    "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
+      "WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
   ).bind(commentId, ownership.user.githubId).run();
+  await pruneCommentTreeIfEmpty(commentId, env);
   return json({ deleted: true, id: commentId }, 200, origin);
+}
+
+async function pruneCommentTreeIfEmpty(commentId, env) {
+  const root = await env.DB.prepare(
+    "WITH RECURSIVE ancestors(id, parent_id) AS (" +
+      "SELECT id, parent_id FROM comments WHERE id = ? " +
+      "UNION ALL " +
+      "SELECT c.id, c.parent_id FROM comments c JOIN ancestors a ON c.id = a.parent_id" +
+    ") SELECT id FROM ancestors WHERE parent_id IS NULL LIMIT 1",
+  ).bind(commentId).first();
+  if (!root) return;
+  const active = await env.DB.prepare(
+    "WITH RECURSIVE comment_tree(id) AS (" +
+      "SELECT id FROM comments WHERE id = ? " +
+      "UNION ALL " +
+      "SELECT c.id FROM comments c JOIN comment_tree p ON c.parent_id = p.id" +
+    ") SELECT SUM(CASE WHEN c.deleted_at IS NULL THEN 1 ELSE 0 END) AS active " +
+      "FROM comments c JOIN comment_tree t ON t.id = c.id",
+  ).bind(root.id).first();
+  if (Number(active?.active) !== 0) return;
+  await env.DB.prepare(
+    "WITH RECURSIVE comment_tree(id) AS (" +
+      "SELECT id FROM comments WHERE id = ? " +
+      "UNION ALL " +
+      "SELECT c.id FROM comments c JOIN comment_tree p ON c.parent_id = p.id" +
+    ") DELETE FROM comments WHERE id IN (SELECT id FROM comment_tree);",
+  ).bind(root.id).run();
 }
 
 function singleResponse(id, data, origin) {
