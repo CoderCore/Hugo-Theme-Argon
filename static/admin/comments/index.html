@@ -6,20 +6,21 @@
     <meta name="robots" content="noindex,nofollow,noarchive">
     <meta name="theme-color" content="#5e72e4">
     <title>评论管理 · Argon 后台</title>
-    <link rel="stylesheet" href="/admin/admin.css?v=admin-4">
+    <link rel="stylesheet" href="/admin/admin.css?v=admin-5">
 </head>
 <body data-admin-page="comments">
 <div class="admin-layout">
     <aside class="admin-sidebar"><a class="admin-brand" href="/admin/"><span class="admin-brand-mark">A</span><span><strong>Argon</strong><small>管理中心</small></span></a><nav id="admin-nav" class="admin-nav" aria-label="后台页面"></nav><div class="admin-sidebar-footer"><a href="/">← 返回站点</a><button id="admin-theme-toggle" class="button button-quiet button-small admin-theme-toggle" type="button" aria-pressed="false"><span class="admin-theme-toggle-icon" aria-hidden="true">☾</span><span class="admin-theme-toggle-label">暗色模式</span></button><button id="logout-button" class="button button-quiet button-small" type="button">退出登录</button></div></aside>
     <main class="admin-main">
         <header class="admin-topbar"><div><p class="eyebrow">ARGON ADMIN / COMMENTS</p><h1>评论管理</h1><p class="topbar-description">评论按页从 Worker 读取，筛选条件由服务端处理，不加载整站评论。</p></div><div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在验证管理员会话…</div></header>
-        <section class="admin-content"><section class="panel panel-comments"><div class="panel-heading"><div><p class="panel-kicker">D1 COMMENTS</p><h2>全站评论</h2></div><button id="reload-comments" class="button button-quiet button-small" type="button">重新读取</button></div>
+        <section class="admin-content"><section class="panel panel-policy"><div class="panel-heading"><div><p class="panel-kicker">COMMENT ACCESS</p><h2>评论访问策略</h2></div></div><div class="policy-toolbar"><div><label for="comment-policy-mode">名单模式</label><select id="comment-policy-mode"><option value="blacklist">黑名单</option><option value="whitelist">白名单</option></select></div><div class="policy-add"><label for="policy-github-id">GitHub 数字 ID</label><div class="policy-add-row"><input id="policy-github-id" type="text" inputmode="numeric" maxlength="20" placeholder="例如 12345678"><button id="policy-add" class="button button-primary button-small" type="button">加入名单</button></div></div></div><p id="policy-description" class="panel-intro">正在读取策略…</p><div id="policy-users" class="policy-users"><p class="policy-empty">正在读取名单…</p></div><p id="policy-message" class="message" role="status" aria-live="polite"></p></section>
+        <section class="panel panel-comments"><div class="panel-heading"><div><p class="panel-kicker">D1 COMMENTS</p><h2>全站评论</h2></div><button id="reload-comments" class="button button-quiet button-small" type="button">重新读取</button></div>
             <div class="comments-toolbar"><label for="comment-post-filter">文章路径</label><input id="comment-post-filter" type="search" placeholder="例如 /post/welcome/"><label for="comment-author-filter">作者</label><input id="comment-author-filter" type="search" placeholder="作者名或 GitHub ID"><label for="comment-status-filter">状态</label><select id="comment-status-filter"><option value="active">有效</option><option value="deleted">已删除</option><option value="all">全部</option></select></div>
             <div class="table-wrap"><table><thead><tr><th scope="col">评论</th><th scope="col">文章路径</th><th scope="col">状态</th><th scope="col">时间</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead><tbody id="comments-body"><tr><td colspan="5" class="empty-row">正在读取…</td></tr></tbody></table></div><nav class="admin-pagination" aria-label="评论分页"><button id="comments-prev" class="button button-quiet button-small" type="button" disabled>上一页</button><span id="comments-page" class="summary">第 1 页</span><button id="comments-next" class="button button-quiet button-small" type="button" disabled>下一页</button></nav><p id="comments-message" class="message" role="status" aria-live="polite"></p>
         </section></section>
         <footer class="settings-footer"><span>Argon · admin surface</span><a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a></footer>
     </main>
 </div>
-<script src="/admin/admin.js?v=admin-4" defer></script>
+<script src="/admin/admin.js?v=admin-5" defer></script>
 </body>
 </html>

@@ -134,8 +134,24 @@ td:first-child { min-width: 240px; font-family: ui-monospace, monospace; font-si
 .admin-path-cell { min-width: 180px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important; font-size: .76rem !important; word-break: break-all; }
 .admin-comment-cell { min-width: 280px; }
 .admin-comment-cell p { max-width: 520px; margin: 5px 0 0; color: var(--settings-muted); white-space: pre-wrap; word-break: break-word; }
+.admin-comment-github { display: block; margin-top: 6px; color: var(--settings-muted); font-family: ui-monospace, monospace; font-size: .7rem; }
 .admin-status-active { color: #18794e; font-weight: 700; }
 .admin-status-deleted { color: #a94242; font-weight: 700; }
+.admin-status-blocked { color: var(--settings-danger); font-weight: 700; }
+.action-button.purge { color: var(--settings-danger); border-color: var(--settings-danger-border); background: var(--settings-danger-bg); }
+.action-button.unblock { color: var(--settings-success); }
+.panel-policy { margin-bottom: 22px; }
+.policy-toolbar { display: grid; grid-template-columns: minmax(160px, .4fr) minmax(280px, 1fr); gap: 18px; align-items: end; }
+.policy-add-row { display: flex; gap: 9px; }
+.policy-add-row input { min-width: 0; }
+.policy-add-row .button { flex: 0 0 auto; }
+.policy-users { display: grid; gap: 8px; margin-top: 17px; }
+.policy-entry { display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 8px 10px; border: 1px solid var(--settings-border); border-radius: 10px; background: var(--settings-panel-soft); }
+.policy-entry-avatar { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 50%; object-fit: cover; }
+.policy-entry-meta { display: grid; min-width: 0; gap: 1px; }
+.policy-entry-meta strong, .policy-entry-meta small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.policy-entry-meta small, .policy-empty { color: var(--settings-muted); font-size: .75rem; }
+.policy-entry-remove { margin-left: auto; flex: 0 0 auto; }
 .admin-login-shell { max-width: 760px; }
 .admin-login-card { max-width: 520px; }
 .button-wide { width: 100%; margin-top: 12px; }
@@ -153,6 +169,7 @@ td:first-child { min-width: 240px; font-family: ui-monospace, monospace; font-si
     .admin-module-grid { grid-template-columns: 1fr; }
     .comments-toolbar { grid-template-columns: 1fr; align-items: stretch; }
     .comments-toolbar label { margin-bottom: -5px; }
+    .policy-toolbar { grid-template-columns: 1fr; gap: 8px; }
     .admin-pagination { justify-content: center; }
     .settings-footer { gap: 12px; flex-direction: column; }
 }
@@ -191,7 +208,7 @@ td:first-child { min-width: 240px; font-family: ui-monospace, monospace; font-si
 .admin-module { min-height: 190px; padding: 26px; }
 .admin-module h2 { font-size: 1.4rem; }
 .panel-heading { align-items: center; }
-.panel-views, .panel-comments { box-shadow: 0 16px 45px rgba(50, 73, 134, .09); }
+.panel-views, .panel-comments, .panel-policy { box-shadow: 0 16px 45px rgba(50, 73, 134, .09); }
 .settings-footer { max-width: 1220px; margin-right: auto; margin-left: auto; }
 
 .admin-theme-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }

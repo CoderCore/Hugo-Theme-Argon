@@ -227,9 +227,28 @@ Cookie: argon_admin_session=<会话 Cookie>
 
 GET /api/admin/comments?page=1&limit=20&post=/post/example/&author=jiang068&status=active
 Cookie: argon_admin_session=<会话 Cookie>
+
+GET /api/admin/comment-policy?page=1&limit=50
+Cookie: argon_admin_session=<会话 Cookie>
 ```
 
-`status` 支持 `active`、`deleted` 和 `all`。评论后台可以编辑或删除任意评论；公开评论接口仍按 GitHub 用户身份限制普通用户只能编辑、删除自己的评论。登录后管理员写操作使用会话 Cookie 和 `X-Admin-CSRF-Token`，仍受 Origin/Fetch Metadata、JSON Content-Type 和限流规则保护。后台不再提供管理员密钥登录或兼容旧式管理员密钥请求。
+`status` 支持 `active`、`deleted` 和 `all`。评论后台可以编辑或删除任意评论，并能看到软删除评论的原文。对已删除评论调用 `DELETE /api/admin/comments/{id}` 会彻底删除墓碑；若墓碑有回复，回复会提升到墓碑原来的父级，避免留下断裂树。登录后管理员写操作使用会话 Cookie 和 `X-Admin-CSRF-Token`，仍受 Origin/Fetch Metadata、JSON Content-Type 和限流规则保护。后台不再提供管理员密钥登录或兼容旧式管理员密钥请求。
+
+评论名单策略由管理员在 `/admin/comments/` 切换：
+
+```http
+PUT /api/admin/comment-policy
+Content-Type: application/json
+X-Admin-CSRF-Token: <管理员 csrfToken>
+
+{"mode":"blacklist"}
+```
+
+- `blacklist`（默认）：名单中的 GitHub 用户不能发表评论、回复、编辑、删除或点赞；其已有评论对公众显示为“评论已删除”，但管理员仍能看到原文。
+- `whitelist`：只有名单中的 GitHub 用户能进行上述评论操作；访客和未列入名单的登录用户只能读取评论。
+- `POST /api/admin/comment-policy/entries` 添加名单项，body 为 `{"githubId":"123456"}`；`DELETE /api/admin/comment-policy/entries/{githubId}` 移出名单。
+
+名单只接受 GitHub 数字用户 ID，不使用易变的用户名作为权限依据。拉黑/解除拉黑和模式切换均由管理员会话及 CSRF Token 保护。
 
 ### 评论和登录
 
@@ -288,6 +307,7 @@ X-CSRF-Token: <csrfToken>
 - 缺失或错误 CSRF 返回 `403 csrf_failed`。
 - 非 JSON 写请求返回 `415 invalid_content_type` 或 `403 csrf_failed`。
 - 未登录且不允许访客评论时返回 `401 auth_required`。
+- 黑名单用户返回 `403 user_blocked`；白名单模式下未列入名单的用户返回 `403 whitelist_required`。
 - 编辑只允许评论所属 GitHub 用户操作；删除按“保留仍有内容的回复树、全树删除后再物理清理”的规则执行。
 - OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
 - 评论 Markdown 在主题端安全渲染，不执行 JavaScript 或不可信 HTML。

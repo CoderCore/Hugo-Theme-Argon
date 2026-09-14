@@ -27,8 +27,9 @@
             commentGuestMode: '当前以访客身份发表评论',
             commentAuthFailed: 'GitHub 登录状态获取失败，请稍后重试',
             commentCount: '%s',
-            commentLoginToVoteTitle: '需要登录',
-            commentLoginToVote: '请先使用 GitHub 登录后再点赞',
+             commentLoginToVoteTitle: '需要登录',
+             commentLoginToVote: '请先使用 GitHub 登录后再点赞',
+             commentPolicyTitle: '评论权限',
             commentEdit: '编辑',
             commentDelete: '删除',
             commentConfirmDelete: '确认删除',
@@ -39,8 +40,10 @@
             commentDeleted: '评论已删除。',
             commentEditFailed: '评论编辑失败，请稍后重试。',
             commentDeleteFailed: '评论删除失败，请稍后重试。',
-            commentVoteFailed: '点赞失败，请稍后重试。',
-            commentDeletedLabel: '评论已删除'
+             commentVoteFailed: '点赞失败，请稍后重试。',
+             commentDeletedLabel: '评论已删除',
+             commentBlocked: '你的账号已被加入评论黑名单。',
+             commentWhitelistRequired: '当前仅允许评论白名单中的 GitHub 用户操作。'
         } : {
             loading: 'Loading comments…',
             empty: 'No comments yet. Be the first to comment.',
@@ -59,8 +62,9 @@
             commentGuestMode: 'Posting as a guest',
             commentAuthFailed: 'Could not load GitHub login state. Please try again.',
             commentCount: '%s',
-            commentLoginToVoteTitle: 'Sign in required',
-            commentLoginToVote: 'Sign in with GitHub before upvoting',
+             commentLoginToVoteTitle: 'Sign in required',
+             commentLoginToVote: 'Sign in with GitHub before upvoting',
+             commentPolicyTitle: 'Comment permissions',
             commentEdit: 'Edit',
             commentDelete: 'Delete',
             commentConfirmDelete: 'Confirm',
@@ -71,8 +75,10 @@
             commentDeleted: 'Comment deleted.',
             commentEditFailed: 'Could not edit the comment. Please try again.',
             commentDeleteFailed: 'Could not delete the comment. Please try again.',
-            commentVoteFailed: 'Could not upvote the comment. Please try again.',
-            commentDeletedLabel: 'Comment deleted'
+             commentVoteFailed: 'Could not upvote the comment. Please try again.',
+             commentDeletedLabel: 'Comment deleted',
+             commentBlocked: 'Your account is blocked from comment actions.',
+             commentWhitelistRequired: 'Only GitHub users on the comment whitelist may perform comment actions.'
         };
         var replacement = value === undefined || value === null ? '' : value;
         return (messages[name] || name).replace('%s', replacement);
@@ -85,10 +91,10 @@
         status.classList.toggle('text-danger', !!isError);
     }
 
-    function showLoginRequiredToast(text) {
+    function showLoginRequiredToast(text, title) {
         if (typeof window.iziToast === 'undefined') return;
         window.iziToast.show({
-            title: message('commentLoginToVoteTitle'),
+            title: title || message('commentLoginToVoteTitle'),
             message: text,
             class: 'shadow',
             position: 'topRight',
@@ -509,7 +515,7 @@
                 }
             }
             leftWrapper.appendChild(avatarContainer);
-            var canUpvote = !!state.user || state.allowGuests;
+            var canUpvote = !!state.user && state.commentAllowed;
             var upvote = document.createElement('button');
             upvote.type = 'button';
             upvote.className = 'comment-upvote btn btn-icon btn-outline-primary btn-sm';
@@ -535,7 +541,8 @@
             upvote.appendChild(upvoteText);
             upvote.addEventListener('click', function() {
                 if (!canUpvote) {
-                    showLoginRequiredToast(message('commentLoginToVote'));
+                    var notice = !state.user ? message('commentLoginToVote') : (state.commentBlocked ? message('commentBlocked') : message('commentWhitelistRequired'));
+                    showLoginRequiredToast(notice, state.user ? message('commentPolicyTitle') : '');
                     return;
                 }
                 if (upvote.classList.contains('comment-upvoting')) return;
@@ -616,8 +623,8 @@
 
         var operations = document.createElement('div');
         operations.className = 'comment-operations';
-        operations.hidden = !state.user;
-        if (state.user && !comment.deleted) {
+        operations.hidden = !state.user || !state.commentAllowed;
+        if (state.user && state.commentAllowed && !comment.deleted) {
             var reply = document.createElement('button');
             reply.type = 'button';
             reply.className = 'btn btn-sm btn-outline-primary';
@@ -626,7 +633,7 @@
             operations.appendChild(reply);
         }
 
-        if (!comment.deleted && comment.canEdit && state.user) {
+        if (!comment.deleted && comment.canEdit && state.user && state.commentAllowed) {
             var edit = document.createElement('button');
             edit.type = 'button';
             edit.className = 'btn btn-sm btn-outline-primary';
@@ -636,7 +643,7 @@
             });
             operations.appendChild(edit);
         }
-        if (!comment.deleted && comment.canDelete && state.user) {
+        if (!comment.deleted && comment.canDelete && state.user && state.commentAllowed) {
             var remove = document.createElement('button');
             remove.type = 'button';
             remove.className = 'btn btn-sm btn-outline-primary comment-delete';
@@ -831,16 +838,23 @@
         state.authStatus.classList.toggle('text-danger', !!isError);
     }
 
-    function updateAuthUi(state, user) {
+    function updateAuthUi(state, user, policy) {
         state.user = user || null;
+        state.commentPolicyMode = policy && policy.mode === 'whitelist' ? 'whitelist' : 'blacklist';
+        state.commentAllowed = policy && typeof policy.allowed === 'boolean' ? policy.allowed : (!!state.user || state.allowGuests);
+        state.commentBlocked = !!(policy && policy.blocked);
         var loggedIn = !!state.user;
         if (state.login) state.login.hidden = loggedIn;
         if (state.logout) state.logout.hidden = !loggedIn;
-        if (state.form) state.form.hidden = !state.allowGuests && !loggedIn;
+        if (state.form) state.form.hidden = !state.commentAllowed;
         if (!loggedIn) clearReply(state);
         updateCommentActions(state);
-        if (loggedIn) {
+        if (loggedIn && !state.commentAllowed) {
+            setAuthStatus(state, state.commentBlocked ? message('commentBlocked') : message('commentWhitelistRequired'), true);
+        } else if (loggedIn) {
             setAuthStatus(state, message('commentLoggedIn', state.user.login), false);
+        } else if (state.commentPolicyMode === 'whitelist') {
+            setAuthStatus(state, message('commentWhitelistRequired'), false);
         } else if (state.allowGuests) {
             setAuthStatus(state, message('commentGuestMode'), false);
         } else {
@@ -854,11 +868,11 @@
             credentials: 'include'
         }).then(parseResponse).then(function(data) {
             state.csrfToken = data.csrfToken || '';
-            updateAuthUi(state, data.user);
+            updateAuthUi(state, data.user, data.commentPolicy);
             if (state.authResult === 'success') setAuthStatus(state, message('commentLoggedIn', data.user && data.user.login), false);
             return data.user || null;
         }).catch(function(error) {
-            updateAuthUi(state, null);
+            updateAuthUi(state, null, null);
             setAuthStatus(state, message('commentAuthFailed'), true);
             console.error('Argon comment auth state failed', error);
             return null;
@@ -887,6 +901,8 @@
                 postPath: postPath,
                 allowGuests: section.getAttribute('data-comments-allow-guests') === 'true',
                 user: null,
+                commentAllowed: false,
+                commentBlocked: false,
                 csrfToken: '',
                 timeZone: (section.getAttribute('data-comments-time-zone') || 'UTC').trim(),
                 authStatus: section.querySelector('[data-comments-auth-status]'),
@@ -920,7 +936,7 @@
                     },
                     credentials: 'include'
                 }).then(parseResponse).then(function() {
-                    updateAuthUi(state, null);
+                    updateAuthUi(state, null, {mode: state.commentPolicyMode, allowed: state.commentPolicyMode !== 'whitelist' && state.allowGuests, blocked: false});
                     return load(state.page);
                 }).catch(function(error) {
                     setAuthStatus(state, message('commentAuthFailed'), true);
@@ -952,8 +968,8 @@
 
             form.addEventListener('submit', function(event) {
                 event.preventDefault();
-                if (!state.allowGuests && !state.user) {
-                    setAuthStatus(state, message('commentLoginRequired'), true);
+                if (!state.commentAllowed) {
+                    setAuthStatus(state, state.commentBlocked ? message('commentBlocked') : (state.user ? message('commentWhitelistRequired') : message('commentLoginRequired')), true);
                     return;
                 }
                 var submit = form.querySelector('[type="submit"]');
@@ -983,8 +999,21 @@
                     return load(1);
                 }).catch(function(error) {
                     if (error.status === 401 && error.message === 'auth_required') {
-                        updateAuthUi(state, null);
+                        updateAuthUi(state, null, null);
                         setAuthStatus(state, message('commentLoginRequired'), true);
+                        return;
+                    }
+                    if (error.status === 403 && error.message === 'user_blocked') {
+                        state.commentAllowed = false;
+                        state.commentBlocked = true;
+                        updateAuthUi(state, state.user, {allowed: false, blocked: true});
+                        setAuthStatus(state, message('commentBlocked'), true);
+                        return;
+                    }
+                    if (error.status === 403 && error.message === 'whitelist_required') {
+                        state.commentAllowed = false;
+                        updateAuthUi(state, state.user, {allowed: false, blocked: false});
+                        setAuthStatus(state, message('commentWhitelistRequired'), true);
                         return;
                     }
                     setStatus(section, message('sendFailed'), true);

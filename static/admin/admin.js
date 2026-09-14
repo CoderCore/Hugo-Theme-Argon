@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var state = {endpoint: '', adminCsrf: '', articleTitles: {}, pageSize: 20, viewsPage: 1, commentsPage: 1, commentsRequest: 0, viewsRequest: 0};
+    var state = {endpoint: '', adminCsrf: '', articleTitles: {}, pageSize: 20, viewsPage: 1, commentsPage: 1, commentsRequest: 0, viewsRequest: 0, commentPolicyMode: 'blacklist'};
     var adminModules = [
         {page: 'home', href: '/admin/', icon: '⌂', label: '总览', hint: '后台首页'},
         {page: 'views', href: '/admin/views/', icon: '◷', label: '阅读量管理', hint: '文章统计'},
@@ -156,10 +156,19 @@
         var body = byId('comments-body'); if (!body) return; body.textContent = '';
         if (!rows.length) { var empty = document.createElement('tr'); var cell = document.createElement('td'); cell.colSpan = 5; cell.className = 'empty-row'; cell.textContent = '没有匹配的评论。'; empty.appendChild(cell); body.appendChild(empty); return; }
         rows.forEach(function (comment) {
-            var tr = document.createElement('tr'); var content = document.createElement('td'); content.className = 'admin-comment-cell'; var author = document.createElement('strong'); author.textContent = comment.authorName || '—'; var text = document.createElement('p'); text.textContent = comment.deleted ? '评论已删除' : (comment.content || ''); content.appendChild(author); content.appendChild(text);
-            var path = document.createElement('td'); path.className = 'admin-path-cell'; path.textContent = comment.postPath || '—'; var status = document.createElement('td'); status.textContent = comment.deleted ? '已删除' : '有效'; status.className = comment.deleted ? 'admin-status-deleted' : 'admin-status-active'; var time = document.createElement('td'); time.textContent = formatTime(comment.updatedAt || comment.createdAt);
+            var tr = document.createElement('tr');
+            var content = document.createElement('td'); content.className = 'admin-comment-cell';
+            var author = document.createElement('strong'); author.textContent = comment.authorName || comment.githubId || '—';
+            var text = document.createElement('p'); text.textContent = comment.content || (comment.deleted ? '（原文不可用）' : '');
+            content.appendChild(author); content.appendChild(text);
+            if (comment.githubId) { var github = document.createElement('small'); github.className = 'admin-comment-github'; github.textContent = 'GitHub ID: ' + comment.githubId; content.appendChild(github); }
+            var path = document.createElement('td'); path.className = 'admin-path-cell'; path.textContent = comment.postPath || '—';
+            var status = document.createElement('td'); status.textContent = comment.deleted ? '已删除' : (comment.blocked ? '已拉黑' : '有效'); status.className = comment.deleted ? 'admin-status-deleted' : (comment.blocked ? 'admin-status-blocked' : 'admin-status-active');
+            var time = document.createElement('td'); time.textContent = formatTime(comment.updatedAt || comment.createdAt);
             var actions = document.createElement('td'); var wrap = document.createElement('div'); wrap.className = 'actions';
             if (!comment.deleted) { var edit = document.createElement('button'); edit.type = 'button'; edit.className = 'action-button'; edit.textContent = '编辑'; edit.addEventListener('click', function () { editComment(comment); }); var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'action-button delete'; remove.textContent = '删除'; remove.addEventListener('click', function () { deleteComment(comment); }); wrap.appendChild(edit); wrap.appendChild(remove); }
+            if (comment.deleted && comment.canPurge) { var purge = document.createElement('button'); purge.type = 'button'; purge.className = 'action-button purge'; purge.textContent = '彻底删除'; purge.addEventListener('click', function () { purgeComment(comment); }); wrap.appendChild(purge); }
+            if (comment.githubId) { var policy = document.createElement('button'); policy.type = 'button'; policy.className = 'action-button' + (comment.blocked ? ' unblock' : ' delete'); policy.textContent = comment.blocked ? '解除拉黑' : '拉黑用户'; policy.addEventListener('click', function () { togglePolicyForComment(comment); }); wrap.appendChild(policy); }
             actions.appendChild(wrap); tr.appendChild(content); tr.appendChild(path); tr.appendChild(status); tr.appendChild(time); tr.appendChild(actions); body.appendChild(tr);
         });
     }
@@ -172,6 +181,27 @@
 
     async function editComment(comment) { var content = window.prompt('编辑评论内容（支持安全 Markdown）：', comment.content || ''); if (content === null || !content.trim()) return; try { await apiRequest('/api/comments/' + comment.id, {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({content: content})}); setMessage('comments-message', '评论已更新。', 'success'); await loadComments(); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('comments-message', '编辑失败：' + error.message, 'error'); } }
     async function deleteComment(comment) { if (!window.confirm('删除这条评论？有回复时会保留删除占位。')) return; try { await apiRequest('/api/comments/' + comment.id, {method: 'DELETE'}); setMessage('comments-message', '评论已删除。', 'success'); await loadComments(); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('comments-message', '删除失败：' + error.message, 'error'); } }
+    async function purgeComment(comment) { if (!window.confirm('彻底删除这条评论的墓碑？有回复时会把回复提升到原父级，不能恢复。')) return; try { await apiRequest('/api/admin/comments/' + comment.id, {method: 'DELETE'}); setMessage('comments-message', '评论墓碑已彻底删除。', 'success'); await loadComments(); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('comments-message', '彻底删除失败：' + error.message, 'error'); } }
+
+    function renderPolicy(data) {
+        state.commentPolicyMode = data.mode === 'whitelist' ? 'whitelist' : 'blacklist';
+        var select = byId('comment-policy-mode'); if (select) select.value = state.commentPolicyMode;
+        var description = byId('policy-description'); if (description) description.textContent = state.commentPolicyMode === 'whitelist' ? '白名单模式：只有名单中的 GitHub 用户可以发表评论、回复、编辑、删除和点赞。' : '黑名单模式：名单中的 GitHub 用户不能发表评论、回复、编辑、删除或点赞，其评论对访客显示为已删除。';
+        var list = byId('policy-users'); if (!list) return; list.textContent = '';
+        var entries = Array.isArray(data.entries) ? data.entries : [];
+        if (!entries.length) { var empty = document.createElement('p'); empty.className = 'policy-empty'; empty.textContent = '名单为空。'; list.appendChild(empty); return; }
+        entries.forEach(function (entry) {
+            var row = document.createElement('div'); row.className = 'policy-entry';
+            if (entry.avatarUrl) { var avatar = document.createElement('img'); avatar.className = 'policy-entry-avatar'; avatar.src = entry.avatarUrl; avatar.alt = ''; avatar.loading = 'lazy'; avatar.referrerPolicy = 'no-referrer'; row.appendChild(avatar); }
+            var meta = document.createElement('div'); meta.className = 'policy-entry-meta'; var name = document.createElement('strong'); name.textContent = entry.displayName || entry.login || entry.githubId; var id = document.createElement('small'); id.textContent = (entry.login ? '@' + entry.login + ' · ' : '') + 'GitHub ID: ' + entry.githubId; meta.appendChild(name); meta.appendChild(id); row.appendChild(meta);
+            var remove = document.createElement('button'); remove.type = 'button'; remove.className = 'action-button delete policy-entry-remove'; remove.textContent = '移出名单'; remove.addEventListener('click', function () { removePolicyEntry(entry.githubId); }); row.appendChild(remove); list.appendChild(row);
+        });
+    }
+    async function loadCommentPolicy() { var data = await apiRequest('/api/admin/comment-policy?page=1&limit=50'); renderPolicy(data); }
+    async function saveCommentPolicy() { var select = byId('comment-policy-mode'); var mode = select && select.value === 'whitelist' ? 'whitelist' : 'blacklist'; try { var data = await apiRequest('/api/admin/comment-policy', {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode: mode})}); renderPolicy({mode: data.mode, entries: []}); await loadCommentPolicy(); setMessage('policy-message', '评论策略已保存。', 'success'); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('policy-message', '保存策略失败：' + error.message, 'error'); } }
+    async function addPolicyEntry() { var input = byId('policy-github-id'); var githubId = input && input.value.trim(); if (!/^\d{1,20}$/.test(githubId || '') || githubId === '0') { setMessage('policy-message', '请输入有效的 GitHub 数字 ID。', 'error'); return; } try { await apiRequest('/api/admin/comment-policy/entries', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({githubId: githubId})}); input.value = ''; await loadCommentPolicy(); await loadComments(); setMessage('policy-message', '用户已加入名单。', 'success'); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('policy-message', '加入名单失败：' + error.message, 'error'); } }
+    async function removePolicyEntry(githubId) { if (!window.confirm('将 GitHub ID ' + githubId + ' 移出名单？')) return; try { await apiRequest('/api/admin/comment-policy/entries/' + encodeURIComponent(githubId), {method: 'DELETE'}); await loadCommentPolicy(); await loadComments(); setMessage('policy-message', '用户已移出名单。', 'success'); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('policy-message', '移出名单失败：' + error.message, 'error'); } }
+    async function togglePolicyForComment(comment) { if (!comment.githubId) return; if (comment.blocked) return removePolicyEntry(comment.githubId); if (!window.confirm('拉黑 GitHub ID ' + comment.githubId + '？该用户的评论将对访客显示为已删除。')) return; try { await apiRequest('/api/admin/comment-policy/entries', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({githubId: comment.githubId, login: comment.authorName})}); await loadCommentPolicy(); await loadComments(); setMessage('policy-message', '用户已拉黑。', 'success'); } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setMessage('policy-message', '拉黑失败：' + error.message, 'error'); } }
 
     function safeReturnTo() { var value = new URLSearchParams(window.location.search).get('returnTo') || '/admin/'; return value.charAt(0) === '/' && value.charAt(1) !== '/' ? value : '/admin/'; }
     function showAdminOAuthResult() {
@@ -192,7 +222,7 @@
     async function logout() { try { await apiRequest('/api/admin/auth/logout', {method: 'POST'}); } catch (error) { if (!isUnauthorized(error)) setStatus('退出登录失败：' + error.message, 'error'); } window.location.replace('/admin/login/'); }
 
     async function ensureSession() { await discoverEndpoint(); var data = await apiRequest('/api/admin/auth/me'); if (!data.authenticated) throw new Error('unauthorized'); state.adminCsrf = data.csrfToken || ''; if (byId('auth-badge')) { byId('auth-badge').textContent = '已登录'; byId('auth-badge').className = 'badge'; } setStatus('管理员已登录。', 'ok'); }
-    async function bootstrapProtected() { try { await ensureSession(); var page = document.body.getAttribute('data-admin-page') || 'home'; if (page === 'views' || page === 'comments') { await loadArticleTitles(); if (page === 'views') await loadViews(); else await loadComments(); } } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setStatus('后台连接失败：' + error.message, 'error'); } }
+    async function bootstrapProtected() { try { await ensureSession(); var page = document.body.getAttribute('data-admin-page') || 'home'; if (page === 'views' || page === 'comments') { await loadArticleTitles(); if (page === 'views') await loadViews(); else { await loadCommentPolicy(); await loadComments(); } } } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setStatus('后台连接失败：' + error.message, 'error'); } }
 
     function bindCommon() { if (byId('logout-button')) byId('logout-button').addEventListener('click', logout); }
     function bootstrapLogin() { renderAdminNav(); var oauthResult = showAdminOAuthResult(); var githubButton = byId('github-admin-login-button'); if (githubButton) githubButton.disabled = true; discoverEndpoint().then(function () { if (githubButton) githubButton.disabled = false; if (!oauthResult) setStatus('请使用唯一的 GitHub 管理员账号登录。', 'pending'); }).catch(function (error) { setStatus('未发现可用的阅读量 Worker：' + error.message, 'error'); }); if (githubButton) githubButton.addEventListener('click', startGithubAdminLogin); }
@@ -206,6 +236,8 @@
         if (byId('comments-prev')) byId('comments-prev').addEventListener('click', function () { if (state.commentsPage > 1) { state.commentsPage -= 1; loadComments().catch(function () {}); } });
         if (byId('comments-next')) byId('comments-next').addEventListener('click', function () { state.commentsPage += 1; loadComments().catch(function () {}); });
         ['comment-post-filter', 'comment-author-filter', 'comment-status-filter'].forEach(function (id) { if (byId(id)) byId(id).addEventListener('change', function () { state.commentsPage = 1; loadComments().catch(function () {}); }); });
+        if (byId('comment-policy-mode')) byId('comment-policy-mode').addEventListener('change', function () { saveCommentPolicy(); });
+        if (byId('policy-add')) byId('policy-add').addEventListener('click', addPolicyEntry);
         bootstrapProtected();
     }
 

@@ -7,6 +7,11 @@ CREATE TABLE IF NOT EXISTS view_counts (
 CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at
   ON view_counts(updated_at);
 
+CREATE TABLE IF NOT EXISTS view_counter_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- The reserved row stores the site-wide total in this same table.
 -- INSERT OR IGNORE preserves an existing total and seeds older databases from
 -- their article counts the first time the new schema is applied.
@@ -57,6 +62,15 @@ CREATE TABLE IF NOT EXISTS auth_users (
   profile_url TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
+);
+
+-- GitHub numeric IDs in this table are the comment blacklist or whitelist.
+CREATE TABLE IF NOT EXISTS comment_policy_entries (
+  github_id TEXT PRIMARY KEY,
+  login TEXT,
+  display_name TEXT,
+  avatar_url TEXT,
+  created_at INTEGER NOT NULL
 );
 
 -- Store only a hash of the browser session token.
