@@ -130,11 +130,12 @@ POST /api/views
 GET /api/comments?post=/post/example/&page=1&limit=20
 ```
 
-返回 `comments`、`page`、`limit`、`total` 和 `pages`；每条评论包含 `id`、`postPath`、`parentId`、`authorName`、`content` 和 `createdAt`。
+返回 `comments`、`page`、`limit`、`total` 和 `pages`；每条评论包含 `id`、`postPath`、`parentId`、`authorName`、`avatarUrl`、`profileUrl`、`content` 和 `createdAt`。已登录 GitHub 用户的头像来自 `auth_users`，历史访客评论没有头像时由前端显示首字母占位。
 
 ```http
 POST /api/comments
 Content-Type: application/json
+X-CSRF-Token: <GET /api/auth/me 返回的 csrfToken>
 
 {"postPath":"/post/example/","authorName":"访客","content":"你好"}
 ```
@@ -145,10 +146,12 @@ Content-Type: application/json
 
 - `GET /api/auth/github/start?returnTo=<站点地址>`：创建短期 OAuth state 和 PKCE verifier，跳转到 GitHub。
 - `GET /api/auth/github/callback`：校验 state，服务端换取 token、读取 GitHub 用户并创建站点会话，然后回到原页面。
-- `GET /api/auth/me`：返回当前登录用户；主题使用 `credentials: include` 保持全站登录态。
-- `POST /api/auth/logout`：删除当前 D1 会话并清理 Cookie。
+- `GET /api/auth/me`：返回当前登录用户和 CSRF Token；主题使用 `credentials: include` 保持全站登录态。
+- `POST /api/auth/logout`：要求 `X-CSRF-Token`，删除当前 D1 会话并清理 Cookie。
 
-当前已实现 GitHub 登录和会话基础链路；限流、审核、编辑/删除、管理员操作、CSRF/反滥用策略仍需在公网发布前补齐。
+当前已实现 GitHub 登录、会话、CSRF 校验、Origin/Fetch Metadata 校验、JSON Content-Type 校验和 Cloudflare Rate Limiting。审核、编辑/删除和管理员操作仍未实现。
+
+生产 Worker 配置了两个限流绑定：OAuth 每个客户端地址每分钟 10 次，评论每个已登录用户或客户端地址每分钟 5 次。限流是 Cloudflare 边缘保护，不能替代审核和内容治理。
 
 ## `/settings/`
 
@@ -174,6 +177,9 @@ body: {"ids":["/test/"],"increment":"/test/"}
 | `401 auth_required` | 评论设置为不允许访客评论，当前请求没有有效 GitHub 会话。 |
 | `503 github_oauth_not_configured` | Worker 未配置 GitHub OAuth Client ID/Secret。 |
 | `403 origin_not_allowed` | 请求来源不在 `ALLOWED_ORIGINS`，或配置包含路径、空格或末尾斜杠。 |
+| `403 csrf_failed` | 缺少或不匹配 CSRF Token、请求来源上下文不合法，或评论不是 JSON 请求。 |
+| `415 invalid_content_type` | 阅读量写接口不是 `application/json`。 |
+| `429 rate_limited` | OAuth 或评论请求超过 Cloudflare Rate Limiting 限制。 |
 
 批量请求仍可能包含一次 CORS 预检，但同一页面只发送一次批量 API 请求，不会为每篇文章单独请求 Worker。
 
@@ -185,7 +191,7 @@ body: {"ids":["/test/"],"increment":"/test/"}
 npx wrangler secret put VIEW_COUNTER_KEY
 npx wrangler secret put VIEW_COUNTER_ADMIN_KEY
 npx wrangler d1 execute argon-views --remote --file=./schema.sql
-npx wrangler deploy
+npx wrangler deploy --keep-vars --domain blog-view-counter.example.com
 ```
 
 由于 Worker 支持首次授权请求自动初始化，`d1 execute` 不是必需步骤；显式执行 [`schema.sql`](./schema.sql) 适合希望在部署前初始化或维护已有环境的用户。旧版本已经存在的 `site_settings` 表不会被自动删除，但新 Worker 不再读取它。
@@ -203,7 +209,7 @@ npx wrangler d1 execute argon-views --local --file=./schema.sql
 hugo server --source ../../exampleSite --themesDir ../../.. --bind 127.0.0.1 --port 1315 --baseURL http://127.0.0.1:1315/
 ```
 
-示例站本地配置将评论 API 指向 `http://127.0.0.1:8787/api/comments`，并默认关闭访客评论。由于本地没有 GitHub OAuth Secret，登录接口在本地只会返回未配置提示；配置 OAuth Secret 后再进行完整回调联调。部署公网前，必须完成 GitHub OAuth、限流、审核和安全策略。
+示例站本地配置将评论 API 指向 `http://127.0.0.1:8787/api/comments`，并默认关闭访客评论。生产 `ALLOWED_ORIGINS` 只保留真实站点来源；本地调试时用 Wrangler 的本地变量覆盖该值。由于本地没有 GitHub OAuth Secret，登录接口在本地只会返回未配置提示；配置 OAuth Secret 后再进行完整回调联调。部署公网前，仍需完成 GitHub OAuth Secret 轮换、审核和内容治理。
 
 ## 官方文档
 

@@ -27,17 +27,6 @@
     <section id="comments" class="comments-area card shadow-sm" aria-label="{{ T "comments" }}">
         <div class="card-body">
             <h2 class="comments-title"><i class="fa fa-comments" aria-hidden="true"></i>{{ T "comments" }}</h2>
-            <div class="argon-comments-authbar" data-comments-auth>
-                <span class="argon-comments-auth-status text-muted" data-comments-auth-status role="status" aria-live="polite"></span>
-                <button class="btn btn-sm btn-primary" type="button" data-comments-login>
-                    <span class="btn-inner--icon"><i class="fa fa-github" aria-hidden="true"></i></span>
-                    <span class="btn-inner--text">{{ T "commentLogin" }}</span>
-                </button>
-                <button class="btn btn-sm btn-outline-primary" type="button" data-comments-logout hidden>
-                    <span class="btn-inner--icon"><i class="fa fa-sign-out" aria-hidden="true"></i></span>
-                    <span class="btn-inner--text">{{ T "commentLogout" }}</span>
-                </button>
-            </div>
             <p class="argon-comments-status text-muted" role="status" aria-live="polite"></p>
             <ol class="comment-list argon-comments-list" aria-live="polite"></ol>
             <nav class="comments-navigation argon-comments-pagination" aria-label="{{ T "commentPagination" }}" hidden>
@@ -52,6 +41,17 @@
     <section id="post_comment" class="card shadow-sm" aria-label="{{ T "commentSubmit" }}">
         <div class="card-body">
             <h2 class="post-comment-title"><i class="fa fa-commenting" aria-hidden="true"></i>{{ T "commentSubmit" }}</h2>
+            <div class="argon-comments-authbar" data-comments-auth>
+                <span class="argon-comments-auth-status text-muted" data-comments-auth-status role="status" aria-live="polite"></span>
+                <button class="btn btn-sm btn-primary" type="button" data-comments-login>
+                    <span class="btn-inner--icon"><i class="fa fa-github" aria-hidden="true"></i></span>
+                    <span class="btn-inner--text">{{ T "commentLogin" }}</span>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" type="button" data-comments-logout hidden>
+                    <span class="btn-inner--icon"><i class="fa fa-sign-out" aria-hidden="true"></i></span>
+                    <span class="btn-inner--text">{{ T "commentLogout" }}</span>
+                </button>
+            </div>
             <div class="post-comment-reply" data-comments-reply-info hidden>
                 <span data-comments-reply-text></span>
                 <div class="post-comment-reply-preview" data-comments-reply-preview></div>

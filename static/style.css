@@ -2452,34 +2452,38 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 }
 .comment-item {
 	margin-bottom: 1px;
-	display: flex;
-	flex-wrap: wrap;
+	display: block;
 }
 #comments .comment-item > .children {
-	flex: 0 0 100%;
 	width: 100%;
 	padding-inline-start: 55px;
 }
 .comment-item-left-wrapper {
-	display: block;
-	width: 40px;
-	margin-top: 26px;
-	margin-right: 15px;
-	position: relative;
+	display: none;
 }
-.comment-avatar-vertical-center .comment-item-left-wrapper {
-	margin: auto;
-	margin-right: 15px;
+.comment-item-avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 40px;
+	width: 40px;
+	flex: 0 0 40px;
+	overflow: hidden;
+	border-radius: 50%;
+	background-color: var(--themecolor);
+	color: #fff;
+	font-size: 18px;
+	font-weight: 600;
 }
 .comment-item-avatar .avatar {
 	height: 40px;
 	width: 40px;
+	max-width: none;
+	object-fit: cover;
 }
 .text-avatar {
 	user-select: none;
 	display: inline-flex !important;
-	align-items: center;
-	justify-content: center;
 }
 .comment-item-inner {
 	display: block;
@@ -2487,8 +2491,7 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 	margin-top: 20px;
 	padding-bottom: 18px;
 	border-bottom: var(--color-border-on-foreground) solid 1px;
-	position: relative;
-	width: calc(100% - 50px);
+	width: 100%;
 }
 #comments .comment-item:last-child .comment-item-inner {
 	border-bottom: 0;
@@ -2496,7 +2499,10 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 .comment-item-title {
 	font-size: 16px;
 	display: flex;
-	margin-bottom: 3px;
+	align-items: center;
+	gap: 10px;
+	min-height: 40px;
+	margin-bottom: 8px;
 }
 .comment-item-title .badge-admin,
 .comment-item-title .badge-pinned,
@@ -2510,7 +2516,7 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 }
 .comment-item-text {
 	min-height: 24px;
-	margin-bottom: 1rem;
+	margin: 0 0 1rem;
 }
 .argon-comments .comment-item-text {
 	white-space: pre-wrap;
@@ -2541,8 +2547,9 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	border-color: var(--themecolor-light);
 }
 .comment-name {
-	flex: 1;
+	flex: 0 1 auto;
 	font-weight: bold;
+	line-height: 1.25;
 }
 .comment-author, .comment-parent-info{
 	display: inline-block;
@@ -2556,10 +2563,10 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	opacity: 0.8;
 }
 .comment-info {
-	margin-top: 2px;
+	margin-top: 0;
+	margin-left: auto;
 	font-size: 12px;
 	font-weight: normal;
-	margin-left: 3px;
 }
 .comment-info > div {
 	display: inline-block;

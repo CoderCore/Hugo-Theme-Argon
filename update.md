@@ -119,3 +119,31 @@
 - 评论请求统一携带会话 Cookie，CORS 增加 credentials；生产建议将 Worker 绑定到博客同站点的自定义域名，避免 `workers.dev` 跨站 Cookie 被浏览器拦截。
 - 更新 D1 schema、Wrangler 变量说明、主题配置、示例站点配置、README 和 TODO。未配置真实 GitHub Client ID/Secret，因此本地只验证未登录和未配置边界，没有伪造 OAuth 成功测试。
 - 本地验证：未登录 `GET /api/auth/me` 返回 `authenticated:false`，匿名评论 POST 返回 `401`，未配置 OAuth start 返回 `503 github_oauth_not_configured`；Hugo 页面、Worker 和静态构建均通过。
+
+## 2026-09-14：评论头像与布局收敛（本次，未提交）
+
+- 评论接口通过 `comments.github_id` 关联 `auth_users`，返回 GitHub `avatarUrl` 和 `profileUrl`；没有关联身份的历史评论继续使用首字母占位。
+- 评论项改为紧凑的 Argon 风格：头像、用户名、回复关系和时间位于同一行，评论正文位于下一行，回复仍保持主评论下方的嵌套结构。
+- 登录状态栏从评论列表卡片移到“发表评论”卡片，只在发表区域显示登录状态、GitHub 登录和退出登录按钮。
+- 本地 Hugo 1315 和 Worker 8787 已启动；本地评论接口返回 `avatarUrl` 字段，主题脚本、Worker 语法检查和生产构建通过。
+
+## 2026-09-14：修复评论头像重构运行时错误（本次，未提交）
+
+- 删除头像布局重构后残留的 `avatarWrapper` 引用，修复 `makeComment` 抛出 `ReferenceError` 导致评论列表显示“加载失败”的问题。
+- 重新加载本地 `127.0.0.1:1315/post/welcome/` 验证，评论列表已正常渲染，当前 11 条本地评论均可显示，登录提示仅位于发表评论卡片。
+
+## 2026-09-14：登录态安全与性能加固（本次，待提交）
+
+- 为评论和退出登录增加 CSRF Token：Worker 通过 `argon_csrf` Cookie 和 `X-CSRF-Token` 请求头校验，主题前端从 `/api/auth/me` 获取并自动携带 Token。
+- 增加 `Sec-Fetch-Site` 来源上下文校验；继续使用精确 CORS 白名单，并拒绝跨站写请求。
+- 评论和阅读量写接口强制 `application/json`；CORS 预检白名单同步加入 `X-CSRF-Token`。
+- GitHub Token 交换和用户资料请求增加 10 秒超时，避免上游异常长期占用 Worker。
+- 公开登录用户响应不再暴露 GitHub 数字 ID；头像、登录名和个人主页仍保留给评论展示使用。
+- 评论页码上限从 100 万页收敛到 1 万页，减少极深 OFFSET 查询的资源消耗。
+- 增加 `nosniff`、`Referrer-Policy` 和 `Permissions-Policy` 响应头。
+- 配置 Cloudflare Rate Limiting：OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
+- 生产 `ALLOWED_ORIGINS` 收紧为真实站点来源，移除本地开发来源；本地调试需使用本地变量覆盖。
+- 生产 Worker 部署版本：`0a396b3d-f075-437c-94c6-a476cadb6bc5`，保留现有 D1、Secrets 和自定义域名绑定。
+- 生产模拟测试通过：`auth/me=200`、CSRF Cookie 下发、缺失/错误 Token=`403`、错误 Content-Type=`403`、有效 Token 但未登录=`401`、非法来源=`403`、预检=`204`、评论读取=`200`、非法 OAuth returnTo=`400`；安全响应头和 `X-CSRF-Token` CORS 白名单存在。
+- 本地 Wrangler 4.105 的旧 workerd 在当前配置启动阶段崩溃，未能完成本地 Worker 运行时测试；Worker `deploy --dry-run` 和生产边界测试通过。后续可升级 Wrangler 后补做本地限流绑定测试。
+- GitHub Client Secret 曾出现在对话中，未自动猜测新值或替换；待用户在 GitHub 生成新 Secret 后再更新 Worker Secret。

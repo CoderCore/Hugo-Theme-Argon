@@ -291,17 +291,36 @@
         item.id = 'comment-' + comment.id;
         item.style.setProperty('--comment-depth', depth);
 
-        var avatarWrapper = document.createElement('div');
-        avatarWrapper.className = 'comment-item-left-wrapper';
-        var avatar = document.createElement('span');
-        avatar.className = 'text-avatar';
-        avatar.textContent = (comment.authorName || message('anonymous')).trim().charAt(0).toUpperCase();
-        avatarWrapper.appendChild(avatar);
-
         var inner = document.createElement('div');
         inner.className = 'comment-item-inner';
         var title = document.createElement('div');
         title.className = 'comment-item-title';
+        var avatar = document.createElement('span');
+        avatar.className = 'comment-item-avatar text-avatar';
+        var fallbackInitial = (comment.authorName || message('anonymous')).trim().charAt(0).toUpperCase();
+        avatar.textContent = fallbackInitial;
+        if (comment.avatarUrl) {
+            try {
+                var avatarUrl = new URL(comment.avatarUrl, window.location.href);
+                if (avatarUrl.protocol === 'http:' || avatarUrl.protocol === 'https:') {
+                    var avatarImage = document.createElement('img');
+                    avatarImage.className = 'avatar rounded-circle';
+                    avatarImage.src = avatarUrl.href;
+                    avatarImage.alt = '';
+                    avatarImage.loading = 'lazy';
+                    avatarImage.referrerPolicy = 'no-referrer';
+                    avatarImage.addEventListener('error', function() {
+                        avatar.replaceChildren();
+                        avatar.textContent = fallbackInitial;
+                        avatar.classList.add('text-avatar');
+                    });
+                    avatar.replaceChildren(avatarImage);
+                }
+            } catch (error) {
+                console.warn('Invalid comment avatar URL', error);
+            }
+        }
+        title.appendChild(avatar);
         var name = document.createElement('span');
         name.className = 'comment-name';
         name.textContent = comment.authorName || message('anonymous');
@@ -341,7 +360,6 @@
         inner.appendChild(title);
         inner.appendChild(text);
         inner.appendChild(operations);
-        item.appendChild(avatarWrapper);
         item.appendChild(inner);
         return item;
     }
@@ -447,6 +465,7 @@
             headers: {Accept: 'application/json'},
             credentials: 'include'
         }).then(parseResponse).then(function(data) {
+            state.csrfToken = data.csrfToken || '';
             updateAuthUi(state, data.user);
             if (state.authResult === 'success') setAuthStatus(state, message('commentLoggedIn', data.user && data.user.login), false);
             return data.user || null;
@@ -478,6 +497,7 @@
                 authEndpoint: (section.getAttribute('data-comments-auth-endpoint') || '').trim(),
                 allowGuests: section.getAttribute('data-comments-allow-guests') === 'true',
                 user: null,
+                csrfToken: '',
                 authStatus: section.querySelector('[data-comments-auth-status]'),
                 login: section.querySelector('[data-comments-login]'),
                 logout: section.querySelector('[data-comments-logout]'),
@@ -506,7 +526,10 @@
                 state.logout.disabled = true;
                 fetch(authUrl(endpoint, state.authEndpoint, '/logout'), {
                     method: 'POST',
-                    headers: {Accept: 'application/json'},
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-Token': state.csrfToken
+                    },
                     credentials: 'include'
                 }).then(parseResponse).then(function() {
                     updateAuthUi(state, null);
@@ -557,7 +580,11 @@
                 setStatus(section, message('sending'), false);
                 fetch(endpoint, {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json', Accept: 'application/json'},
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-Token': state.csrfToken
+                    },
                     credentials: 'include',
                     body: JSON.stringify(payload)
                 }).then(parseResponse).then(function() {

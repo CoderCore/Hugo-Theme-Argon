@@ -16,7 +16,11 @@ const MAX_BODY_LENGTH = 20000;
 const MAX_COMMENT_NAME_LENGTH = 80;
 const MAX_COMMENT_CONTENT_LENGTH = 5000;
 const MAX_COMMENT_PAGE_SIZE = 50;
+const MAX_COMMENT_PAGE_NUMBER = 10000;
 const MAX_VIEWS = 2147483647;
+const CSRF_COOKIE = "argon_csrf";
+const CSRF_HEADER = "X-CSRF-Token";
+const GITHUB_REQUEST_TIMEOUT_MS = 10000;
 
 // D1 is the only persistent state used by this Worker. The reserved row keeps
 // the site-wide total in the same table as the article counters.
@@ -78,6 +82,9 @@ function responseHeaders(origin) {
   const headers = new Headers({
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
     Vary: "Origin",
   });
   if (origin) {
@@ -85,7 +92,7 @@ function responseHeaders(origin) {
     headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     headers.set(
       "Access-Control-Allow-Headers",
-      "Content-Type, X-View-Counter-Key, X-View-Counter-Admin-Key",
+      "Content-Type, X-CSRF-Token, X-View-Counter-Key, X-View-Counter-Admin-Key",
     );
     headers.set("Access-Control-Allow-Credentials", "true");
     headers.set("Access-Control-Max-Age", "600");
@@ -214,7 +221,17 @@ function authResultUrl(returnTo, result) {
   return target.href;
 }
 
-function publicUser(row) {
+function publicUser(user) {
+  if (!user) return null;
+  return {
+    login: user.login,
+    displayName: user.displayName || user.login,
+    avatarUrl: user.avatarUrl || "",
+    profileUrl: user.profileUrl || `https://github.com/${encodeURIComponent(user.login)}`,
+  };
+}
+
+function sessionUser(row) {
   if (!row) return null;
   return {
     githubId: String(row.github_id),
@@ -239,15 +256,23 @@ async function authenticatedUser(request, env) {
       "FROM auth_sessions s JOIN auth_users u ON u.github_id = s.github_id " +
       "WHERE s.token_hash = ? AND s.expires_at > ?",
   ).bind(tokenHash, now).first();
-  return publicUser(row);
+  return sessionUser(row);
 }
 
 async function handleAuthMe(request, env, origin) {
   const user = await authenticatedUser(request, env);
-  return json({ authenticated: !!user, user }, 200, origin);
+  const cookies = parseCookies(request);
+  const csrfToken = cookies[CSRF_COOKIE] || randomToken(32);
+  const extraHeaders = cookies[CSRF_COOKIE]
+    ? undefined
+    : { "Set-Cookie": cookieHeader(CSRF_COOKIE, csrfToken, SESSION_TTL_SECONDS, request, "/", "Lax") };
+  return json({ authenticated: !!user, user: publicUser(user), csrfToken }, 200, origin, extraHeaders);
 }
 
 async function handleAuthLogout(request, env, origin) {
+  if (!validMutationContext(request) || !validCsrfToken(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
   const token = parseCookies(request)[SESSION_COOKIE];
   if (token) {
     await env.DB.prepare("DELETE FROM auth_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
@@ -286,7 +311,7 @@ async function handleAuthStart(request, url, env) {
 }
 
 async function exchangeGithubCode(code, codeVerifier, request, env) {
-  const response = await fetch("https://github.com/login/oauth/access_token", {
+  const response = await fetchWithTimeout("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -299,21 +324,21 @@ async function exchangeGithubCode(code, codeVerifier, request, env) {
       redirect_uri: githubRedirectUri(request, env),
       code_verifier: codeVerifier,
     }),
-  });
+  }, GITHUB_REQUEST_TIMEOUT_MS);
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.access_token) throw new Error("github_token_exchange_failed");
   return data.access_token;
 }
 
 async function fetchGithubUser(accessToken) {
-  const response = await fetch("https://api.github.com/user", {
+  const response = await fetchWithTimeout("https://api.github.com/user", {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${accessToken}`,
       "X-GitHub-Api-Version": "2022-11-28",
       "User-Agent": "Argon-Hugo-Comments",
     },
-  });
+  }, GITHUB_REQUEST_TIMEOUT_MS);
   const user = await response.json().catch(() => ({}));
   if (!response.ok || !Number.isSafeInteger(user.id) || !user.login) {
     throw new Error("github_user_fetch_failed");
@@ -398,6 +423,38 @@ async function readBody(request) {
   } catch {
     return null;
   }
+}
+
+function fetchWithTimeout(input, init, timeoutMs) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("request_timeout"), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timeout));
+}
+
+function clientKey(request) {
+  return request.headers.get("CF-Connecting-IP") || "anonymous";
+}
+
+async function enforceRateLimit(binding, key) {
+  if (!binding || typeof binding.limit !== "function") return true;
+  const result = await binding.limit({ key });
+  return result?.success !== false;
+}
+
+function validMutationContext(request) {
+  const fetchSite = (request.headers.get("Sec-Fetch-Site") || "").toLowerCase();
+  return fetchSite !== "cross-site";
+}
+
+function validCsrfToken(request) {
+  const cookieToken = parseCookies(request)[CSRF_COOKIE] || "";
+  const headerToken = request.headers.get(CSRF_HEADER) || "";
+  return !!cookieToken && secretsMatch(headerToken, cookieToken);
+}
+
+function requireJsonContentType(request) {
+  return (request.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase() ===
+    "application/json";
 }
 
 function uniqueNormalizedIds(values) {
@@ -517,6 +574,8 @@ function commentRow(row) {
     postPath: row.post_path,
     parentId: row.parent_id === null ? null : Number(row.parent_id),
     authorName: row.author_name,
+    avatarUrl: row.avatar_url || "",
+    profileUrl: row.profile_url || "",
     content: row.content,
     createdAt: row.created_at,
   };
@@ -524,7 +583,7 @@ function commentRow(row) {
 
 async function handleCommentsGet(request, url, env, origin) {
   const postPath = normalizePostPath(url.searchParams.get("post"));
-  const page = normalizePage(url.searchParams.get("page"), 1, 1000000);
+  const page = normalizePage(url.searchParams.get("page"), 1, MAX_COMMENT_PAGE_NUMBER);
   const limit = normalizePage(url.searchParams.get("limit"), 20, MAX_COMMENT_PAGE_SIZE);
   if (!postPath || !page || !limit) return json({ error: "invalid_query" }, 400, origin);
 
@@ -534,8 +593,10 @@ async function handleCommentsGet(request, url, env, origin) {
   const total = Number(totalResult?.total) || 0;
   const offset = (page - 1) * limit;
   const result = await env.DB.prepare(
-    "SELECT id, post_path, parent_id, author_name, content, created_at " +
-      "FROM comments WHERE post_path = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
+      "u.avatar_url AS avatar_url, u.profile_url AS profile_url " +
+      "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id " +
+      "WHERE c.post_path = ? ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
   ).bind(postPath, limit, offset).all();
 
   return json({
@@ -548,6 +609,9 @@ async function handleCommentsGet(request, url, env, origin) {
 }
 
 async function handleCommentsPost(request, env, origin) {
+  if (!requireJsonContentType(request) || !validMutationContext(request) || !validCsrfToken(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
   const body = await readBody(request);
   const postPath = normalizePostPath(body && (body.postPath || body.post));
   const content = normalizeCommentContent(body && body.content);
@@ -570,6 +634,9 @@ async function handleCommentsPost(request, env, origin) {
   if (!user && !allowGuestComments(env)) {
     return json({ error: "auth_required" }, 401, origin);
   }
+  if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, user ? `user:${user.githubId}` : `ip:${clientKey(request)}`))) {
+    return json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" });
+  }
   const authorName = user
     ? normalizeCommentName(user.displayName || user.login)
     : normalizeCommentName(body && (body.authorName || body.name));
@@ -581,7 +648,9 @@ async function handleCommentsPost(request, env, origin) {
   const id = Number(result.meta?.last_row_id);
   if (!Number.isSafeInteger(id) || id < 1) return json({ error: "insert_failed" }, 500, origin);
   const row = await env.DB.prepare(
-    "SELECT id, post_path, parent_id, author_name, content, created_at FROM comments WHERE id = ?",
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
+      "u.avatar_url AS avatar_url, u.profile_url AS profile_url " +
+      "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(id).first();
   return json({ comment: row ? commentRow(row) : null }, 201, origin);
 }
@@ -638,9 +707,19 @@ export default {
     try {
       let operation;
       if (request.method === "GET" && isAuthStartPath) {
-        operation = () => handleAuthStart(request, url, env);
+        operation = async () => {
+          if (!(await enforceRateLimit(env.AUTH_RATE_LIMITER, `ip:${clientKey(request)}`))) {
+            return json({ error: "rate_limited" }, 429, "", { "Retry-After": "60" });
+          }
+          return handleAuthStart(request, url, env);
+        };
       } else if (request.method === "GET" && isAuthCallbackPath) {
-        operation = () => handleAuthCallback(request, url, env);
+        operation = async () => {
+          if (!(await enforceRateLimit(env.AUTH_RATE_LIMITER, `callback:${clientKey(request)}`))) {
+            return json({ error: "rate_limited" }, 429, "", { "Retry-After": "60" });
+          }
+          return handleAuthCallback(request, url, env);
+        };
       } else if (request.method === "GET" && isAuthMePath) {
         operation = () => handleAuthMe(request, env, origin);
       } else if (request.method === "POST" && isAuthLogoutPath) {
@@ -661,6 +740,7 @@ export default {
         operation = () => handleGet(request, url, env, origin);
       } else if (request.method === "POST" && (isViewsPath || isBatchPath)) {
         if (!authorizedView(request, env)) return json({ error: "unauthorized" }, 401, origin);
+        if (!requireJsonContentType(request)) return json({ error: "invalid_content_type" }, 415, origin);
         const body = normalizeBatchBody(await readBody(request), isViewsPath);
         if (!body) return json({ error: "invalid_body" }, 400, origin);
         operation = () => writeAndReadCounts(env, body.ids, body.increment).then((data) =>
@@ -670,6 +750,7 @@ export default {
         );
       } else if (request.method === "PUT" && isViewsPath) {
         if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+        if (!requireJsonContentType(request)) return json({ error: "invalid_content_type" }, 415, origin);
         const body = await readBody(request);
         const id = normalizeId(body && body.id, true);
         const views = normalizeViews(body && body.views);
@@ -677,6 +758,7 @@ export default {
         operation = () => handlePutBody(id, views, env, origin);
       } else if (request.method === "DELETE" && isViewsPath) {
         if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+        if (!requireJsonContentType(request)) return json({ error: "invalid_content_type" }, 415, origin);
         const body = await readBody(request);
         const id = normalizeId(body && body.id);
         if (!id) return json({ error: "invalid_id" }, 400, origin);
