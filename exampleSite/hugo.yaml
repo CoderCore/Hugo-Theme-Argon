@@ -117,8 +117,9 @@ params:
     homeLimit: 1
     homeTitle: "最近说说"
   comments:
-    enabled: false
-    # endpoint: "" # TODO: 自建 Worker/D1 评论 API 地址
+    enabled: true
+    allowGuests: false
+    endpoint: "http://127.0.0.1:8787/api/comments"
 
   # 背景
   pageBackgroundUrl: ""

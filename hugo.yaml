@@ -102,10 +102,12 @@ params:
     showOnHome: false
     homeLimit: 3
     homeTitle: "说说"
-  # 自建评论系统接口占位。认证、评论列表、发表和管理接口待后续定义。
+  # 自建评论系统。allowGuests=false 时，必须先用 GitHub 登录才能发表评论。
   comments:
     enabled: false
-    # endpoint: "" # TODO: 自建 Worker/D1 评论 API 地址
+    allowGuests: false
+    # endpoint: "" # Worker 的 /api/comments 地址；认证接口使用同一 Worker
+    # authEndpoint: "" # 可选，默认使用 endpoint 所在 Worker 的 /api/auth
   # Cloudflare Worker + D1 阅读量服务；endpoint 留空时不显示阅读量
   viewCounter:
     enabled: false

@@ -108,6 +108,17 @@ borderRadius: Border Radius
 themeColor: Theme Color
 backToTop: Back to top
 comment: Comment
+commentName: Name
+commentContent: Write a comment
+commentSubmit: Post comment
+cancelReply: Cancel reply
+commentPagination: Comment pages
+commentLogin: Sign in with GitHub
+commentLogout: Sign out
+commentLoggedIn: Signed in with GitHub
+commentLoginRequired: Sign in with GitHub before posting a comment
+commentGuestMode: Posting as a guest
+commentAuthFailed: Could not load GitHub login state. Please try again.
 menu: Menu
 share: Share
 donate: Donate

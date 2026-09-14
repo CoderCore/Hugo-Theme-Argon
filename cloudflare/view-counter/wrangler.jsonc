@@ -11,6 +11,7 @@
     }
   ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://fufu.blog,https://www.fufu.blog,https://jiang068.github.io,http://127.0.0.1:1313,http://localhost:1313"
+    "ALLOWED_ORIGINS": "https://fufu.blog,https://www.fufu.blog,https://jiang068.github.io,http://127.0.0.1:1313,http://localhost:1313,http://127.0.0.1:1315,http://localhost:1315",
+    "COMMENTS_ALLOW_GUESTS": "false"
   }
 }

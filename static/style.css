@@ -2453,6 +2453,12 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 .comment-item {
 	margin-bottom: 1px;
 	display: flex;
+	flex-wrap: wrap;
+}
+#comments .comment-item > .children {
+	flex: 0 0 100%;
+	width: 100%;
+	padding-inline-start: 55px;
 }
 .comment-item-left-wrapper {
 	display: block;
@@ -2505,6 +2511,34 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 .comment-item-text {
 	min-height: 24px;
 	margin-bottom: 1rem;
+}
+.argon-comments .comment-item-text {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+.argon-comments-authbar {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: -4px 0 18px;
+}
+.argon-comments-auth-status {
+	margin-right: auto;
+}
+.argon-comments-authbar [hidden],
+.argon-comments-form[hidden] {
+	display: none !important;
+}
+.comment-markdown-image {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+html.darkmode .argon-comments-authbar .btn-outline-primary {
+	color: var(--themecolor-light);
+	border-color: var(--themecolor-light);
 }
 .comment-name {
 	flex: 1;

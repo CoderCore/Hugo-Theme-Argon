@@ -114,9 +114,9 @@ params:
 
 `params.pageLayout` 控制页面外壳和左/右栏，`params.articleListWaterflow` 独立控制文章列表是否使用瀑布流。关闭 `articleListWaterflow` 即为单列文章列表；开启后可用 `params.articleListWaterflowColumns: 2` 或 `3` 明确指定桌面端列数，移动端仍自动保持单列。
 
-评论区域暂保留通用挂载点和生命周期占位，不加载任何第三方评论脚本。后续自建 Worker/D1 评论系统完成后，在 `layouts/partials/comments/comments.html` 和 `static/js/custom.js` 的占位处接入。
+评论区域使用 Argon 原有评论结构，接入自建 Worker/D1 评论 API，支持列表、回复、分页和安全 Markdown。登录仅支持 GitHub OAuth；`params.comments.allowGuests: false` 时，只有 GitHub 登录用户可以发表评论。主题通过会话接口保持全站登录态，并提供退出登录入口。
 
-单篇文章可以在 front matter 中使用 `comments: false` 关闭评论，或用 `comments: true` 显式开启；自建评论接口完成前，评论挂载点保持空白。
+单篇文章可以在 front matter 中使用 `comments: false` 关闭评论，或用 `comments: true` 显式开启。Worker 端还要同步设置 `COMMENTS_ALLOW_GUESTS`；前端开关只负责界面，最终评论权限由 Worker 强制执行。GitHub OAuth、D1 会话和部署变量说明见 [`cloudflare/view-counter/README.md`](./cloudflare/view-counter/README.md)。
 
 数学公式通过 `params.mathRender` 选择 `mathjax3`、`mathjax2` 或 `katex`；留空或设为 `none` 时关闭。公式渲染器仅在启用后且当前页面实际包含 `$...$`、`$$...$$`、`\(...\)` 或 `\[...\]` 公式时，才在浏览器端按需加载，跨页导航时也会复用已加载的资源。
 

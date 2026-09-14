@@ -108,6 +108,17 @@ borderRadius: 圆角
 themeColor: 主题色
 backToTop: 回到顶部
 comment: 评论
+commentName: 昵称
+commentContent: 写下你的评论
+commentSubmit: 发表评论
+cancelReply: 取消回复
+commentPagination: 评论分页
+commentLogin: 使用 GitHub 登录
+commentLogout: 退出登录
+commentLoggedIn: 已登录 GitHub
+commentLoginRequired: 请先使用 GitHub 登录后再发表评论
+commentGuestMode: 当前以访客身份发表评论
+commentAuthFailed: GitHub 登录状态获取失败，请稍后重试
 menu: 菜单
 share: 分享
 donate: 赞赏

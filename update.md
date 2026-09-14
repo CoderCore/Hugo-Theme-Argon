@@ -75,3 +75,47 @@
 - 审计主题源码，确认合并资源、headindex、短代码兼容包装和 Worker 均仍有用途；未删除可用源码文件，生成物和缓存继续由 `.gitignore` 排除。
 - 示例站点 Hugo 构建通过，JavaScript 语法检查和 `git diff --check` 通过。
 - 前端阶段标记完成；后续重点转向 Cloudflare Workers/D1 阅读量生产化与自建评论系统设计。
+
+## 2026-09-14：Worker/D1 匿名评论本地 MVP
+
+- 在现有阅读量 Worker 中增加 `/api/comments`：GET 分页读取，POST 匿名发布，支持 `parentId` 回复校验；复用原有 CORS、JSON 错误和 D1 初始化链路。
+- 在 D1 增加 `comments` 表及文章路径、时间和父评论索引；同步更新 `schema.sql`，不改变阅读量表和现有阅读量协议。
+- 新增 Argon 风格评论表单、纯文本评论列表、回复选择、分页按钮、加载/空状态/错误状态和 PJAX 页面生命周期初始化。
+- 示例站点临时启用匿名评论，指向 `http://127.0.0.1:8787/api/comments`；生产主题默认仍关闭评论，未接入 GitHub 登录或任何第三方评论服务。
+- 真实本地联调通过：Worker 8787 完成自动建表、空列表、匿名发布、匿名回复、分页、CORS；阅读量 POST 读写也保持通过；Hugo 1315 页面成功从 Worker 读取并渲染评论。
+- 联调数据已从本地 D1 清理，浏览器当前保留空评论页面供手动验收；本阶段不具备公网匿名评论所需的限流、审核、身份和反滥用能力。
+
+## 2026-09-14：恢复原 Argon 评论样式（本次，未提交）
+
+- 移除上一版新增的渐变标题、卡片、头像和悬浮增强样式，恢复主题原有的评论 CSS 规则。
+- 将评论区恢复为 Argon 原有的 `comments-area` 卡片、`comment-list`、`comment-item` 和独立 `post_comment` 卡片结构。
+- 回复改为原 Argon 的嵌套 `children` 列表，并保留父评论优先于回复的渲染顺序。
+- 在本地 D1 写入主评论、一级回复、二级回复、长文本、多行文本、特殊字符和第二组主评论示例，供浏览器验收；未提交或推送。
+- Hugo 构建、`node --check static/js/argon-comments.js` 和浏览器 DOM 结构验证通过；本地 Hugo 1315 与 Worker 8787 已重新启动。
+- 根据浏览器截图修复原 Argon flex 布局遗漏：为评论项启用换行，并让 `.children` 占满下一行，避免回复被挤到评论右侧形成伪多列。
+
+## 2026-09-14：评论正文换行与动态公式渲染（本次，未提交）
+
+- 确认普通 Unicode 符号无需额外解析即可显示；`<script>`、尖括号等 HTML 片段继续按纯文本输出，避免评论注入。
+- 修复评论正文换行被 HTML 空白折叠的问题，保留用户输入的多行文本。
+- 扩展主题数学内容检测，使动态加载的评论正文也能触发 MathJax/KaTeX；评论加载完成后重新执行公式排版。
+- 本地验证 `$...$`、`\(...\)`、`$$...$$`、多行文本和 Unicode 符号均正常；未接入完整 Markdown HTML 渲染，未放开不安全 HTML。
+
+## 2026-09-14：自建评论安全 Markdown 处理链（本次，未提交）
+
+- 评论正文改为由浏览器端安全 DOM 渲染器处理，支持常用 Markdown：标题、粗体、斜体、删除线、行内代码、链接、图片、无序/有序列表、引用、分隔线和 fenced code block。
+- 所有普通文本、代码和不可信 HTML 均通过 `textContent`/文本节点写入；`<script>`、事件属性和 `javascript:` 等内容不会执行，避免把评论区变成 XSS 注入入口。
+- 链接和图片仅允许 `http:`、`https:`、`mailto:` 协议；外链在新窗口打开并附加 `nofollow noopener noreferrer`。
+- Markdown 渲染完成后复用主题现有 MathJax/KaTeX 处理链，使动态评论中的 `$...$`、`\(...\)`、`$$...$$` 等公式继续排版。
+- 修复浏览器缓存导致的旧脚本问题，将评论脚本版本更新为 `comments-3`；本地页面已验证 Markdown 节点、公式、换行和 `<script>` 文本化均符合预期。
+- JavaScript 不作为评论 Markdown 功能开放项；后续如需代码高亮或扩展 CommonMark 语法，应继续保持“不执行用户代码”的安全边界。
+
+## 2026-09-14：GitHub OAuth 评论登录基础链路（本次，未提交）
+
+- 根据 GitHub 官方 OAuth Web Application Flow 接入授权码 + PKCE：`/api/auth/github/start` 创建短期 state/verifier，`/api/auth/github/callback` 校验 state 后由 Worker 服务端换取 token，并调用 GitHub `/user` 校验身份。
+- 不在浏览器暴露 Client Secret，不把 GitHub access token 写入 D1；D1 仅保存 GitHub 用户资料、哈希后的站点会话 token 和短期 OAuth state。
+- 新增 `/api/auth/me` 和 `/api/auth/logout`，主题评论区增加 GitHub 登录、当前登录状态、退出登录和登录后自动恢复原页面的 Argon 风格控件。
+- `COMMENTS_ALLOW_GUESTS=false` 时 Worker 强制拒绝未登录评论（`401 auth_required`），即使绕过前端也不能匿名发布；登录用户昵称由已验证的 GitHub 身份决定。
+- 评论请求统一携带会话 Cookie，CORS 增加 credentials；生产建议将 Worker 绑定到博客同站点的自定义域名，避免 `workers.dev` 跨站 Cookie 被浏览器拦截。
+- 更新 D1 schema、Wrangler 变量说明、主题配置、示例站点配置、README 和 TODO。未配置真实 GitHub Client ID/Secret，因此本地只验证未登录和未配置边界，没有伪造 OAuth 成功测试。
+- 本地验证：未登录 `GET /api/auth/me` 返回 `authenticated:false`，匿名评论 POST 返回 `401`，未配置 OAuth start 返回 `503 github_oauth_not_configured`；Hugo 页面、Worker 和静态构建均通过。

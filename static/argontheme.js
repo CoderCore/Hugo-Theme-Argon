@@ -637,11 +637,21 @@ var argonMathLoadPromise = null;
 function argonHasMathContent(root){
 	root = root && typeof(root.querySelectorAll) == 'function' ? root : document;
 	var content = root.matches && root.matches('article') ? root : root.querySelector('article #post_content, article');
-	if (!content) return false;
-	if (content.querySelector('.katex, .MathJax, mjx-container, [data-math]')) return true;
-	var textNodes = content.querySelectorAll('p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6');
-	for (var index = 0; index < textNodes.length; index += 1){
-		if (/(?:\$\$|\\\(|\\\[|\$[^$\r\n]+\$)/.test(textNodes[index].textContent || '')) return true;
+	var scopes = [];
+	if (content) scopes.push(content);
+	var commentTexts = root.querySelectorAll('.comment-item-text');
+	for (var commentIndex = 0; commentIndex < commentTexts.length; commentIndex += 1){
+		scopes.push(commentTexts[commentIndex]);
+	}
+	if (!scopes.length) return false;
+	for (var scopeIndex = 0; scopeIndex < scopes.length; scopeIndex += 1){
+		var scope = scopes[scopeIndex];
+		if (scope.querySelector('.katex, .MathJax, mjx-container, [data-math]')) return true;
+		var textNodes = scope.querySelectorAll('p, li, td, th, blockquote, h1, h2, h3, h4, h5, h6');
+		if (!textNodes.length) textNodes = [scope];
+		for (var index = 0; index < textNodes.length; index += 1){
+			if (/(?:\$\$|\\\(|\\\[|\$[^$\r\n]+\$)/.test(textNodes[index].textContent || '')) return true;
+		}
 	}
 	return false;
 }
