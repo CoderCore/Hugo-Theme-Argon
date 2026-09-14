@@ -20,7 +20,7 @@ articleCount: "%d 篇文章"
 monthHeading: "%s 月"
 publishedEdited: "发布于 %s | 编辑于 %s"
 viewCount: 阅读次数
-commentCount: "%d 条评论"
+commentCount: "%d"
 wordCount: "%d 字"
 allTags: 所有标签
 allCategories: 所有分类

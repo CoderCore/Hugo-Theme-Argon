@@ -26,7 +26,9 @@
             commentLoginRequired: '请先使用 GitHub 登录后再发表评论',
             commentGuestMode: '当前以访客身份发表评论',
             commentAuthFailed: 'GitHub 登录状态获取失败，请稍后重试',
-            commentCount: '%s 条评论',
+            commentCount: '%s',
+            commentLoginToVoteTitle: '需要登录',
+            commentLoginToVote: '请先使用 GitHub 登录后再点赞',
             commentEdit: '编辑',
             commentDelete: '删除',
             commentConfirmDelete: '确认删除',
@@ -56,7 +58,9 @@
             commentLoginRequired: 'Sign in with GitHub before posting a comment',
             commentGuestMode: 'Posting as a guest',
             commentAuthFailed: 'Could not load GitHub login state. Please try again.',
-            commentCount: '%s comments',
+            commentCount: '%s',
+            commentLoginToVoteTitle: 'Sign in required',
+            commentLoginToVote: 'Sign in with GitHub before upvoting',
             commentEdit: 'Edit',
             commentDelete: 'Delete',
             commentConfirmDelete: 'Confirm',
@@ -79,6 +83,23 @@
         if (!status) return;
         status.textContent = text || '';
         status.classList.toggle('text-danger', !!isError);
+    }
+
+    function showLoginRequiredToast(text) {
+        if (typeof window.iziToast === 'undefined') return;
+        window.iziToast.show({
+            title: message('commentLoginToVoteTitle'),
+            message: text,
+            class: 'shadow',
+            position: 'topRight',
+            backgroundColor: '#f5365c',
+            titleColor: '#ffffff',
+            messageColor: '#ffffff',
+            iconColor: '#ffffff',
+            progressBarColor: '#ffffff',
+            icon: 'fa fa-lock',
+            timeout: 5000
+        });
     }
 
     function clearReply(state) {
@@ -419,31 +440,34 @@
             }
             leftWrapper.appendChild(avatarContainer);
             var canUpvote = !!state.user || state.allowGuests;
-            if (canUpvote) {
-                var upvote = document.createElement('button');
-                upvote.type = 'button';
-                upvote.className = 'comment-upvote btn btn-icon btn-outline-primary btn-sm';
-                upvote.dataset.id = comment.id;
-                upvote.setAttribute('aria-label', 'Upvote');
-                upvote.setAttribute('aria-pressed', comment.upvoted ? 'true' : 'false');
-                if (comment.upvoted) {
-                    upvote.classList.add('upvoted');
+            var upvote = document.createElement('button');
+            upvote.type = 'button';
+            upvote.className = 'comment-upvote btn btn-icon btn-outline-primary btn-sm';
+            upvote.dataset.id = comment.id;
+            upvote.setAttribute('aria-label', 'Upvote');
+            upvote.setAttribute('aria-pressed', comment.upvoted ? 'true' : 'false');
+            if (comment.upvoted) {
+                upvote.classList.add('upvoted');
+            }
+            var upvoteIcon = document.createElement('span');
+            upvoteIcon.className = 'btn-inner--icon';
+            var caret = document.createElement('i');
+            caret.className = 'fa fa-caret-up';
+            caret.setAttribute('aria-hidden', 'true');
+            upvoteIcon.appendChild(caret);
+            var upvoteText = document.createElement('span');
+            upvoteText.className = 'btn-inner--text';
+            var upvoteNumber = document.createElement('span');
+            upvoteNumber.className = 'comment-upvote-num';
+            upvoteNumber.textContent = String(Number(comment.upvotes) || 0);
+            upvoteText.appendChild(upvoteNumber);
+            upvote.appendChild(upvoteIcon);
+            upvote.appendChild(upvoteText);
+            upvote.addEventListener('click', function() {
+                if (!canUpvote) {
+                    showLoginRequiredToast(message('commentLoginToVote'));
+                    return;
                 }
-                var upvoteIcon = document.createElement('span');
-                upvoteIcon.className = 'btn-inner--icon';
-                var caret = document.createElement('i');
-                caret.className = 'fa fa-caret-up';
-                caret.setAttribute('aria-hidden', 'true');
-                upvoteIcon.appendChild(caret);
-                var upvoteText = document.createElement('span');
-                upvoteText.className = 'btn-inner--text';
-                var upvoteNumber = document.createElement('span');
-                upvoteNumber.className = 'comment-upvote-num';
-                upvoteNumber.textContent = String(Number(comment.upvotes) || 0);
-                upvoteText.appendChild(upvoteNumber);
-                upvote.appendChild(upvoteIcon);
-                upvote.appendChild(upvoteText);
-                upvote.addEventListener('click', function() {
                 if (upvote.classList.contains('comment-upvoting')) return;
                 upvote.classList.add('comment-upvoting');
                 fetch(commentVoteUrl(state.endpoint, comment.id), {
@@ -463,9 +487,8 @@
                     setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentVoteFailed'), true);
                     console.error('Argon comment upvote failed', error);
                 });
-                });
-                leftWrapper.appendChild(upvote);
-            }
+            });
+            leftWrapper.appendChild(upvote);
         }
 
         var inner = document.createElement('div');

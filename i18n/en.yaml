@@ -20,7 +20,7 @@ articleCount: "%d articles"
 monthHeading: "%s"
 publishedEdited: "Published %s | Edited %s"
 viewCount: Views
-commentCount: "%d comments"
+commentCount: "%d"
 wordCount: "%d words"
 allTags: All Tags
 allCategories: All Categories
