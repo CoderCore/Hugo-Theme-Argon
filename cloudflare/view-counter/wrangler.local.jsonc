@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "argon-view-counter-local",
+  "main": "worker.js",
+  "compatibility_date": "2026-07-02",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "argon-views",
+      "database_id": "c9681f5e-9811-419c-aeb9-68024d655753"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGINS": "http://127.0.0.1:1315,http://localhost:1315",
+    "COMMENTS_ALLOW_GUESTS": "false"
+  }
+}

@@ -199,9 +199,11 @@ npx wrangler deploy --keep-vars --domain blog-view-counter.example.com
 本地调试可在此目录执行：
 
 ```sh
-npx wrangler dev --local --port 8787
+npx wrangler dev --config ./wrangler.local.jsonc --local --port 8787
 npx wrangler d1 execute argon-views --local --file=./schema.sql
 ```
+
+`wrangler.local.jsonc` 只用于本地开发，允许 `http://127.0.0.1:1315` 和 `http://localhost:1315` 读取接口；生产部署必须继续使用 [`wrangler.jsonc`](./wrangler.jsonc)，不要把本地端口加入生产 `ALLOWED_ORIGINS`。
 
 同时启动主题示例站即可联调：
 

@@ -149,3 +149,9 @@
 - 本地 Wrangler 4.105 的旧 workerd 在当前配置启动阶段崩溃，未能完成本地 Worker 运行时测试；Worker `deploy --dry-run` 和生产边界测试通过。后续可升级 Wrangler 后补做本地限流绑定测试。
 - GitHub Client Secret 曾出现在对话中，未自动猜测新值或替换；待用户在 GitHub 生成新 Secret 后再更新 Worker Secret。
 - 为避免浏览器继续使用未携带 CSRF Token 的旧评论脚本，将脚本缓存版本从 `comments-4` 更新为 `comments-5`。
+
+## 2026-09-14：分离本地与生产 CORS 配置（本次，待提交）
+
+- 新增 `cloudflare/view-counter/wrangler.local.jsonc`，本地 Worker 只允许 `127.0.0.1:1315` 和 `localhost:1315`，解决本地评论接口 403/CORS 加载失败。
+- 生产 `wrangler.jsonc` 继续只保留 `https://fufu.blog`、`https://www.fufu.blog` 和 `https://jiang068.github.io`，不授权本地开发端口。
+- 更新 Worker 本地启动文档，明确使用 `--config ./wrangler.local.jsonc`，避免开发配置误部署到生产。
