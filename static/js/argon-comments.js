@@ -695,7 +695,8 @@
                 state.page = page;
                 setStatus(section, message('loading'), false);
                 return fetch(requestUrl(endpoint, postPath, page), {
-                    headers: {Accept: 'application/json'}
+                    headers: {Accept: 'application/json'},
+                    credentials: 'include'
                 }).then(parseResponse).then(function(data) {
                     if (serial !== state.requestSerial || !section.isConnected) return;
                     render(section, data, state);
