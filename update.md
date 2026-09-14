@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-09-14：后台主题模式和主题色同步
+
+- 为 `/admin/`、`/admin/views/`、`/admin/comments/` 和 `/admin/login/` 增加亮色/暗色模式切换按钮。
+- 后台复用博客的 `Argon_Enable_Dark_Mode` 和 `argon_custom_theme_color` 状态，并读取博客首页的自动模式配置与主题色。
+- 后台页面的面板、表格、表单、状态提示和导航均补齐暗色配色；更新资源版本号避免浏览器继续使用旧缓存。
+
 ## 2026-09-14：后台仅使用 GitHub 管理员身份
 
 - 删除 `VIEW_COUNTER_ADMIN_KEY`、管理员密钥登录接口及其前端表单、CORS 头和部署文档。

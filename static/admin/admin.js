@@ -12,6 +12,47 @@
     function setStatus(text, type) { var el = byId('connection-status'); if (!el) return; el.textContent = text; el.className = 'status status-' + (type || 'pending'); }
     function setMessage(id, text, type) { var el = byId(id); if (!el) return; el.textContent = text || ''; el.className = 'message' + (type ? ' ' + type : ''); }
 
+    function validColor(value) { return typeof value === 'string' && value.trim() && (!window.CSS || !window.CSS.supports || window.CSS.supports('color', value.trim())); }
+    function applyThemeColor(value) {
+        if (!validColor(value)) return;
+        var color = value.trim(); document.documentElement.style.setProperty('--settings-primary', color);
+        var meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute('content', color);
+    }
+    function updateThemeToggle() {
+        var button = byId('admin-theme-toggle'); if (!button) return;
+        var dark = document.documentElement.classList.contains('darkmode'); button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+        button.setAttribute('aria-label', dark ? '切换亮色模式' : '切换暗色模式');
+        var label = button.querySelector('.admin-theme-toggle-label'); if (label) label.textContent = dark ? '亮色模式' : '暗色模式';
+        var icon = button.querySelector('.admin-theme-toggle-icon'); if (icon) icon.textContent = dark ? '☀' : '☾';
+    }
+    function setAdminDarkmode(enable, persist) {
+        document.documentElement.classList.toggle('darkmode', enable === true);
+        if (persist) sessionStorage.setItem('Argon_Enable_Dark_Mode', enable ? 'true' : 'false');
+        updateThemeToggle();
+    }
+    function configuredDarkmode(mode) {
+        if (mode === 'alwayson') return true;
+        if (mode === 'system') return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (mode === 'time') { var hour = new Date().getHours(); return hour < 7 || hour >= 22; }
+        return false;
+    }
+    function syncThemeFromHome(homeDocument) {
+        var storedColor = ''; try { storedColor = localStorage.getItem('argon_custom_theme_color') || ''; } catch (error) {}
+        var metaColor = homeDocument && homeDocument.querySelector('meta[name="theme-color"]'); applyThemeColor(validColor(storedColor) ? storedColor : (metaColor && metaColor.getAttribute('content')));
+        var storedMode = sessionStorage.getItem('Argon_Enable_Dark_Mode');
+        if (storedMode !== 'true' && storedMode !== 'false') {
+            var autoMeta = homeDocument && homeDocument.querySelector('meta[name="argon-darkmode-autoswitch"]');
+            setAdminDarkmode(configuredDarkmode(autoMeta && autoMeta.getAttribute('content')), false);
+        }
+    }
+    function bootstrapTheme() {
+        var storedMode = sessionStorage.getItem('Argon_Enable_Dark_Mode');
+        if (storedMode === 'true' || storedMode === 'false') setAdminDarkmode(storedMode === 'true', false);
+        try { applyThemeColor(localStorage.getItem('argon_custom_theme_color') || ''); } catch (error) {}
+        updateThemeToggle();
+        var button = byId('admin-theme-toggle'); if (button) button.addEventListener('click', function () { setAdminDarkmode(!document.documentElement.classList.contains('darkmode'), true); });
+    }
+
     function renderAdminNav() {
         var nav = byId('admin-nav'); if (!nav) return;
         var page = document.body.getAttribute('data-admin-page') || 'home';
@@ -38,6 +79,7 @@
         var response = await fetch(new URL('/', window.location.href).href, {cache: 'no-store'});
         if (!response.ok) throw new Error('站点首页返回 ' + response.status);
         var parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+        syncThemeFromHome(parsed);
         var meta = parsed.querySelector('meta[name="argon-view-counter-endpoint-b64"]');
         var endpoint = new URL(decodeBase64(meta && meta.getAttribute('content')), window.location.href);
         endpoint.pathname = endpoint.pathname.replace(/\/+$/, ''); endpoint.search = ''; endpoint.hash = '';
@@ -167,5 +209,6 @@
         bootstrapProtected();
     }
 
+    bootstrapTheme();
     if (document.body.getAttribute('data-admin-page') === 'login') bootstrapLogin(); else bootstrapAdmin();
 }());
