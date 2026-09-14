@@ -29,8 +29,9 @@
             <p class="help">密钥只用于登录验证，不会写入网页、Hugo 配置或浏览器存储。登录后由 Worker 使用 HttpOnly 会话 Cookie 保持登录态。</p>
             <button id="admin-login-button" class="button button-primary button-wide" type="submit">登录</button>
         </form>
-        <div class="admin-login-divider"><span>后续登录方式</span></div>
-        <button class="button button-github button-wide" type="button" disabled aria-disabled="true">GitHub 登录（即将支持）</button>
+        <div class="admin-login-divider"><span>或使用 GitHub</span></div>
+        <button id="github-admin-login-button" class="button button-github button-wide" type="button">使用 GitHub 登录</button>
+        <p class="help">只有 Worker 中配置的唯一 GitHub 管理员账号可以进入后台；其他 GitHub 账号会被拒绝。</p>
         <p class="message" id="login-message" role="status" aria-live="polite"></p>
         <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
         <dl class="endpoint-details">
@@ -39,6 +40,6 @@
         </dl>
     </section>
 </main>
-<script src="/admin/admin.js?v=admin-2" defer></script>
+<script src="/admin/admin.js?v=admin-3" defer></script>
 </body>
 </html>

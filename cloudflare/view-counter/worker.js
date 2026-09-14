@@ -6,6 +6,7 @@ const AUTH_START_PATH = "/api/auth/github/start";
 const AUTH_CALLBACK_PATH = "/api/auth/github/callback";
 const AUTH_ME_PATH = "/api/auth/me";
 const AUTH_LOGOUT_PATH = "/api/auth/logout";
+const ADMIN_AUTH_START_PATH = "/api/admin/auth/github/start";
 const ADMIN_STATUS_PATH = "/api/admin/status";
 const ADMIN_VIEWS_PATH = "/api/admin/views";
 const ADMIN_COMMENTS_PATH = "/api/admin/comments";
@@ -18,6 +19,7 @@ const ADMIN_SESSION_COOKIE = "argon_admin_session";
 const ADMIN_CSRF_COOKIE = "argon_admin_csrf";
 const ADMIN_CSRF_HEADER = "X-Admin-CSRF-Token";
 const OAUTH_STATE_COOKIE = "argon_oauth_state";
+const ADMIN_OAUTH_STATE_COOKIE = "argon_admin_oauth_state";
 const VOTE_COOKIE = "argon_vote_id";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
@@ -56,7 +58,7 @@ const SCHEMA_SQL = [
   "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at);",
   "CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
   "CREATE INDEX IF NOT EXISTS idx_admin_sessions_expires ON admin_sessions(expires_at);",
-  "CREATE TABLE IF NOT EXISTS oauth_states (state_hash TEXT PRIMARY KEY, code_verifier TEXT NOT NULL, return_to TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
+  "CREATE TABLE IF NOT EXISTS oauth_states (state_hash TEXT PRIMARY KEY, code_verifier TEXT NOT NULL, return_to TEXT NOT NULL, purpose TEXT NOT NULL DEFAULT 'user', expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
   "CREATE INDEX IF NOT EXISTS idx_oauth_states_expires ON oauth_states(expires_at);",
 ].join("\n");
 
@@ -83,6 +85,11 @@ async function ensureSchema(env) {
       ];
       for (const [name, statement] of migrations) {
         if (!columnNames.has(name)) await database.exec(statement);
+      }
+      const oauthColumns = await database.prepare("PRAGMA table_info(oauth_states)").all();
+      const oauthColumnNames = new Set((oauthColumns.results || []).map((column) => column.name));
+      if (!oauthColumnNames.has("purpose")) {
+        await database.exec("ALTER TABLE oauth_states ADD COLUMN purpose TEXT NOT NULL DEFAULT 'user';");
       }
       if (!columnNames.has("upvotes")) {
         await database.exec(
@@ -262,6 +269,14 @@ function githubRedirectUri(request, env) {
     new URL(AUTH_CALLBACK_PATH, request.url).href;
 }
 
+function githubOAuthCookie(purpose) {
+  return purpose === "admin" ? ADMIN_OAUTH_STATE_COOKIE : OAUTH_STATE_COOKIE;
+}
+
+function githubOAuthCookiePath(purpose) {
+  return purpose === "admin" ? "/api" : "/api/auth";
+}
+
 function allowedOrigins(env) {
   return String(env.ALLOWED_ORIGINS || "")
     .split(",")
@@ -282,9 +297,9 @@ function normalizeReturnTo(value, request, env) {
   }
 }
 
-function authResultUrl(returnTo, result) {
+function authResultUrl(returnTo, result, parameter) {
   const target = new URL(returnTo);
-  target.searchParams.set("argon_auth", result);
+  target.searchParams.set(parameter || "argon_auth", result);
   return target.href;
 }
 
@@ -361,9 +376,12 @@ async function handleAuthLogout(request, env, origin) {
   });
 }
 
-async function handleAuthStart(request, url, env) {
+async function handleAuthStart(request, url, env, purpose = "user") {
   if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
     return json({ error: "github_oauth_not_configured" }, 503, "");
+  }
+  if (purpose === "admin" && !String(env.GITHUB_ADMIN_ID || "").trim()) {
+    return json({ error: "github_admin_not_configured" }, 503, "");
   }
   const returnTo = normalizeReturnTo(url.searchParams.get("returnTo"), request, env);
   if (!returnTo) return json({ error: "invalid_return_to" }, 400, "");
@@ -374,8 +392,8 @@ async function handleAuthStart(request, url, env) {
   const now = Math.floor(Date.now() / 1000);
   await env.DB.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").bind(now).run();
   await env.DB.prepare(
-    "INSERT INTO oauth_states (state_hash, code_verifier, return_to, expires_at, created_at) VALUES (?, ?, ?, ?, ?)",
-  ).bind(await sha256(state), codeVerifier, returnTo, now + OAUTH_STATE_TTL_SECONDS, now).run();
+    "INSERT INTO oauth_states (state_hash, code_verifier, return_to, purpose, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+  ).bind(await sha256(state), codeVerifier, returnTo, purpose, now + OAUTH_STATE_TTL_SECONDS, now).run();
 
   const authorizeUrl = new URL("https://github.com/login/oauth/authorize");
   authorizeUrl.searchParams.set("client_id", String(env.GITHUB_CLIENT_ID));
@@ -385,7 +403,14 @@ async function handleAuthStart(request, url, env) {
   authorizeUrl.searchParams.set("code_challenge_method", "S256");
   authorizeUrl.searchParams.set("scope", "read:user");
   return redirect(authorizeUrl.href, {
-    "Set-Cookie": cookieHeader(OAUTH_STATE_COOKIE, state, OAUTH_STATE_TTL_SECONDS, request, "/api/auth", "Lax"),
+    "Set-Cookie": cookieHeader(
+      githubOAuthCookie(purpose),
+      state,
+      OAUTH_STATE_TTL_SECONDS,
+      request,
+      githubOAuthCookiePath(purpose),
+      "Lax",
+    ),
   });
 }
 
@@ -427,27 +452,38 @@ async function fetchGithubUser(accessToken) {
 
 async function handleAuthCallback(request, url, env) {
   const state = url.searchParams.get("state") || "";
-  const stateCookie = parseCookies(request)[OAUTH_STATE_COOKIE] || "";
+  const cookies = parseCookies(request);
   const stateHash = state ? await sha256(state) : "";
   const now = Math.floor(Date.now() / 1000);
   const record = stateHash ? await env.DB.prepare(
-    "SELECT state_hash, code_verifier, return_to FROM oauth_states WHERE state_hash = ? AND expires_at > ?",
+    "SELECT state_hash, code_verifier, return_to, purpose FROM oauth_states WHERE state_hash = ? AND expires_at > ?",
   ).bind(stateHash, now).first() : null;
-  const clearState = { "Set-Cookie": clearCookieHeader(OAUTH_STATE_COOKIE, request, "/api/auth") };
+  const purpose = record?.purpose === "admin" ? "admin" : "user";
+  const stateCookieName = githubOAuthCookie(purpose);
+  const stateCookie = cookies[stateCookieName] || "";
+  const clearState = {
+    "Set-Cookie": [
+      clearCookieHeader(OAUTH_STATE_COOKIE, request, "/api/auth"),
+      clearCookieHeader(ADMIN_OAUTH_STATE_COOKIE, request, "/api"),
+    ],
+  };
   if (!record || !stateCookie || !secretsMatch(state, stateCookie)) {
     return json({ error: "invalid_oauth_state" }, 400, "", clearState);
   }
   await env.DB.prepare("DELETE FROM oauth_states WHERE state_hash = ?").bind(stateHash).run();
   if (url.searchParams.get("error")) {
-    return redirect(authResultUrl(record.return_to, "cancelled"), clearState);
+    return redirect(authResultUrl(record.return_to, "cancelled", purpose === "admin" ? "argon_admin_auth" : "argon_auth"), clearState);
   }
   const code = url.searchParams.get("code");
-  if (!code) return redirect(authResultUrl(record.return_to, "error"), clearState);
+  if (!code) return redirect(authResultUrl(record.return_to, "error", purpose === "admin" ? "argon_admin_auth" : "argon_auth"), clearState);
 
   try {
     const accessToken = await exchangeGithubCode(code, record.code_verifier, request, env);
     const githubUser = await fetchGithubUser(accessToken);
     const githubId = String(githubUser.id);
+    if (purpose === "admin" && githubId !== String(env.GITHUB_ADMIN_ID || "").trim()) {
+      return redirect(authResultUrl(record.return_to, "forbidden", "argon_admin_auth"), clearState);
+    }
     await env.DB.prepare(
       "INSERT INTO auth_users (github_id, login, display_name, avatar_url, profile_url, created_at, updated_at) " +
         "VALUES (?, ?, ?, ?, ?, ?, ?) " +
@@ -462,6 +498,16 @@ async function handleAuthCallback(request, url, env) {
       now,
       now,
     ).run();
+    if (purpose === "admin") {
+      const adminSession = await createAdminSession(env, now);
+      return redirect(authResultUrl(record.return_to, "success", "argon_admin_auth"), {
+        "Set-Cookie": [
+          ...clearState["Set-Cookie"],
+          adminSession.sessionCookie(request),
+          adminSession.csrfCookie(request),
+        ],
+      });
+    }
     const sessionToken = randomToken(32);
     await env.DB.prepare(
       "INSERT INTO auth_sessions (token_hash, github_id, expires_at, created_at) VALUES (?, ?, ?, ?)",
@@ -469,13 +515,13 @@ async function handleAuthCallback(request, url, env) {
     await env.DB.prepare("DELETE FROM auth_sessions WHERE expires_at <= ?").bind(now).run();
     return redirect(authResultUrl(record.return_to, "success"), {
       "Set-Cookie": [
-        clearState["Set-Cookie"],
+        ...clearState["Set-Cookie"],
         cookieHeader(SESSION_COOKIE, sessionToken, SESSION_TTL_SECONDS, request, "/", "None"),
       ],
     });
   } catch (error) {
     console.error("GitHub OAuth callback failed", error);
-    return redirect(authResultUrl(record.return_to, "error"), clearState);
+    return redirect(authResultUrl(record.return_to, "error", purpose === "admin" ? "argon_admin_auth" : "argon_auth"), clearState);
   }
 }
 
@@ -533,6 +579,26 @@ function adminPageResponse(rows, page, limit, key) {
   return { [key]: pageRows, page, limit, hasNext };
 }
 
+async function createAdminSession(env, now = Math.floor(Date.now() / 1000)) {
+  const token = randomToken(32);
+  const csrfToken = randomToken(32);
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO admin_sessions (token_hash, expires_at, created_at) VALUES (?, ?, ?)",
+    ).bind(await sha256(token), now + ADMIN_SESSION_TTL_SECONDS, now),
+    env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at <= ?").bind(now),
+  ]);
+  return {
+    csrfToken,
+    sessionCookie(request) {
+      return cookieHeader(ADMIN_SESSION_COOKIE, token, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax");
+    },
+    csrfCookie(request) {
+      return cookieHeader(ADMIN_CSRF_COOKIE, csrfToken, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax");
+    },
+  };
+}
+
 async function handleAdminLogin(request, env, origin) {
   if (!requireJsonContentType(request) || !validMutationContext(request)) {
     return json({ error: "csrf_failed" }, 403, origin);
@@ -543,19 +609,11 @@ async function handleAdminLogin(request, env, origin) {
     return json({ error: "unauthorized" }, 401, origin);
   }
 
-  const token = randomToken(32);
-  const csrfToken = randomToken(32);
-  const now = Math.floor(Date.now() / 1000);
-  await env.DB.batch([
-    env.DB.prepare(
-      "INSERT INTO admin_sessions (token_hash, expires_at, created_at) VALUES (?, ?, ?)",
-    ).bind(await sha256(token), now + ADMIN_SESSION_TTL_SECONDS, now),
-    env.DB.prepare("DELETE FROM admin_sessions WHERE expires_at <= ?").bind(now),
-  ]);
-  return json({ authenticated: true, csrfToken }, 200, origin, {
+  const adminSession = await createAdminSession(env);
+  return json({ authenticated: true, csrfToken: adminSession.csrfToken }, 200, origin, {
     "Set-Cookie": [
-      cookieHeader(ADMIN_SESSION_COOKIE, token, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax"),
-      cookieHeader(ADMIN_CSRF_COOKIE, csrfToken, ADMIN_SESSION_TTL_SECONDS, request, "/", "Lax"),
+      adminSession.sessionCookie(request),
+      adminSession.csrfCookie(request),
     ],
   });
 }
@@ -1140,13 +1198,14 @@ export default {
     const isAuthMePath = url.pathname === AUTH_ME_PATH || url.pathname === `${AUTH_ME_PATH}/`;
     const isAuthLogoutPath = url.pathname === AUTH_LOGOUT_PATH || url.pathname === `${AUTH_LOGOUT_PATH}/`;
     const isAuthPath = isAuthStartPath || isAuthCallbackPath || isAuthMePath || isAuthLogoutPath;
+    const isAdminAuthStartPath = url.pathname === ADMIN_AUTH_START_PATH || url.pathname === `${ADMIN_AUTH_START_PATH}/`;
     const isAdminLoginPath = url.pathname === ADMIN_LOGIN_PATH || url.pathname === `${ADMIN_LOGIN_PATH}/`;
     const isAdminMePath = url.pathname === ADMIN_ME_PATH || url.pathname === `${ADMIN_ME_PATH}/`;
     const isAdminLogoutPath = url.pathname === ADMIN_LOGOUT_PATH || url.pathname === `${ADMIN_LOGOUT_PATH}/`;
     const isAdminStatusPath = url.pathname === ADMIN_STATUS_PATH || url.pathname === `${ADMIN_STATUS_PATH}/`;
     const isAdminViewsPath = url.pathname === ADMIN_VIEWS_PATH || url.pathname === `${ADMIN_VIEWS_PATH}/`;
     const isAdminCommentsPath = url.pathname === ADMIN_COMMENTS_PATH || url.pathname === `${ADMIN_COMMENTS_PATH}/`;
-    const isAdminAuthPath = isAdminLoginPath || isAdminMePath || isAdminLogoutPath;
+    const isAdminAuthPath = isAdminAuthStartPath || isAdminLoginPath || isAdminMePath || isAdminLogoutPath;
     if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath && !isAdminAuthPath && !isAdminStatusPath && !isAdminViewsPath && !isAdminCommentsPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
@@ -1158,6 +1217,13 @@ export default {
             return json({ error: "rate_limited" }, 429, "", { "Retry-After": "60" });
           }
           return handleAuthStart(request, url, env);
+        };
+      } else if (request.method === "GET" && isAdminAuthStartPath) {
+        operation = async () => {
+          if (!(await enforceRateLimit(env.AUTH_RATE_LIMITER, `admin-oauth:${clientKey(request)}`))) {
+            return json({ error: "rate_limited" }, 429, "", { "Retry-After": "60" });
+          }
+          return handleAuthStart(request, url, env, "admin");
         };
       } else if (request.method === "GET" && isAuthCallbackPath) {
         operation = async () => {

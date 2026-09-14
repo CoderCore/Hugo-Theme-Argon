@@ -73,6 +73,7 @@ Cloudflare 控制台：**Workers & Pages → D1 → Create database**。
 | `GITHUB_CLIENT_ID` | Text | GitHub OAuth App Client ID |
 | `GITHUB_CLIENT_SECRET` | Secret | GitHub OAuth App Client Secret |
 | `GITHUB_REDIRECT_URI` | Text | GitHub OAuth App 中登记的精确回调地址 |
+| `GITHUB_ADMIN_ID` | Text | 唯一管理员的 GitHub 数字用户 ID，不是用户名 |
 
 生产示例：
 
@@ -117,13 +118,15 @@ GitHub：**头像菜单 → Settings → Developer settings → OAuth Apps → N
 - Client Secret 写入 Worker Secret `GITHUB_CLIENT_SECRET`。
 - 不要把 Client Secret 写入博客仓库。
 
-Worker 使用授权码 + PKCE：
+Worker 使用授权码 + PKCE。普通评论登录入口和后台管理员登录入口共用同一个 GitHub OAuth 回调地址，但 OAuth 状态会在 D1 中严格区分用途：
 
 1. `/api/auth/github/start` 创建短期 `state` 和 verifier。
 2. GitHub 授权后回到 callback。
 3. Worker 校验 `state`，服务端换取 GitHub token。
 4. Worker 读取 GitHub 用户资料，只保存用户资料和哈希后的站点会话。
 5. GitHub access token 不写入 D1，也不返回浏览器。
+
+管理员入口为 `/api/admin/auth/github/start`。回调拿到 GitHub 用户资料后，只有 `String(githubUser.id) === GITHUB_ADMIN_ID` 的账号会签发后台 HttpOnly 会话；GitHub 用户名不是授权依据，改名也不会影响管理员身份。未配置 `GITHUB_ADMIN_ID` 或账号不匹配时不会获得管理员会话。
 
 ## 配置 Hugo 主题
 
@@ -205,7 +208,7 @@ Content-Type: application/json
 - `PUT /api/views`：设置 `{ "id": "/a/", "views": 100 }`；
 - `DELETE /api/views`：删除文章计数。
 
-管理后台位于主题生成站点的 `/admin/`，包括 `/admin/views/` 阅读量管理和 `/admin/comments/` 评论管理。管理员从 `/admin/login/` 登录一次后，Worker 会签发短期 HttpOnly 会话 Cookie；后台页面之间切换不需要重复填写密钥，页面提供退出登录按钮。管理员密钥不会保存到浏览器存储。后台数据页不会一次加载全部记录，而是通过服务端分页接口读取，每页最多 50 条；页面会从站点的 `search.json` 补充文章标题，Worker 只负责返回路径和统计数据。
+管理后台位于主题生成站点的 `/admin/`，包括 `/admin/views/` 阅读量管理和 `/admin/comments/` 评论管理。后台使用公共左栏导航，新增模块只需增加一个页面文件并在 `static/admin/admin.js` 的 `adminModules` 中注册链接。管理员从 `/admin/login/` 登录一次后，Worker 会签发短期 HttpOnly 会话 Cookie；后台页面之间切换不需要重复填写密钥，页面提供退出登录按钮。管理员密钥不会保存到浏览器存储。除密钥登录外，登录页也支持 GitHub 管理员登录；只有 `GITHUB_ADMIN_ID` 对应账号可以进入后台。后台数据页不会一次加载全部记录，而是通过服务端分页接口读取，每页最多 50 条；页面会从站点的 `search.json` 补充文章标题，Worker 只负责返回路径和统计数据。
 
 ```http
 POST /api/admin/auth/login
@@ -219,6 +222,8 @@ Cookie: argon_admin_session=<会话 Cookie>
 POST /api/admin/auth/logout
 Cookie: argon_admin_session=<会话 Cookie>
 X-Admin-CSRF-Token: <登录后返回的 csrfToken>
+
+GET /api/admin/auth/github/start?returnTo=https%3A%2F%2Fexample.com%2Fadmin%2Flogin%2F
 
 GET /api/admin/status
 Cookie: argon_admin_session=<会话 Cookie>
@@ -278,6 +283,7 @@ X-CSRF-Token: <csrfToken>
 | 接口 | 作用 |
 | --- | --- |
 | `GET /api/auth/github/start?returnTo=...` | 开始 GitHub 登录 |
+| `GET /api/admin/auth/github/start?returnTo=...` | 开始后台 GitHub 管理员登录 |
 | `GET /api/auth/github/callback` | 校验 state、创建会话 |
 | `GET /api/auth/me` | 查询登录态并获得 CSRF Token |
 | `POST /api/auth/logout` | 携带 CSRF Token 退出登录 |
@@ -305,7 +311,17 @@ wrangler secret put GITHUB_CLIENT_SECRET
 wrangler deploy --keep-vars --domain comments.example.com
 ```
 
-`GITHUB_CLIENT_ID`、`GITHUB_REDIRECT_URI`、`ALLOWED_ORIGINS` 和 `COMMENTS_ALLOW_GUESTS` 可在配置文件或 Cloudflare Variables 中设置。部署时不要把本地配置文件作为生产配置。
+`GITHUB_CLIENT_ID`、`GITHUB_REDIRECT_URI`、`GITHUB_ADMIN_ID`、`ALLOWED_ORIGINS` 和 `COMMENTS_ALLOW_GUESTS` 可在配置文件或 Cloudflare Variables 中设置。部署时不要把本地配置文件作为生产配置。
+
+### 配置唯一 GitHub 管理员
+
+`GITHUB_ADMIN_ID` 应填写管理员 GitHub 账号的数字 ID，而不是容易改名的用户名。打开 `https://api.github.com/users/<你的GitHub用户名>`，读取返回 JSON 中的 `id`，再在 Cloudflare Worker 的 Variables 中新增：
+
+```text
+GITHUB_ADMIN_ID=12345678
+```
+
+保存变量后重新部署 Worker。之后 `/admin/login/` 的“使用 GitHub 登录”只会给这个数字 ID 签发管理员会话；其他 GitHub 账号即使登录成功，也只能作为普通评论用户，不能进入后台。若暂时不配置该变量，密钥登录仍可用，GitHub 管理员入口会提示未配置。
 
 ### 最小检查
 

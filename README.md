@@ -120,7 +120,7 @@ hugo --gc --minify --baseURL "https://example.com/"
 
 教程包含：D1 创建、Worker 绑定、生产变量、GitHub OAuth App、回调地址、CSRF、CORS、限流、评论编辑/删除、时间时区、本地开发、Hugo 配置和接口验证。
 
-启用后，站点管理入口为 `/admin/`：`/admin/views/` 用于分页查看和修正阅读量，`/admin/comments/` 用于分页筛选和管理评论。管理员先在 `/admin/login/` 登录，之后通过 Worker 会话 Cookie 保持登录态，可随时退出；密钥不会保存到浏览器存储。
+启用后，站点管理入口为 `/admin/`：后台左栏提供总览、`/admin/views/` 阅读量管理和 `/admin/comments/` 评论管理。管理员先在 `/admin/login/` 登录，之后通过 Worker 会话 Cookie 保持登录态，可随时退出；也可以使用配置的唯一 GitHub 管理员账号登录，密钥不会保存到浏览器存储。
 
 最小前端配置示例：
 

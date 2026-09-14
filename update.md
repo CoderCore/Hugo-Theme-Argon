@@ -72,3 +72,9 @@
 - 新增 `/admin/login/` 独立登录页；管理员密钥只提交给 Worker 一次，不再由各管理页面重复填写。
 - Worker 新增管理员会话表、登录/会话查询/退出接口，使用 HttpOnly 会话 Cookie 和管理员 CSRF Token；保留旧管理密钥请求兼容性。
 - 阅读量和评论管理页改为自动复用会话，并在页头提供退出登录；登录页预留 GitHub 登录入口。
+
+## 2026-09-14：后台侧栏与 GitHub 管理员登录
+
+- 后台页面统一改为左栏导航 + 内容区布局；导航由 `static/admin/admin.js` 的模块定义生成，新增管理页面只需增加页面文件和模块项。
+- `/admin/login/` 接入 GitHub OAuth 管理员登录，复用现有 PKCE 回调并在 D1 中区分 OAuth 用途；只有 Worker 变量 `GITHUB_ADMIN_ID` 对应的 GitHub 数字用户 ID 可以签发管理员会话。
+- 管理员 GitHub 登录继续使用现有 `/api/auth/github/callback` 回调地址，不需要为后台额外注册 OAuth 回调 URL；新增 `/api/admin/auth/github/start` 作为后台登录入口。
