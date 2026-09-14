@@ -106,6 +106,7 @@ params:
   comments:
     enabled: false
     allowGuests: false
+    timeZone: "UTC" # IANA 时区；Worker 时间统一按 UTC 保存，主题按此时区显示
     # endpoint: "" # Worker 的 /api/comments 地址；认证接口使用同一 Worker
     # authEndpoint: "" # 可选，默认使用 endpoint 所在 Worker 的 /api/auth
   # Cloudflare Worker + D1 阅读量服务；endpoint 留空时不显示阅读量

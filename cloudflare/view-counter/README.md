@@ -139,6 +139,7 @@ params:
   comments:
     enabled: true
     allowGuests: false
+    timeZone: "Asia/Shanghai"
     endpoint: "https://comments.example.com/api/comments"
     authEndpoint: "https://comments.example.com/api/auth"
 ```
@@ -147,8 +148,19 @@ params:
 
 - `comments.enabled` 控制主题是否显示评论区域。
 - `comments.allowGuests` 只控制前端界面；最终权限由 Worker 的 `COMMENTS_ALLOW_GUESTS` 强制执行。
+- `comments.timeZone` 使用 IANA 时区名称，例如 `Asia/Shanghai`、`Asia/Tokyo` 或 `UTC`；评论时间按该时区显示。
 - 文章可以用 front matter `comments: false` 关闭评论。
 - 阅读量 endpoint 必须指向 `/api/views`，评论 endpoint 必须指向 `/api/comments`。
+
+Worker/D1 不需要配置“UTC+8”。评论的创建时间和编辑时间统一由 SQLite 按 UTC 保存，主题端根据 `comments.timeZone` 转换显示。推荐博客主人显式配置 IANA 时区，而不是写固定的 `UTC+8`：IANA 名称能被浏览器正确识别，也能处理未来可能的夏令时规则。中国大陆博客通常配置为：
+
+```yaml
+params:
+  comments:
+    timeZone: "Asia/Shanghai"
+```
+
+编辑后的评论使用 `updatedAt` 作为显示时间，并附带“已编辑”标记；没有编辑过的评论显示 `createdAt`。这样数据库继续保存统一 UTC，换站点或换时区时无需迁移历史数据。
 
 ## 本地开发
 

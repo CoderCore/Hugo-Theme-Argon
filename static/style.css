@@ -2536,7 +2536,14 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 	margin-top: 10px;
 }
 .comment-operations .comment-delete {
-	color: var(--color-danger, #f5365c);
+	color: var(--color-danger, #f5365c) !important;
+}
+.comment-operations .comment-delete-confirm {
+	color: #fff !important;
+	font-size: 12px;
+}
+.comment-operations .comment-delete-cancel {
+	margin-left: 8px;
 }
 .comment-item-editing .comment-operations {
 	display: none;

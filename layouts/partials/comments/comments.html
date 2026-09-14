@@ -5,6 +5,14 @@
 {{- $enabled := false -}}
 {{- $allowGuests := false -}}
 {{- $authEndpoint := "" -}}
+{{- $timeZone := "UTC" -}}
+{{- with .Site.Params.comments -}}
+    {{- if reflect.IsMap . -}}
+        {{- with (index . "timeZone") -}}
+            {{- if eq (printf "%T" .) "string" -}}{{- $timeZone = . -}}{{- end -}}
+        {{- end -}}
+    {{- end -}}
+{{- end -}}
 {{- with .Site.Params.comments -}}
     {{- if reflect.IsMap . -}}
         {{- $enabled = eq (index . "enabled") true -}}
@@ -23,7 +31,7 @@
         {{- end -}}
     {{- end -}}
 {{- end -}}
-<div class="argon-comments" data-comments-endpoint="{{ $endpoint }}" data-comments-auth-endpoint="{{ $authEndpoint }}" data-comments-allow-guests="{{ $allowGuests }}" data-comments-post-path="{{ .RelPermalink }}">
+<div class="argon-comments" data-comments-endpoint="{{ $endpoint }}" data-comments-auth-endpoint="{{ $authEndpoint }}" data-comments-allow-guests="{{ $allowGuests }}" data-comments-time-zone="{{ $timeZone }}" data-comments-post-path="{{ .RelPermalink }}">
     <section id="comments" class="comments-area card shadow-sm" aria-label="{{ T "comments" }}">
         <div class="card-body">
             <h2 class="comments-title"><i class="fa fa-comments" aria-hidden="true"></i>{{ T "comments" }}</h2>

@@ -56,6 +56,7 @@ params:
   comments:
     enabled: false
     allowGuests: false
+    timeZone: "Asia/Shanghai" # IANA 时区；评论时间按此时区显示
     endpoint: ""
     authEndpoint: ""
 ```
@@ -114,7 +115,7 @@ hugo --gc --minify --baseURL "https://example.com/"
 
 **[`Cloudflare Worker + D1 后端配置教程`](./cloudflare/view-counter/README.md)**
 
-教程包含：D1 创建、Worker 绑定、生产变量、GitHub OAuth App、回调地址、CSRF、CORS、限流、本地开发、Hugo 配置和接口验证。
+教程包含：D1 创建、Worker 绑定、生产变量、GitHub OAuth App、回调地址、CSRF、CORS、限流、评论编辑/删除、时间时区、本地开发、Hugo 配置和接口验证。
 
 最小前端配置示例：
 

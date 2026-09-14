@@ -28,9 +28,10 @@
             commentAuthFailed: 'GitHub 登录状态获取失败，请稍后重试',
             commentEdit: '编辑',
             commentDelete: '删除',
+            commentConfirmDelete: '确认删除',
+            commentCancelDelete: '取消',
             commentSave: '保存',
             commentCancel: '取消',
-            commentDeleteConfirm: '确定删除这条评论吗？删除后评论内容不可恢复，但回复会保留。',
             commentEdited: '已编辑',
             commentDeleted: '评论已删除。',
             commentEditFailed: '评论编辑失败，请稍后重试。',
@@ -55,9 +56,10 @@
             commentAuthFailed: 'Could not load GitHub login state. Please try again.',
             commentEdit: 'Edit',
             commentDelete: 'Delete',
+            commentConfirmDelete: 'Confirm',
+            commentCancelDelete: 'Cancel',
             commentSave: 'Save',
             commentCancel: 'Cancel',
-            commentDeleteConfirm: 'Delete this comment? The content cannot be recovered, but replies will be preserved.',
             commentEdited: 'Edited',
             commentDeleted: 'Comment deleted.',
             commentEditFailed: 'Could not edit the comment. Please try again.',
@@ -109,13 +111,29 @@
         });
     }
 
-    function formatTime(value) {
-        var date = new Date(value);
+    function parseCommentDate(value) {
+        if (typeof value !== 'string') return new Date(value);
+        var normalized = value.trim();
+        if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(normalized)) {
+            normalized = normalized.replace(' ', 'T') + 'Z';
+        }
+        return new Date(normalized);
+    }
+
+    function formatTime(value, timeZone) {
+        var date = parseCommentDate(value);
         if (Number.isNaN(date.getTime())) return value || '';
-        return date.toLocaleString(isChinese() ? 'zh-CN' : 'en-US', {
+        var options = {
             year: 'numeric', month: '2-digit', day: '2-digit',
             hour: '2-digit', minute: '2-digit'
-        });
+        };
+        if (timeZone) options.timeZone = timeZone;
+        try {
+            return date.toLocaleString(isChinese() ? 'zh-CN' : 'en-US', options);
+        } catch (error) {
+            delete options.timeZone;
+            return date.toLocaleString(isChinese() ? 'zh-CN' : 'en-US', options);
+        }
     }
 
     function commentDepth(comment, byId) {
@@ -363,8 +381,9 @@
         info.className = 'comment-info text-muted';
         var time = document.createElement('time');
         time.className = 'comment-time';
-        time.dateTime = comment.createdAt || '';
-        time.textContent = formatTime(comment.createdAt);
+        var displayTime = comment.updatedAt || comment.createdAt;
+        time.dateTime = displayTime || '';
+        time.textContent = formatTime(displayTime, state.timeZone);
         info.appendChild(time);
         if (comment.updatedAt) {
             var edited = document.createElement('span');
@@ -485,9 +504,26 @@
     }
 
     function deleteComment(comment, item, state) {
-        if (!window.confirm(message('commentDeleteConfirm'))) return;
         var button = item.querySelector('.comment-delete');
-        if (button) button.disabled = true;
+        if (!button) return;
+        if (button.dataset.confirming !== 'true') {
+            button.dataset.confirming = 'true';
+            button.className = 'btn btn-danger btn-sm py-0 px-2 comment-delete comment-delete-confirm';
+            button.textContent = message('commentConfirmDelete');
+            var cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'btn btn-link btn-sm p-0 comment-delete-cancel';
+            cancel.textContent = message('commentCancelDelete');
+            cancel.addEventListener('click', function() {
+                button.dataset.confirming = 'false';
+                button.className = 'btn btn-link btn-sm p-0 comment-delete';
+                button.textContent = message('commentDelete');
+                cancel.remove();
+            });
+            button.parentNode.appendChild(cancel);
+            return;
+        }
+        button.disabled = true;
         fetch(commentItemUrl(state.endpoint, comment.id), {
             method: 'DELETE',
             headers: {
@@ -639,6 +675,7 @@
                 allowGuests: section.getAttribute('data-comments-allow-guests') === 'true',
                 user: null,
                 csrfToken: '',
+                timeZone: (section.getAttribute('data-comments-time-zone') || 'UTC').trim(),
                 authStatus: section.querySelector('[data-comments-auth-status]'),
                 login: section.querySelector('[data-comments-login]'),
                 logout: section.querySelector('[data-comments-logout]'),
