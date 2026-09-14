@@ -76,6 +76,22 @@
         status.classList.toggle('text-danger', !!isError);
     }
 
+    function clearReply(state) {
+        if (!state) return;
+        if (state.form && state.form.elements.parentId) state.form.elements.parentId.value = '';
+        if (state.replyText) state.replyText.textContent = '';
+        if (state.replyPreview) state.replyPreview.textContent = '';
+        if (state.replyNotice) state.replyNotice.hidden = true;
+    }
+
+    function updateCommentActions(state) {
+        var loggedIn = !!(state && state.user);
+        var operations = state && state.section ? state.section.querySelectorAll('.comment-operations') : [];
+        Array.prototype.forEach.call(operations, function(container) {
+            container.hidden = !loggedIn;
+        });
+    }
+
     function requestUrl(endpoint, postPath, page) {
         var separator = endpoint.indexOf('?') === -1 ? '?' : '&';
         return endpoint + separator + 'post=' + encodeURIComponent(postPath) +
@@ -412,12 +428,15 @@
 
         var operations = document.createElement('div');
         operations.className = 'comment-operations';
-        var reply = document.createElement('button');
-        reply.type = 'button';
-        reply.className = 'btn btn-link btn-sm p-0';
-        reply.textContent = message('reply');
-        reply.addEventListener('click', function() { onReply(comment); });
-        if (!comment.deleted) operations.appendChild(reply);
+        operations.hidden = !state.user;
+        if (state.user && !comment.deleted) {
+            var reply = document.createElement('button');
+            reply.type = 'button';
+            reply.className = 'btn btn-link btn-sm p-0';
+            reply.textContent = message('reply');
+            reply.addEventListener('click', function() { onReply(comment); });
+            operations.appendChild(reply);
+        }
 
         if (!comment.deleted && comment.canEdit && state.user) {
             var edit = document.createElement('button');
@@ -628,6 +647,8 @@
         if (state.login) state.login.hidden = loggedIn;
         if (state.logout) state.logout.hidden = !loggedIn;
         if (state.form) state.form.hidden = !state.allowGuests && !loggedIn;
+        if (!loggedIn) clearReply(state);
+        updateCommentActions(state);
         if (loggedIn) {
             setAuthStatus(state, message('commentLoggedIn', state.user.login), false);
         } else if (state.allowGuests) {
@@ -717,10 +738,7 @@
                 });
             });
             state.cancelReply.addEventListener('click', function() {
-                form.elements.parentId.value = '';
-                state.replyText.textContent = '';
-                state.replyPreview.textContent = '';
-                state.replyNotice.hidden = true;
+                clearReply(state);
             });
 
             function load(page) {
