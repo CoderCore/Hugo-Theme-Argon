@@ -1,93 +1,183 @@
 # Argon 阅读量与评论 Worker
 
-这是一个只提供 JSON API 的 Cloudflare Worker + D1 后端，负责文章阅读量统计和自建评论系统。Worker 不提供 HTML 页面，也不保存主题配置；主题和网站配置统一以仓库中的 `hugo.yaml` 为准，`/settings/` 前端页面只负责阅读量管理。
+这是一个独立的 Cloudflare Worker + D1 后端，为 Argon Hugo 主题提供：
 
-最新版 Worker 会在第一次收到带有效密钥的 API 请求时自动初始化 D1，不需要预先执行 SQL 或安装 Wrangler。
+- 文章阅读量和站点总阅读量；
+- 评论列表、回复、分页和安全 Markdown；
+- GitHub OAuth 登录、全站会话和退出登录；
+- CSRF、Origin/Fetch Metadata、JSON Content-Type 和 Cloudflare Rate Limiting。
 
-## 推荐方式：直接在 Cloudflare 控制台部署
+Worker 只返回 JSON，不提供 HTML 页面。主题配置仍保存在博客自己的 `hugo.yaml` 中。
 
-下面的流程适合不熟悉命令行的用户。只需要把 [`worker.js`](./worker.js) 的全部内容复制到 Cloudflare 的 Worker 编辑器中。
+## 目录
 
-### 1. 创建 D1 数据库
+1. [部署前准备](#部署前准备)
+2. [创建 D1 和 Worker](#创建-d1-和-worker)
+3. [配置变量和密钥](#配置变量和密钥)
+4. [配置 GitHub 登录](#配置-github-登录)
+5. [配置 Hugo 主题](#配置-hugo-主题)
+6. [本地开发](#本地开发)
+7. [接口和安全规则](#接口和安全规则)
+8. [部署验证](#部署验证)
 
-在 Cloudflare 控制台打开 **Workers & Pages → D1**，创建一个数据库，例如命名为 `argon-views`。数据库名称可以自定义；后面绑定时选择这个数据库即可。
+## 部署前准备
 
-不需要在这一步执行 `schema.sql`。首次正确的阅读量 API 请求会自动创建 `view_counts` 表、索引和网站总量记录，不会删除已有文章阅读量。
+需要：
 
-### 2. 创建 Worker 并粘贴代码
+- Cloudflare 账号；
+- 一个 D1 数据库；
+- 一个 Worker；
+- 博客的正式 Origin，例如 `https://example.com`；
+- 需要登录评论时，一个 GitHub OAuth App。
 
-打开 **Workers & Pages → Create → Worker**，或者打开已有的 Worker，进入 **Edit code**：
+推荐给 Worker 绑定自定义域名，例如 `comments.example.com`，然后让主题的阅读量和评论 endpoint 都使用这个域名。这样比直接使用 `workers.dev` 更适合 Cookie 会话。
 
-1. 删除编辑器中的示例代码。
-2. 复制本目录 [`worker.js`](./worker.js) 的全部内容并粘贴。
-3. 点击 **Save and deploy**。
+## 创建 D1 和 Worker
 
-Worker 根地址故意不提供页面，访问根地址返回 JSON `404` 是正常现象。
+### 1. 创建 D1
+
+Cloudflare 控制台：**Workers & Pages → D1 → Create database**。
+
+数据库名称可以自定义，例如 `argon-views`。首次收到有效 API 请求时，Worker 会自动创建表和索引；也可以显式执行 [`schema.sql`](./schema.sql)。
+
+### 2. 创建 Worker
+
+1. 打开 **Workers & Pages → Create → Worker**。
+2. 进入 **Edit code**，删除示例代码。
+3. 粘贴 [`worker.js`](./worker.js) 的全部内容。
+4. 点击 **Save and deploy**。
+
+根地址返回 JSON `404` 是正常现象，因为 Worker 不提供页面。
 
 ### 3. 绑定 D1
 
-在这个 Worker 的 **Settings → Bindings** 中添加 **D1 database binding**：
+在 Worker 的 **Settings → Bindings → D1 database bindings** 添加：
 
-- **Variable name**：`DB`
-- **D1 database**：选择刚才创建的数据库
+| 字段 | 值 |
+| --- | --- |
+| Variable name | `DB` |
+| D1 database | 选择刚创建的数据库 |
 
-保存绑定后，如控制台提示需要重新部署，请再次点击部署。变量名必须是大写的 `DB`，因为代码通过 `env.DB` 访问数据库。
+变量名必须是大写 `DB`，代码通过 `env.DB` 访问数据库。
 
-### 4. 配置变量和密钥
+## 配置变量和密钥
 
-在 **Settings → Variables and Secrets** 中添加以下项目。Origin 只填写协议、域名和端口，不要填写路径，也不要在末尾加 `/`。
+在 **Settings → Variables and Secrets** 中配置：
 
-| 名称 | 类型 | 值 |
+| 名称 | 类型 | 说明 |
 | --- | --- | --- |
-| `ALLOWED_ORIGINS` | Text | 站点 Origin，多个值用英文逗号分隔，例如 `https://fufu.blog,https://www.fufu.blog` |
-| `VIEW_COUNTER_KEY` | Secret | 与站点 `hugo.yaml` 中 `params.viewCounter.key` 完全相同的随机值 |
-| `VIEW_COUNTER_ADMIN_KEY` | Secret | 另一个不同的随机值，只给管理员编辑阅读量使用 |
-| `COMMENTS_ALLOW_GUESTS` | Text | `true` 允许未登录访客评论；`false` 时评论发表必须 GitHub 登录，生产建议 `false` |
-| `GITHUB_CLIENT_ID` | Text | GitHub OAuth App 的 Client ID |
-| `GITHUB_CLIENT_SECRET` | Secret | GitHub OAuth App 的 Client Secret |
-| `GITHUB_REDIRECT_URI` | Text | OAuth App 中登记的精确回调地址，例如 `https://comments.example.com/api/auth/github/callback` |
+| `ALLOWED_ORIGINS` | Text | 允许访问 API 的完整 Origin，逗号分隔；不要写路径或末尾 `/` |
+| `COMMENTS_ALLOW_GUESTS` | Text | `false` 时必须 GitHub 登录后才能发表评论 |
+| `VIEW_COUNTER_KEY` | Secret | 主题公开阅读量请求使用的共享密钥 |
+| `VIEW_COUNTER_ADMIN_KEY` | Secret | `/settings/` 管理阅读量使用的密钥 |
+| `GITHUB_CLIENT_ID` | Text | GitHub OAuth App Client ID |
+| `GITHUB_CLIENT_SECRET` | Secret | GitHub OAuth App Client Secret |
+| `GITHUB_REDIRECT_URI` | Text | GitHub OAuth App 中登记的精确回调地址 |
 
-`VIEW_COUNTER_KEY` 会随浏览器请求发送，所以它不是严格意义上的后端秘密；请把 `ALLOWED_ORIGINS` 设置为自己的站点，不要使用 `*`。`VIEW_COUNTER_ADMIN_KEY` 不能写入 `hugo.yaml`、网页代码或 Git 仓库。
+生产示例：
 
-如果 D1 没绑定、密钥没设置或密钥不匹配，Worker 不会初始化数据库。
+```text
+ALLOWED_ORIGINS=https://example.com,https://www.example.com
+COMMENTS_ALLOW_GUESTS=false
+GITHUB_REDIRECT_URI=https://comments.example.com/api/auth/github/callback
+```
 
-### 5. 配置 GitHub 登录
+安全规则：
 
-在 GitHub 的 **Settings → Developer settings → OAuth Apps** 创建 OAuth App：
+- 不要在 `hugo.yaml`、浏览器代码、Worker 源码或 Git 中保存 Secret。
+- `VIEW_COUNTER_KEY` 会发送到浏览器，因此它不是严格意义上的后端秘密；真正的管理员密钥必须使用 Secret。
+- 不要使用 `ALLOWED_ORIGINS=*`。
+- 生产不要加入 `localhost` 或 `127.0.0.1`。
+- 曾经暴露过的 GitHub Client Secret 应立即轮换。
 
-- **Authorization callback URL** 填写与 `GITHUB_REDIRECT_URI` 完全一致的地址。
-- 不要把 Client Secret 写入主题仓库、Hugo 配置或浏览器代码。
-- Worker 使用授权码 + PKCE 流程，回调后在服务端换取 GitHub token，再读取当前用户身份；token 不写入 D1。
-- Worker 只把 GitHub 用户标识、昵称、头像地址和个人主页地址写入 D1，并给浏览器发放哈希存储的站点会话 Cookie。
+## 配置 GitHub 登录
 
-生产环境建议给 Worker 配置与博客同站点的自定义域名，例如 `comments.example.com`，再把博客域名加入 `ALLOWED_ORIGINS`。这样可以减少浏览器对跨站 Cookie 的限制；如果直接使用 `workers.dev`，跨站 Cookie 可能被浏览器的第三方 Cookie 策略拦截。
+### 1. 创建 OAuth App
 
-### 6. 绑定自定义域名（可选）
+GitHub：**头像菜单 → Settings → Developer settings → OAuth Apps → New OAuth App**。
 
-如果不使用 Cloudflare 分配的 `workers.dev` 地址，可在 **Domains & Routes** 中给同一个 Worker 添加自定义域名，例如 `blog-view-counter.example.com`。这个域名必须指向当前 Worker。
+填写：
 
-### 7. 配置 Hugo 站点
+| GitHub 字段 | 推荐值 |
+| --- | --- |
+| Application name | 访客能识别的博客名称 |
+| Homepage URL | `https://example.com` |
+| Application description | 可选 |
+| Authorization callback URL | `https://comments.example.com/api/auth/github/callback` |
 
-部署完成后，把 API 地址填入站点 `hugo.yaml`。endpoint 必须指向 `/api/views`：
+回调地址必须与 `GITHUB_REDIRECT_URI` 完全一致，包括协议、域名、路径和大小写。不要只填写 Worker 根域名，正确路径是：
+
+```text
+/api/auth/github/callback
+```
+
+### 2. 保存 GitHub 凭据
+
+- Client ID 写入 Worker 的 `GITHUB_CLIENT_ID`。
+- Client Secret 写入 Worker Secret `GITHUB_CLIENT_SECRET`。
+- 不要把 Client Secret 写入博客仓库。
+
+Worker 使用授权码 + PKCE：
+
+1. `/api/auth/github/start` 创建短期 `state` 和 verifier。
+2. GitHub 授权后回到 callback。
+3. Worker 校验 `state`，服务端换取 GitHub token。
+4. Worker 读取 GitHub 用户资料，只保存用户资料和哈希后的站点会话。
+5. GitHub access token 不写入 D1，也不返回浏览器。
+
+## 配置 Hugo 主题
 
 ```yaml
 params:
   viewCounter:
     enabled: true
-    endpoint: "https://blog-view-counter.example.com/api/views"
+    endpoint: "https://comments.example.com/api/views"
     key: "与 VIEW_COUNTER_KEY 相同的值"
+    showOnPreview: true
+    requestTimeout: 4000
+
   comments:
     enabled: true
     allowGuests: false
     endpoint: "https://comments.example.com/api/comments"
-    # authEndpoint: "https://comments.example.com/api/auth" # 可选
+    authEndpoint: "https://comments.example.com/api/auth"
 ```
 
-## API
+说明：
 
-### 阅读量 API
+- `comments.enabled` 控制主题是否显示评论区域。
+- `comments.allowGuests` 只控制前端界面；最终权限由 Worker 的 `COMMENTS_ALLOW_GUESTS` 强制执行。
+- 文章可以用 front matter `comments: false` 关闭评论。
+- 阅读量 endpoint 必须指向 `/api/views`，评论 endpoint 必须指向 `/api/comments`。
 
-普通页面使用批量 API。请求头中的 `X-View-Counter-Key` 必须与 Worker Secret `VIEW_COUNTER_KEY` 相同：
+## 本地开发
+
+本目录提供独立的本地配置 [`wrangler.local.jsonc`](./wrangler.local.jsonc)，只允许：
+
+```text
+http://127.0.0.1:1315
+http://localhost:1315
+```
+
+启动 Worker：
+
+```sh
+wrangler dev --config ./wrangler.local.jsonc --local --port 8787
+```
+
+本地密钥放在被 Git 忽略的 `.dev.vars`，不要提交。启动示例站：
+
+```sh
+hugo server --source ../../exampleSite --themesDir ../../.. \
+  --bind 127.0.0.1 --port 1315 \
+  --baseURL http://127.0.0.1:1315/
+```
+
+本地没有 GitHub OAuth 凭据时，评论列表仍可读取；登录入口会返回未配置提示。`COMMENTS_ALLOW_GUESTS=false` 时，未登录用户不能发表评论。
+
+## 接口和安全规则
+
+### 阅读量
 
 ```http
 POST /api/views/batch
@@ -97,126 +187,92 @@ Content-Type: application/json
 {"ids":["/a/","/b/"],"increment":"/a/"}
 ```
 
-返回：
+管理员接口：
 
-```json
-{
-  "counts": {"/a/": 12, "/b/": 8},
-  "total": 20
-}
-```
+- `GET /api/views?all=1`：读取全部计数；
+- `PUT /api/views`：设置 `{ "id": "/a/", "views": 100 }`；
+- `DELETE /api/views`：删除文章计数。
 
-兼容单篇文章的请求：
-
-```http
-POST /api/views
-{"id":"/文章路径/"}
-```
-
-管理员接口使用 `X-View-Counter-Admin-Key`：
-
-- `GET /api/views?all=1`：读取全部文章阅读量和 `total`
-- `PUT /api/views`：设置 `{ "id": "/文章路径/", "views": 100 }`
-- `PUT /api/views`：设置网站总量 `{ "id": "__site_total__", "views": 1000 }`
-- `DELETE /api/views`：删除一篇文章的记录
-
-`__site_total__` 是保留 ID，不会显示为文章。普通文章访问会同时增加文章阅读量和网站总阅读量；管理员修改单篇文章数值时，网站总量不会自动跟随变化，因此总量可以单独校正。
-
-### 评论与认证 API
-
-评论按文章路径隔离，`post`/`postPath` 必须是以 `/` 开头的站内路径。评论正文以 Markdown 文本保存，在主题端安全渲染；不执行评论中的 JavaScript 或不安全 HTML。
+### 评论和登录
 
 ```http
 GET /api/comments?post=/post/example/&page=1&limit=20
 ```
 
-返回 `comments`、`page`、`limit`、`total` 和 `pages`；每条评论包含 `id`、`postPath`、`parentId`、`authorName`、`avatarUrl`、`profileUrl`、`content` 和 `createdAt`。已登录 GitHub 用户的头像来自 `auth_users`，历史访客评论没有头像时由前端显示首字母占位。
+列表读取只要求 Origin 在白名单中。发布评论需要会话和 CSRF Token：
 
 ```http
 POST /api/comments
 Content-Type: application/json
 X-CSRF-Token: <GET /api/auth/me 返回的 csrfToken>
 
-{"postPath":"/post/example/","authorName":"访客","content":"你好"}
+{"postPath":"/post/example/","content":"你好","parentId":null}
 ```
-
-回复时增加 `"parentId": 1`。Worker 会确认父评论属于同一篇文章，不接受跨文章回复。`COMMENTS_ALLOW_GUESTS=false` 时，未登录 POST 返回 `401 auth_required`；登录用户的昵称由 GitHub 身份决定，不信任浏览器提交的昵称。
 
 认证接口：
 
-- `GET /api/auth/github/start?returnTo=<站点地址>`：创建短期 OAuth state 和 PKCE verifier，跳转到 GitHub。
-- `GET /api/auth/github/callback`：校验 state，服务端换取 token、读取 GitHub 用户并创建站点会话，然后回到原页面。
-- `GET /api/auth/me`：返回当前登录用户和 CSRF Token；主题使用 `credentials: include` 保持全站登录态。
-- `POST /api/auth/logout`：要求 `X-CSRF-Token`，删除当前 D1 会话并清理 Cookie。
-
-当前已实现 GitHub 登录、会话、CSRF 校验、Origin/Fetch Metadata 校验、JSON Content-Type 校验和 Cloudflare Rate Limiting。审核、编辑/删除和管理员操作仍未实现。
-
-生产 Worker 配置了两个限流绑定：OAuth 每个客户端地址每分钟 10 次，评论每个已登录用户或客户端地址每分钟 5 次。限流是 Cloudflare 边缘保护，不能替代审核和内容治理。
-
-## `/settings/`
-
-`/settings/` 页面只用于管理员查看和修改文章阅读量、网站总阅读量。管理员密钥只用于阅读量 API，不用于主题配置；主题配置请直接修改仓库中的 `hugo.yaml`，然后按传统流程重新构建并部署站点。
-
-## 部署后检查
-
-把域名替换成你的 Worker 域名，并使用正确的阅读量密钥：
-
-```text
-POST https://blog-view-counter.example.com/api/views/batch
-body: {"ids":["/test/"],"increment":"/test/"}
-```
-
-常见错误：
-
-| 状态 | 含义和处理方式 |
+| 接口 | 作用 |
 | --- | --- |
-| `404` | 请求的域名没有运行这份代码，或者访问了根地址/错误路径。 |
-| `500 database_error` | 通常是 D1 绑定错误、Worker 不是最新版或 SQL 执行失败；检查 `DB` 绑定和 Worker 日志。 |
-| `503 database_not_configured` | Worker 没有 D1 绑定；添加变量名为 `DB` 的 D1 binding。 |
-| `401 unauthorized` | 阅读量密钥或管理员密钥缺失/不匹配。 |
-| `401 auth_required` | 评论设置为不允许访客评论，当前请求没有有效 GitHub 会话。 |
-| `503 github_oauth_not_configured` | Worker 未配置 GitHub OAuth Client ID/Secret。 |
-| `403 origin_not_allowed` | 请求来源不在 `ALLOWED_ORIGINS`，或配置包含路径、空格或末尾斜杠。 |
-| `403 csrf_failed` | 缺少或不匹配 CSRF Token、请求来源上下文不合法，或评论不是 JSON 请求。 |
-| `415 invalid_content_type` | 阅读量写接口不是 `application/json`。 |
-| `429 rate_limited` | OAuth 或评论请求超过 Cloudflare Rate Limiting 限制。 |
+| `GET /api/auth/github/start?returnTo=...` | 开始 GitHub 登录 |
+| `GET /api/auth/github/callback` | 校验 state、创建会话 |
+| `GET /api/auth/me` | 查询登录态并获得 CSRF Token |
+| `POST /api/auth/logout` | 携带 CSRF Token 退出登录 |
 
-批量请求仍可能包含一次 CORS 预检，但同一页面只发送一次批量 API 请求，不会为每篇文章单独请求 Worker。
+安全行为：
 
-## 可选：使用 Wrangler 部署
+- 非法 Origin 返回 `403 origin_not_allowed`。
+- 缺失或错误 CSRF 返回 `403 csrf_failed`。
+- 非 JSON 写请求返回 `415 invalid_content_type` 或 `403 csrf_failed`。
+- 未登录且不允许访客评论时返回 `401 auth_required`。
+- OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
+- 评论 Markdown 在主题端安全渲染，不执行 JavaScript 或不可信 HTML。
 
-命令行适合需要版本控制或自动化部署的用户。先确认 [`wrangler.jsonc`](./wrangler.jsonc) 中的 `database_id` 是目标 D1 数据库的 ID，然后在本目录执行：
+## 部署和验证
 
-```sh
-npx wrangler secret put VIEW_COUNTER_KEY
-npx wrangler secret put VIEW_COUNTER_ADMIN_KEY
-npx wrangler d1 execute argon-views --remote --file=./schema.sql
-npx wrangler deploy --keep-vars --domain blog-view-counter.example.com
-```
+### Wrangler 部署
 
-由于 Worker 支持首次授权请求自动初始化，`d1 execute` 不是必需步骤；显式执行 [`schema.sql`](./schema.sql) 适合希望在部署前初始化或维护已有环境的用户。旧版本已经存在的 `site_settings` 表不会被自动删除，但新 Worker 不再读取它。
-
-本地调试可在此目录执行：
+确保 [`wrangler.jsonc`](./wrangler.jsonc) 中的 `database_id` 是目标 D1，然后执行：
 
 ```sh
-npx wrangler dev --config ./wrangler.local.jsonc --local --port 8787
-npx wrangler d1 execute argon-views --local --file=./schema.sql
+wrangler secret put VIEW_COUNTER_KEY
+wrangler secret put VIEW_COUNTER_ADMIN_KEY
+wrangler secret put GITHUB_CLIENT_SECRET
+wrangler deploy --keep-vars --domain comments.example.com
 ```
 
-`wrangler.local.jsonc` 只用于本地开发，允许 `http://127.0.0.1:1315` 和 `http://localhost:1315` 读取接口；生产部署必须继续使用 [`wrangler.jsonc`](./wrangler.jsonc)，不要把本地端口加入生产 `ALLOWED_ORIGINS`。
+`GITHUB_CLIENT_ID`、`GITHUB_REDIRECT_URI`、`ALLOWED_ORIGINS` 和 `COMMENTS_ALLOW_GUESTS` 可在配置文件或 Cloudflare Variables 中设置。部署时不要把本地配置文件作为生产配置。
 
-同时启动主题示例站即可联调：
+### 最小检查
 
 ```sh
-hugo server --source ../../exampleSite --themesDir ../../.. --bind 127.0.0.1 --port 1315 --baseURL http://127.0.0.1:1315/
+curl -i \
+  -H "Origin: https://example.com" \
+  "https://comments.example.com/api/auth/me"
+
+curl -i \
+  -H "Origin: https://example.com" \
+  "https://comments.example.com/api/comments?post=/post/example/&page=1&limit=20"
 ```
 
-示例站本地配置将评论 API 指向 `http://127.0.0.1:8787/api/comments`，并默认关闭访客评论。生产 `ALLOWED_ORIGINS` 只保留真实站点来源；本地调试时用 Wrangler 的本地变量覆盖该值。由于本地没有 GitHub OAuth Secret，登录接口在本地只会返回未配置提示；配置 OAuth Secret 后再进行完整回调联调。部署公网前，仍需完成 GitHub OAuth Secret 轮换、审核和内容治理。
+预期：正式 Origin 返回 `200` 并带 `Access-Control-Allow-Origin`；本地 Origin 在生产环境应返回 `403`。
+
+## 常见错误
+
+| 状态 | 原因 |
+| --- | --- |
+| `401 unauthorized` | 阅读量密钥或管理员密钥错误 |
+| `401 auth_required` | 评论设置为不允许访客评论，当前没有 GitHub 会话 |
+| `403 origin_not_allowed` | Origin 不在白名单；检查协议、端口、路径和末尾 `/` |
+| `403 csrf_failed` | CSRF Token 缺失/错误，或请求来源上下文不合法 |
+| `404` | Worker 域名、路径或部署版本错误 |
+| `500 database_error` | D1 绑定或 SQL 初始化失败 |
+| `503 github_oauth_not_configured` | GitHub OAuth 变量或 Secret 未配置 |
+| `429 rate_limited` | 超过 OAuth 或评论限流 |
 
 ## 官方文档
 
-- [Cloudflare D1：从 Worker 访问数据库](https://developers.cloudflare.com/d1/worker-api/d1-database/)
-- [Cloudflare D1：远程开发和控制台操作](https://developers.cloudflare.com/d1/best-practices/remote-development/)
-- [Cloudflare Workers：Secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
-- [GitHub：Authorizing OAuth Apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)
-- [GitHub：Get the authenticated user](https://docs.github.com/en/rest/users/users#get-the-authenticated-user)
+- [Cloudflare Workers 配置](https://developers.cloudflare.com/workers/configuration/)
+- [Cloudflare D1 Worker API](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+- [Cloudflare Workers Secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
+- [Cloudflare Workers Rate Limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
+- [GitHub OAuth Apps](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps)
