@@ -628,14 +628,6 @@
         if (state.login) state.login.hidden = loggedIn;
         if (state.logout) state.logout.hidden = !loggedIn;
         if (state.form) state.form.hidden = !state.allowGuests && !loggedIn;
-        if (state.authorName) {
-            state.authorName.readOnly = loggedIn;
-            if (loggedIn) {
-                state.authorName.value = state.user.displayName || state.user.login;
-            } else if (state.authorName.dataset.commentsAuthValue) {
-                state.authorName.value = state.authorName.dataset.commentsAuthValue;
-            }
-        }
         if (loggedIn) {
             setAuthStatus(state, message('commentLoggedIn', state.user.login), false);
         } else if (state.allowGuests) {
@@ -687,7 +679,6 @@
                 authStatus: section.querySelector('[data-comments-auth-status]'),
                 login: section.querySelector('[data-comments-login]'),
                 logout: section.querySelector('[data-comments-logout]'),
-                authorName: form.elements.authorName,
                 authResult: new URL(window.location.href).searchParams.get('argon_auth') || '',
                 replyNotice: section.querySelector('[data-comments-reply-info]'),
                 replyText: section.querySelector('[data-comments-reply-text]'),
@@ -697,9 +688,6 @@
                 requestSerial: 0
             };
             state.load = function(page) { return load(page); };
-            if (state.authorName && !state.authorName.dataset.commentsAuthValue) {
-                state.authorName.dataset.commentsAuthValue = state.authorName.value || '';
-            }
             if (state.authResult) {
                 var cleanUrl = new URL(window.location.href);
                 cleanUrl.searchParams.delete('argon_auth');
@@ -761,7 +749,6 @@
                 var submit = form.querySelector('[type="submit"]');
                 var payload = {
                     postPath: postPath,
-                    authorName: state.user ? (state.user.displayName || state.user.login) : form.elements.authorName.value,
                     content: form.elements.content.value,
                     parentId: form.elements.parentId.value || null
                 };

@@ -108,7 +108,6 @@ borderRadius: Border Radius
 themeColor: Theme Color
 backToTop: Back to top
 comment: Comment
-commentName: Name
 commentContent: Write a comment
 commentSubmit: Post comment
 cancelReply: Cancel reply

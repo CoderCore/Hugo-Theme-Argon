@@ -3079,12 +3079,6 @@ html.darkmode .comment-edit-history-item {
 .show-extra-input #post_comment_toggle_extra_input i {
 	transform: rotateZ(180deg);
 }
-#post_comment.logged #post_comment_name,
-#post_comment.logged #post_comment_email {
-	opacity: 1;
-	background-color: var(--color-widgets-disabled);
-	pointer-events: none;
-}
 .comment-post-checkbox {
 	display: inline-block;
 	margin-top: 15px;
@@ -4896,9 +4890,7 @@ html.darkmode .form-control {
 	color: #eee;
 }
 html.darkmode input[disabled],
-html.darkmode textarea[disabled],
-html.darkmode #post_comment.logged #post_comment_name,
-html.darkmode #post_comment.logged #post_comment_email {
+html.darkmode textarea[disabled] {
 	opacity: 0.3;
 }
 

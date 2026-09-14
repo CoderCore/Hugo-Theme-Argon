@@ -108,7 +108,6 @@ borderRadius: 圆角
 themeColor: 主题色
 backToTop: 回到顶部
 comment: 评论
-commentName: 昵称
 commentContent: 写下你的评论
 commentSubmit: 发表评论
 cancelReply: 取消回复
