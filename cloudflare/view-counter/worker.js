@@ -779,6 +779,9 @@ async function handleCommentUpvote(request, commentId, env, origin) {
   if (!comment) return json({ error: "comment_not_found" }, 404, origin);
 
   const user = await authenticatedUser(request, env);
+  if (!user && !allowGuestComments(env)) {
+    return json({ error: "auth_required" }, 401, origin);
+  }
   const voter = await commentVoter(request, user);
   const rateKey = user ? `user:${user.githubId}` : `ip:${clientKey(request)}`;
   if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, `vote:${rateKey}`))) {

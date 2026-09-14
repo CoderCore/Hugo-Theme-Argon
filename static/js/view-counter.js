@@ -82,18 +82,30 @@
         root = root && typeof root.querySelectorAll === 'function' ? root : document;
         root.querySelectorAll('.post-meta').forEach(function(meta) {
             var children = Array.prototype.slice.call(meta.children);
-            children.forEach(function(child, index) {
-                if (!child.classList.contains('post-meta-devide')) return;
-                var previous = index > 0 ? children[index - 1] : null;
-                var next = index + 1 < children.length ? children[index + 1] : null;
-                var previousVisible = previous && !previous.hidden && !previous.classList.contains('d-none');
-                var nextVisible = next && !next.hidden && !next.classList.contains('d-none');
-                var hidden = !(previousVisible && nextVisible);
-                child.hidden = hidden;
-                child.classList.toggle('d-none', hidden);
+            var visibleDetails = children.filter(function(child) {
+                return child.classList.contains('post-meta-detail') &&
+                    !child.hidden && !child.classList.contains('d-none');
             });
+            children.forEach(function(child) {
+                if (child.classList.contains('post-meta-devide')) {
+                    child.hidden = true;
+                    child.classList.add('d-none');
+                }
+            });
+            for (var detailIndex = 1; detailIndex < visibleDetails.length; detailIndex += 1) {
+                var previousIndex = children.indexOf(visibleDetails[detailIndex - 1]);
+                var currentIndex = children.indexOf(visibleDetails[detailIndex]);
+                for (var dividerIndex = previousIndex + 1; dividerIndex < currentIndex; dividerIndex += 1) {
+                    if (!children[dividerIndex].classList.contains('post-meta-devide')) continue;
+                    children[dividerIndex].hidden = false;
+                    children[dividerIndex].classList.remove('d-none');
+                    break;
+                }
+            }
         });
     }
+
+    window.argonSyncMetaDividers = syncMetaDividers;
 
     async function requestBatchCounts(ids, increment, refreshSerial) {
         var endpoint = endpointUrl();

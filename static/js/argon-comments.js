@@ -108,6 +108,9 @@
             node.hidden = false;
             node.setAttribute('aria-hidden', 'false');
         });
+        if (typeof window.argonSyncMetaDividers === 'function') {
+            window.argonSyncMetaDividers(document);
+        }
     }
 
     function requestUrl(endpoint, postPath, page) {
@@ -415,30 +418,32 @@
                 }
             }
             leftWrapper.appendChild(avatarContainer);
-            var upvote = document.createElement('button');
-            upvote.type = 'button';
-            upvote.className = 'comment-upvote btn btn-icon btn-outline-primary btn-sm';
-            upvote.dataset.id = comment.id;
-            upvote.setAttribute('aria-label', 'Upvote');
-            upvote.setAttribute('aria-pressed', comment.upvoted ? 'true' : 'false');
-            if (comment.upvoted) {
-                upvote.classList.add('upvoted');
-            }
-            var upvoteIcon = document.createElement('span');
-            upvoteIcon.className = 'btn-inner--icon';
-            var caret = document.createElement('i');
-            caret.className = 'fa fa-caret-up';
-            caret.setAttribute('aria-hidden', 'true');
-            upvoteIcon.appendChild(caret);
-            var upvoteText = document.createElement('span');
-            upvoteText.className = 'btn-inner--text';
-            var upvoteNumber = document.createElement('span');
-            upvoteNumber.className = 'comment-upvote-num';
-            upvoteNumber.textContent = String(Number(comment.upvotes) || 0);
-            upvoteText.appendChild(upvoteNumber);
-            upvote.appendChild(upvoteIcon);
-            upvote.appendChild(upvoteText);
-            upvote.addEventListener('click', function() {
+            var canUpvote = !!state.user || state.allowGuests;
+            if (canUpvote) {
+                var upvote = document.createElement('button');
+                upvote.type = 'button';
+                upvote.className = 'comment-upvote btn btn-icon btn-outline-primary btn-sm';
+                upvote.dataset.id = comment.id;
+                upvote.setAttribute('aria-label', 'Upvote');
+                upvote.setAttribute('aria-pressed', comment.upvoted ? 'true' : 'false');
+                if (comment.upvoted) {
+                    upvote.classList.add('upvoted');
+                }
+                var upvoteIcon = document.createElement('span');
+                upvoteIcon.className = 'btn-inner--icon';
+                var caret = document.createElement('i');
+                caret.className = 'fa fa-caret-up';
+                caret.setAttribute('aria-hidden', 'true');
+                upvoteIcon.appendChild(caret);
+                var upvoteText = document.createElement('span');
+                upvoteText.className = 'btn-inner--text';
+                var upvoteNumber = document.createElement('span');
+                upvoteNumber.className = 'comment-upvote-num';
+                upvoteNumber.textContent = String(Number(comment.upvotes) || 0);
+                upvoteText.appendChild(upvoteNumber);
+                upvote.appendChild(upvoteIcon);
+                upvote.appendChild(upvoteText);
+                upvote.addEventListener('click', function() {
                 if (upvote.classList.contains('comment-upvoting')) return;
                 upvote.classList.add('comment-upvoting');
                 fetch(commentVoteUrl(state.endpoint, comment.id), {
@@ -458,8 +463,9 @@
                     setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentVoteFailed'), true);
                     console.error('Argon comment upvote failed', error);
                 });
-            });
-            leftWrapper.appendChild(upvote);
+                });
+                leftWrapper.appendChild(upvote);
+            }
         }
 
         var inner = document.createElement('div');
