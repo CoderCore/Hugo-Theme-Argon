@@ -423,7 +423,6 @@
             upvote.setAttribute('aria-pressed', comment.upvoted ? 'true' : 'false');
             if (comment.upvoted) {
                 upvote.classList.add('upvoted');
-                upvote.disabled = true;
             }
             var upvoteIcon = document.createElement('span');
             upvoteIcon.className = 'btn-inner--icon';
@@ -440,7 +439,7 @@
             upvote.appendChild(upvoteIcon);
             upvote.appendChild(upvoteText);
             upvote.addEventListener('click', function() {
-                if (upvote.disabled || upvote.classList.contains('comment-upvoting')) return;
+                if (upvote.classList.contains('comment-upvoting')) return;
                 upvote.classList.add('comment-upvoting');
                 fetch(commentVoteUrl(state.endpoint, comment.id), {
                     method: 'POST',
@@ -452,9 +451,8 @@
                 }).then(parseResponse).then(function(data) {
                     upvoteNumber.textContent = String(Number(data.upvotes) || 0);
                     upvote.classList.remove('comment-upvoting');
-                    upvote.classList.add('upvoted');
-                    upvote.setAttribute('aria-pressed', 'true');
-                    upvote.disabled = true;
+                    upvote.classList.toggle('upvoted', data.upvoted === true);
+                    upvote.setAttribute('aria-pressed', data.upvoted === true ? 'true' : 'false');
                 }).catch(function(error) {
                     upvote.classList.remove('comment-upvoting');
                     setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentVoteFailed'), true);

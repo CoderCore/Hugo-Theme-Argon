@@ -653,7 +653,7 @@ async function handleCommentsGet(request, url, env, origin) {
       "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_edit, " +
       "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id " +
-      "WHERE c.post_path = ? ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
+      "WHERE c.post_path = ? ORDER BY upvotes DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
   ).bind(voter.key, githubId, githubId, postPath, limit, offset).all();
 
   return json({
@@ -784,13 +784,22 @@ async function handleCommentUpvote(request, commentId, env, origin) {
   if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, `vote:${rateKey}`))) {
     return json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" });
   }
-  await env.DB.prepare(
-    "INSERT OR IGNORE INTO comment_votes (comment_id, voter_key) VALUES (?, ?)",
-  ).bind(commentId, voter.key).run();
+  const existing = await env.DB.prepare(
+    "SELECT 1 FROM comment_votes WHERE comment_id = ? AND voter_key = ?",
+  ).bind(commentId, voter.key).first();
+  if (existing) {
+    await env.DB.prepare(
+      "DELETE FROM comment_votes WHERE comment_id = ? AND voter_key = ?",
+    ).bind(commentId, voter.key).run();
+  } else {
+    await env.DB.prepare(
+      "INSERT INTO comment_votes (comment_id, voter_key) VALUES (?, ?)",
+    ).bind(commentId, voter.key).run();
+  }
   const total = await env.DB.prepare(
     "SELECT COUNT(*) AS total FROM comment_votes WHERE comment_id = ?",
   ).bind(commentId).first();
-  return json({ id: commentId, upvotes: Number(total?.total) || 0, upvoted: true }, 200, origin,
+  return json({ id: commentId, upvotes: Number(total?.total) || 0, upvoted: !existing }, 200, origin,
     voter.setCookie ? { "Set-Cookie": voter.setCookie } : undefined);
 }
 

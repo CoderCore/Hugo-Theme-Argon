@@ -2716,6 +2716,7 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	top: 45px;
 	transform: translateX(-50%) !important;
 	min-width: 30px;
+	transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 html.darkmode .comment-upvote {
 	background-color: rgba(var(--themecolor-rgbstr), 0.25);
@@ -2724,11 +2725,11 @@ html.darkmode .comment-upvote {
 .comment-upvote:hover {
 	background-color: var(--themecolor) !important;
 	color: #fff !important;
+	transform: translateX(-50%) scale(1.12) !important;
 }
 .comment-upvote.upvoted {
 	color: #fff !important;
 	background-color: var(--themecolor) !important;
-	pointer-events: none;
 }
 .comment-upvote .btn-inner--text {
 	margin-left: -2px !important;
