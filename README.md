@@ -35,7 +35,6 @@ params:
   description: "站点描述"
   themeColor: "#5e72e4"
   firstImageAsThumbnail: true
-  imageProcessing: true
   # 可选：time、edittime、views、comments、tags、categories、words、readingtime
   articleMeta: "time|views|comments|categories|words|readingtime"
   showReadingtime: true
@@ -80,7 +79,7 @@ hugo --gc --minify --baseURL "https://example.com/"
 ### 数学公式和资源
 
 - `params.mathRender` 可选 `mathjax3`、`mathjax2`、`katex` 或 `none`。
-- 页面 Bundle 图片支持 WebP、`srcset` 和尺寸属性。
+- 页面 Bundle 图片直接使用文章包中的原始文件，并输出尺寸属性。
 - 代码高亮、目录、分享、搜索、评论图片预览、Pangu、Zoomify 等功能按页面内容和配置按需加载。
 - 本地搜索使用 Hugo `Search` 输出的 `/search.json`。
 

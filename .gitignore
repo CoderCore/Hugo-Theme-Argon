@@ -1,32 +1,13 @@
 # Hugo 生成物
 /public/
 **/public/
-/resources/_gen/
-**/resources/_gen/
 /.hugo_build.lock
 **/.hugo_build.lock
 /hugo_stats.json
 **/hugo_stats.json
-/.hugo-test-public/
-**/.hugo-test-public/
-/.nav-build-check/
-**/.nav-build-check/
 
 # 本地开发、测试与工具缓存
-/.tmp-tools/
-**/.tmp-tools/
-**/.tmp-build*/
-**/.tmp-public/
-**/.hugo-cache/
-**/.go-build-cache/
-**/.cache/
-**/.hugo/
-**/.sass-cache/
-**/.parcel-cache/
-**/.vite/
-**/.eslintcache
-**/.pytest_cache/
-**/coverage/
+/cache/
 
 # Cloudflare / 本地敏感配置
 **/.wrangler/

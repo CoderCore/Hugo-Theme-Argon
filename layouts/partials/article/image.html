@@ -32,33 +32,14 @@
         {{- end -}}
     {{- end -}}
 
-    {{- $processingEnabled := true -}}
-    {{- if isset $page.Site.Params "imageProcessing" }}
-        {{- $processingEnabled = ne $page.Site.Params.imageProcessing false -}}
-    {{- end -}}
-    {{- $canProcess := false -}}
-    {{- if $hasResource -}}
-        {{- $subType := lower $resource.MediaType.SubType -}}
-        {{- $canProcess = not (or (eq $subType "svg") (eq $subType "gif") (eq $subType "x-icon")) -}}
-    {{- end -}}
-
     {{- $url := $src | relURL -}}
-    {{- $srcset := "" -}}
     {{- $width := 0 -}}
     {{- $height := 0 -}}
-    {{- if and $processingEnabled $canProcess -}}
-        {{- $small := $resource.Resize "480x webp q82" -}}
-        {{- $medium := $resource.Resize "800x webp q82" -}}
-        {{- $large := $resource.Resize "1200x webp q82" -}}
-        {{- $url = $medium.RelPermalink -}}
-        {{- $srcset = printf "%s 480w, %s 800w, %s 1200w" $small.RelPermalink $medium.RelPermalink $large.RelPermalink -}}
-        {{- $width = $medium.Width -}}
-        {{- $height = $medium.Height -}}
-    {{- else if $hasResource -}}
+    {{- if $hasResource -}}
         {{- $url = $resource.RelPermalink -}}
         {{- $width = $resource.Width -}}
         {{- $height = $resource.Height -}}
     {{- end -}}
 
-    <img src="{{ $url }}"{{ with $srcset }} srcset="{{ . }}" sizes="{{ default "(max-width: 650px) 100vw, (max-width: 1200px) 50vw, 800px" $.sizes }}"{{ end }} class="{{ default "" .class }}" alt="{{ default $page.Title .alt }}"{{ if gt $width 0 }} width="{{ $width }}" height="{{ $height }}"{{ end }} loading="{{ default "lazy" .loading }}" decoding="async"{{ with .fetchpriority }} fetchpriority="{{ . }}"{{ end }}>
+    <img src="{{ $url }}" class="{{ default "" .class }}" alt="{{ default $page.Title .alt }}"{{ if gt $width 0 }} width="{{ $width }}" height="{{ $height }}"{{ end }} loading="{{ default "lazy" .loading }}" decoding="async"{{ with .fetchpriority }} fetchpriority="{{ . }}"{{ end }}>
 {{- end -}}

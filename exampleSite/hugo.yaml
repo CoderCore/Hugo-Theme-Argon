@@ -99,7 +99,6 @@ params:
   excerpt: true
   excerptLength: 120  # 首页文章摘要长度（字符数），默认 175
   firstImageAsThumbnail: false
-  imageProcessing: true
   # 可选字段：time、edittime、views、comments、tags、categories、words、readingtime（read 为 views 兼容别名）
   articleMeta: "time|views|comments|categories|words|readingtime"
   showReadingtime: true
