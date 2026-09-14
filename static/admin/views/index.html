@@ -4,20 +4,21 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#5e72e4">
-    <title>阅读量管理 · Argon</title>
-    <link rel="stylesheet" href="/settings/settings.css">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <title>阅读量管理 · Argon 后台</title>
+    <link rel="stylesheet" href="/admin/admin.css">
 </head>
 <body>
 <main class="settings-shell">
     <header class="settings-header">
-        <a class="brand" href="/">Argon</a>
+        <a class="brand" href="/admin/">Argon 后台</a>
         <a class="back-link" href="/">返回站点</a>
     </header>
 
     <section class="settings-hero">
-        <p class="eyebrow">ARGON VIEW COUNTER</p>
+        <p class="eyebrow">ARGON ADMIN / VIEWS</p>
         <h1>阅读量管理</h1>
-        <p>此页只负责阅读量管理；网站和主题配置统一读取仓库中的 <code>hugo.yaml</code>。</p>
+        <p>按页读取 D1 中的阅读量记录。网站和主题配置仍统一读取仓库中的 <code>hugo.yaml</code>。</p>
         <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
     </section>
 
@@ -53,11 +54,11 @@
             <div class="panel-heading">
                 <div>
                     <p class="panel-kicker">D1 VIEW COUNTS</p>
-                    <h2>文章阅读量</h2>
+            <h2>文章阅读量</h2>
                 </div>
                 <button id="reload-views" class="button button-quiet button-small" type="button">重新读取</button>
             </div>
-            <p class="panel-intro">可直接编辑、归零或删除某一篇文章的计数。网站总阅读量由 Worker 根据 D1 文章记录维护缓存，文章路径来自 sitemap，已有 D1 记录也会显示。</p>
+            <p class="panel-intro">可直接编辑、归零或删除某一篇文章的计数。标题来自站点的搜索索引，阅读量通过 Worker 分页读取。</p>
             <div class="total-editor">
                 <label for="site-total">网站总阅读量（D1 缓存）</label>
                 <div class="total-editor-row">
@@ -71,19 +72,24 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th scope="col">文章路径</th><th scope="col">阅读量</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead>
-                    <tbody id="views-body"><tr><td colspan="3" class="empty-row">请输入管理员密钥并连接。</td></tr></tbody>
+                    <thead><tr><th scope="col">文章</th><th scope="col">路径</th><th scope="col">阅读量</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead>
+                    <tbody id="views-body"><tr><td colspan="4" class="empty-row">请输入管理员密钥并连接。</td></tr></tbody>
                 </table>
             </div>
+            <nav class="admin-pagination" aria-label="阅读量分页">
+                <button id="views-prev" class="button button-quiet button-small" type="button" disabled>上一页</button>
+                <span id="views-page" class="summary">第 1 页</span>
+                <button id="views-next" class="button button-quiet button-small" type="button" disabled>下一页</button>
+            </nav>
             <p id="views-message" class="message" role="status" aria-live="polite"></p>
         </section>
     </div>
 
     <footer class="settings-footer">
-        <span>Argon · local admin surface</span>
+        <span>Argon · admin surface</span>
         <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
     </footer>
 </main>
-<script src="/settings/settings.js?v=settings-7" defer></script>
+<script src="/admin/admin.js?v=admin-1" defer></script>
 </body>
 </html>

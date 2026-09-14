@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <meta name="theme-color" content="#5e72e4">
+    <title>Argon 后台</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+<main class="settings-shell admin-home">
+    <header class="settings-header">
+        <a class="brand" href="/admin/">Argon 后台</a>
+        <a class="back-link" href="/">返回站点</a>
+    </header>
+    <section class="settings-hero">
+        <p class="eyebrow">ARGON ADMIN</p>
+        <h1>站点管理</h1>
+        <p>管理阅读量和评论。进入具体页面后再验证管理员密钥，未认证时不会读取管理数据。</p>
+        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">请选择管理模块</div>
+    </section>
+    <section class="admin-module-grid" aria-label="管理模块">
+        <a class="admin-module panel" href="/admin/views/">
+            <p class="panel-kicker">D1 VIEW COUNTS</p>
+            <h2>阅读量</h2>
+            <p>按页查看文章标题、路径和阅读量，支持修改与删除。</p>
+            <span class="admin-module-link">进入阅读量管理 →</span>
+        </a>
+        <a class="admin-module panel" href="/admin/comments/">
+            <p class="panel-kicker">D1 COMMENTS</p>
+            <h2>评论</h2>
+            <p>按页查看全站评论，按文章、作者和状态筛选并管理。</p>
+            <span class="admin-module-link">进入评论管理 →</span>
+        </a>
+    </section>
+    <footer class="settings-footer">
+        <span>Argon · admin surface</span>
+        <a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a>
+    </footer>
+</main>
+</body>
+</html>

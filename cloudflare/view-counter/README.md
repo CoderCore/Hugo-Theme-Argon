@@ -69,7 +69,7 @@ Cloudflare 控制台：**Workers & Pages → D1 → Create database**。
 | `ALLOWED_ORIGINS` | Text | 允许访问 API 的完整 Origin，逗号分隔；不要写路径或末尾 `/` |
 | `COMMENTS_ALLOW_GUESTS` | Text | `false` 时必须 GitHub 登录后才能发表评论 |
 | `VIEW_COUNTER_KEY` | Secret | 主题公开阅读量请求使用的共享密钥 |
-| `VIEW_COUNTER_ADMIN_KEY` | Secret | `/settings/` 管理阅读量使用的密钥 |
+| `VIEW_COUNTER_ADMIN_KEY` | Secret | `/admin/` 管理后台使用的密钥 |
 | `GITHUB_CLIENT_ID` | Text | GitHub OAuth App Client ID |
 | `GITHUB_CLIENT_SECRET` | Secret | GitHub OAuth App Client Secret |
 | `GITHUB_REDIRECT_URI` | Text | GitHub OAuth App 中登记的精确回调地址 |
@@ -204,6 +204,21 @@ Content-Type: application/json
 - `GET /api/views?all=1`：读取全部计数；
 - `PUT /api/views`：设置 `{ "id": "/a/", "views": 100 }`；
 - `DELETE /api/views`：删除文章计数。
+
+管理后台位于主题生成站点的 `/admin/`，包括 `/admin/views/` 阅读量管理和 `/admin/comments/` 评论管理。后台数据页不会一次加载全部记录，而是通过服务端分页接口读取，每页最多 50 条；页面会从站点的 `search.json` 补充文章标题，Worker 只负责返回路径和统计数据。
+
+```http
+GET /api/admin/status
+X-View-Counter-Admin-Key: <VIEW_COUNTER_ADMIN_KEY>
+
+GET /api/admin/views?page=1&limit=20&search=关键词
+X-View-Counter-Admin-Key: <VIEW_COUNTER_ADMIN_KEY>
+
+GET /api/admin/comments?page=1&limit=20&post=/post/example/&author=jiang068&status=active
+X-View-Counter-Admin-Key: <VIEW_COUNTER_ADMIN_KEY>
+```
+
+`status` 支持 `active`、`deleted` 和 `all`。评论后台可以编辑或删除任意评论；公开评论接口仍按 GitHub 用户身份限制普通用户只能编辑、删除自己的评论。管理员写操作使用同一个 `VIEW_COUNTER_ADMIN_KEY`，仍受 Origin/Fetch Metadata、JSON Content-Type 和限流规则保护。
 
 ### 评论和登录
 

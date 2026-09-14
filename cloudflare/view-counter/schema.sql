@@ -34,6 +34,9 @@ CREATE INDEX IF NOT EXISTS idx_comments_parent
 CREATE INDEX IF NOT EXISTS idx_comments_github_post
   ON comments(github_id, post_path, id);
 
+CREATE INDEX IF NOT EXISTS idx_comments_admin_created
+  ON comments(deleted_at, created_at DESC, id DESC);
+
 -- One immutable upvote per authenticated GitHub user or anonymous browser.
 CREATE TABLE IF NOT EXISTS comment_votes (
   comment_id INTEGER NOT NULL,

@@ -6,6 +6,9 @@ const AUTH_START_PATH = "/api/auth/github/start";
 const AUTH_CALLBACK_PATH = "/api/auth/github/callback";
 const AUTH_ME_PATH = "/api/auth/me";
 const AUTH_LOGOUT_PATH = "/api/auth/logout";
+const ADMIN_STATUS_PATH = "/api/admin/status";
+const ADMIN_VIEWS_PATH = "/api/admin/views";
+const ADMIN_COMMENTS_PATH = "/api/admin/comments";
 const TOTAL_SLUG = "__site_total__";
 const SESSION_COOKIE = "argon_session";
 const OAUTH_STATE_COOKIE = "argon_oauth_state";
@@ -20,6 +23,8 @@ const MAX_COMMENT_NAME_LENGTH = 80;
 const MAX_COMMENT_CONTENT_LENGTH = 5000;
 const MAX_COMMENT_PAGE_SIZE = 50;
 const MAX_COMMENT_PAGE_NUMBER = 10000;
+const MAX_ADMIN_PAGE_SIZE = 50;
+const MAX_ADMIN_SEARCH_LENGTH = 200;
 const MAX_VIEWS = 2147483647;
 const CSRF_COOKIE = "argon_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
@@ -92,6 +97,7 @@ async function ensureSchema(env) {
         ]);
       }
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_github_post ON comments(github_id, post_path, id);");
+      await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_admin_created ON comments(deleted_at, created_at DESC, id DESC);");
       // Older releases used soft deletion. Remove only trees whose every node
       // is already deleted; a deleted parent with live replies must remain as a
       // compact placeholder so the reply tree stays navigable.
@@ -476,6 +482,94 @@ function authorizedAdmin(request, env) {
   );
 }
 
+function normalizeAdminSearch(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, MAX_ADMIN_SEARCH_LENGTH);
+}
+
+function adminPageQuery(url) {
+  const page = normalizePage(url.searchParams.get("page"), 1, MAX_COMMENT_PAGE_NUMBER);
+  const limit = normalizePage(url.searchParams.get("limit"), 20, MAX_ADMIN_PAGE_SIZE);
+  return page && limit ? { page, limit, offset: (page - 1) * limit } : null;
+}
+
+function adminPageResponse(rows, page, limit, key) {
+  const hasNext = rows.length > limit;
+  const pageRows = hasNext ? rows.slice(0, limit) : rows;
+  return { [key]: pageRows, page, limit, hasNext };
+}
+
+async function handleAdminStatus(request, env, origin) {
+  if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  return json({ ok: true, scope: "admin" }, 200, origin);
+}
+
+async function handleAdminViewsGet(request, url, env, origin) {
+  if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  const pagination = adminPageQuery(url);
+  const search = normalizeAdminSearch(url.searchParams.get("search"));
+  if (!pagination) return json({ error: "invalid_query" }, 400, origin);
+
+  let result;
+  if (search) {
+    result = await env.DB.prepare(
+      "SELECT slug, views, updated_at FROM view_counts " +
+        "WHERE slug <> ? AND slug LIKE ? ORDER BY slug LIMIT ? OFFSET ?",
+    ).bind(TOTAL_SLUG, `%${search}%`, pagination.limit + 1, pagination.offset).all();
+  } else {
+    result = await env.DB.prepare(
+      "SELECT slug, views, updated_at FROM view_counts " +
+        "WHERE slug <> ? ORDER BY slug LIMIT ? OFFSET ?",
+    ).bind(TOTAL_SLUG, pagination.limit + 1, pagination.offset).all();
+  }
+  const totalRow = await env.DB.prepare(
+    "SELECT views FROM view_counts WHERE slug = ?",
+  ).bind(TOTAL_SLUG).first();
+  return json(
+    {
+      ...adminPageResponse(result.results || [], pagination.page, pagination.limit, "views"),
+      total: Number(totalRow?.views) || 0,
+    },
+    200,
+    origin,
+  );
+}
+
+async function handleAdminCommentsGet(request, url, env, origin) {
+  if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
+  const pagination = adminPageQuery(url);
+  const post = normalizeAdminSearch(url.searchParams.get("post"));
+  const author = normalizeAdminSearch(url.searchParams.get("author"));
+  const status = url.searchParams.get("status") || "active";
+  if (!pagination || !["active", "deleted", "all"].includes(status)) {
+    return json({ error: "invalid_query" }, 400, origin);
+  }
+
+  const conditions = [];
+  const values = [];
+  if (status === "active") conditions.push("c.deleted_at IS NULL");
+  if (status === "deleted") conditions.push("c.deleted_at IS NOT NULL");
+  if (post) { conditions.push("c.post_path LIKE ?"); values.push(`%${post}%`); }
+  if (author) {
+    conditions.push("(c.author_name LIKE ? OR c.github_id LIKE ?)");
+    values.push(`%${author}%`, `%${author}%`);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const result = await env.DB.prepare(
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
+      "c.updated_at, c.deleted_at, c.github_id, u.avatar_url AS avatar_url, " +
+      "u.profile_url AS profile_url, c.upvotes AS upvotes, 0 AS upvoted, " +
+      "1 AS can_edit, 1 AS can_delete FROM comments c " +
+      "LEFT JOIN auth_users u ON u.github_id = c.github_id " +
+      `${where} ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
+  ).bind(...values, pagination.limit + 1, pagination.offset).all();
+  return json(
+    adminPageResponse((result.results || []).map(commentRow), pagination.page, pagination.limit, "comments"),
+    200,
+    origin,
+  );
+}
+
 async function readBody(request) {
   try {
     const text = await request.text();
@@ -754,23 +848,28 @@ async function handleCommentsPost(request, env, origin) {
 }
 
 async function findOwnedComment(request, commentId, env, origin) {
-  const user = await authenticatedUser(request, env);
-  if (!user) return { response: json({ error: "auth_required" }, 401, origin) };
+  const admin = authorizedAdmin(request, env);
+  // A valid admin key is sufficient for admin operations; avoid an extra
+  // session lookup on those requests. Ordinary users still require GitHub
+  // session ownership below.
+  const user = admin ? null : await authenticatedUser(request, env);
+  if (!user && !admin) return { response: json({ error: "auth_required" }, 401, origin) };
   const row = await env.DB.prepare(
     "SELECT id, post_path, github_id, deleted_at FROM comments WHERE id = ?",
   ).bind(commentId).first();
   if (!row || row.deleted_at) return { response: json({ error: "comment_not_found" }, 404, origin) };
-  if (String(row.github_id || "") !== user.githubId) {
+  if (!admin && String(row.github_id || "") !== user.githubId) {
     return { response: json({ error: "comment_forbidden" }, 403, origin) };
   }
-  if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, `user:${user.githubId}`))) {
+  if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, admin ? "admin" : `user:${user.githubId}`))) {
     return { response: json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" }) };
   }
-  return { user, row };
+  return { user, row, admin };
 }
 
 async function handleCommentPut(request, commentId, env, origin) {
-  if (!requireJsonContentType(request) || !validMutationContext(request) || !validCsrfToken(request)) {
+  const admin = authorizedAdmin(request, env);
+  if (!requireJsonContentType(request) || !validMutationContext(request) || (!admin && !validCsrfToken(request))) {
     return json({ error: "csrf_failed" }, 403, origin);
   }
   const body = await readBody(request);
@@ -778,9 +877,15 @@ async function handleCommentPut(request, commentId, env, origin) {
   if (!content) return json({ error: "invalid_comment" }, 400, origin);
   const ownership = await findOwnedComment(request, commentId, env, origin);
   if (ownership.response) return ownership.response;
-  await env.DB.prepare(
-    "UPDATE comments SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
-  ).bind(content, commentId, ownership.user.githubId).run();
+  if (ownership.admin) {
+    await env.DB.prepare(
+      "UPDATE comments SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL",
+    ).bind(content, commentId).run();
+  } else {
+    await env.DB.prepare(
+      "UPDATE comments SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
+    ).bind(content, commentId, ownership.user.githubId).run();
+  }
   const row = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
@@ -793,15 +898,23 @@ async function handleCommentPut(request, commentId, env, origin) {
 }
 
 async function handleCommentDelete(request, commentId, env, origin) {
-  if (!validMutationContext(request) || !validCsrfToken(request)) {
+  const admin = authorizedAdmin(request, env);
+  if (!validMutationContext(request) || (!admin && !validCsrfToken(request))) {
     return json({ error: "csrf_failed" }, 403, origin);
   }
   const ownership = await findOwnedComment(request, commentId, env, origin);
   if (ownership.response) return ownership.response;
-  await env.DB.prepare(
-    "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
-      "WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
-  ).bind(commentId, ownership.user.githubId).run();
+  if (ownership.admin) {
+    await env.DB.prepare(
+      "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
+        "WHERE id = ? AND deleted_at IS NULL",
+    ).bind(commentId).run();
+  } else {
+    await env.DB.prepare(
+      "UPDATE comments SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
+        "WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
+    ).bind(commentId, ownership.user.githubId).run();
+  }
   await pruneCommentTreeIfEmpty(commentId, env);
   return json({ deleted: true, id: commentId }, 200, origin);
 }
@@ -930,7 +1043,10 @@ export default {
     const isAuthMePath = url.pathname === AUTH_ME_PATH || url.pathname === `${AUTH_ME_PATH}/`;
     const isAuthLogoutPath = url.pathname === AUTH_LOGOUT_PATH || url.pathname === `${AUTH_LOGOUT_PATH}/`;
     const isAuthPath = isAuthStartPath || isAuthCallbackPath || isAuthMePath || isAuthLogoutPath;
-    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
+    const isAdminStatusPath = url.pathname === ADMIN_STATUS_PATH || url.pathname === `${ADMIN_STATUS_PATH}/`;
+    const isAdminViewsPath = url.pathname === ADMIN_VIEWS_PATH || url.pathname === `${ADMIN_VIEWS_PATH}/`;
+    const isAdminCommentsPath = url.pathname === ADMIN_COMMENTS_PATH || url.pathname === `${ADMIN_COMMENTS_PATH}/`;
+    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath && !isAdminStatusPath && !isAdminViewsPath && !isAdminCommentsPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
     try {
@@ -953,6 +1069,12 @@ export default {
         operation = () => handleAuthMe(request, env, origin);
       } else if (request.method === "POST" && isAuthLogoutPath) {
         operation = () => handleAuthLogout(request, env, origin);
+      } else if (request.method === "GET" && isAdminStatusPath) {
+        operation = () => handleAdminStatus(request, env, origin);
+      } else if (request.method === "GET" && isAdminViewsPath) {
+        operation = () => handleAdminViewsGet(request, url, env, origin);
+      } else if (request.method === "GET" && isAdminCommentsPath) {
+        operation = () => handleAdminCommentsGet(request, url, env, origin);
       } else if (request.method === "GET" && isCommentsPath) {
         operation = () => handleCommentsGet(request, url, env, origin);
       } else if (request.method === "GET" && isCommentCountsPath) {

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <meta name="theme-color" content="#5e72e4">
+    <title>评论管理 · Argon 后台</title>
+    <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body data-admin-page="comments">
+<main class="settings-shell">
+    <header class="settings-header">
+        <a class="brand" href="/admin/">Argon 后台</a>
+        <a class="back-link" href="/">返回站点</a>
+    </header>
+    <section class="settings-hero">
+        <p class="eyebrow">ARGON ADMIN / COMMENTS</p>
+        <h1>评论管理</h1>
+        <p>评论按页从 Worker 读取。筛选条件由服务端处理，不加载整站评论。</p>
+        <div id="connection-status" class="status status-pending" role="status" aria-live="polite">正在发现站点配置…</div>
+    </section>
+    <section class="panel panel-connection">
+        <div class="panel-heading"><div><p class="panel-kicker">ACCESS</p><h2>管理员连接</h2></div><span id="auth-badge" class="badge">未连接</span></div>
+        <label for="admin-key">Worker 管理员密钥</label>
+        <input id="admin-key" type="password" autocomplete="off" spellcheck="false" placeholder="VIEW_COUNTER_ADMIN_KEY">
+        <div class="button-row"><button id="connect-button" class="button button-primary" type="button">连接并读取</button><button id="forget-button" class="button button-quiet" type="button">清除</button></div>
+        <p class="help">密钥只保存于当前标签页的 sessionStorage，不会写入站点配置。</p>
+        <dl class="endpoint-details"><div><dt>发现的 Worker</dt><dd id="endpoint-label">尚未发现</dd></div><div><dt>页面 Origin</dt><dd id="origin-label"></dd></div></dl>
+    </section>
+    <section class="panel panel-comments">
+        <div class="panel-heading"><div><p class="panel-kicker">D1 COMMENTS</p><h2>全站评论</h2></div><button id="reload-comments" class="button button-quiet button-small" type="button">重新读取</button></div>
+        <div class="comments-toolbar">
+            <label for="comment-post-filter">文章路径</label><input id="comment-post-filter" type="search" placeholder="例如 /post/welcome/">
+            <label for="comment-author-filter">作者</label><input id="comment-author-filter" type="search" placeholder="作者名或 GitHub ID">
+            <label for="comment-status-filter">状态</label><select id="comment-status-filter"><option value="active">有效</option><option value="deleted">已删除</option><option value="all">全部</option></select>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th scope="col">评论</th><th scope="col">文章路径</th><th scope="col">状态</th><th scope="col">时间</th><th scope="col"><span class="sr-only">操作</span></th></tr></thead><tbody id="comments-body"><tr><td colspan="5" class="empty-row">请输入管理员密钥并连接。</td></tr></tbody></table></div>
+        <nav class="admin-pagination" aria-label="评论分页"><button id="comments-prev" class="button button-quiet button-small" type="button" disabled>上一页</button><span id="comments-page" class="summary">第 1 页</span><button id="comments-next" class="button button-quiet button-small" type="button" disabled>下一页</button></nav>
+        <p id="comments-message" class="message" role="status" aria-live="polite"></p>
+    </section>
+    <footer class="settings-footer"><span>Argon · admin surface</span><a href="/admin/views/">阅读量管理</a></footer>
+</main>
+<script src="/admin/admin.js?v=admin-1" defer></script>
+</body>
+</html>
