@@ -37,6 +37,7 @@
             commentDeleted: '评论已删除。',
             commentEditFailed: '评论编辑失败，请稍后重试。',
             commentDeleteFailed: '评论删除失败，请稍后重试。',
+            commentVoteFailed: '点赞失败，请稍后重试。',
             commentDeletedLabel: '评论已删除'
         } : {
             loading: 'Loading comments…',
@@ -66,6 +67,7 @@
             commentDeleted: 'Comment deleted.',
             commentEditFailed: 'Could not edit the comment. Please try again.',
             commentDeleteFailed: 'Could not delete the comment. Please try again.',
+            commentVoteFailed: 'Could not upvote the comment. Please try again.',
             commentDeletedLabel: 'Comment deleted'
         };
         var replacement = value === undefined || value === null ? '' : value;
@@ -116,6 +118,10 @@
 
     function commentItemUrl(endpoint, id) {
         return endpoint.replace(/\/+$/, '') + '/' + encodeURIComponent(id);
+    }
+
+    function commentVoteUrl(endpoint, id) {
+        return commentItemUrl(endpoint, id) + '/upvote';
     }
 
     function authUrl(endpoint, configured, path) {
@@ -188,6 +194,16 @@
             }
         } catch (error) {}
         return '';
+    }
+
+    function commentAvatarColor(value) {
+        var colors = ['#e25f50', '#f25e90', '#bc67cb', '#9672cf', '#7984ce', '#5c96fa', '#7bdeeb', '#45d0e2', '#48b7ad', '#52bc89', '#9ace5f', '#d4e34a', '#f9d715', '#fac400', '#ffaa00', '#ff8b61', '#c2c2c2', '#8ea3af', '#a1877d', '#a3a3a3', '#b0b6e3', '#b49cde', '#c2c2c2', '#7bdeeb', '#bcaaa4', '#aed77f'];
+        var hash = 0;
+        var source = String(value || '');
+        for (var index = 0; index < source.length; index += 1) {
+            hash = (hash * 233 + source.charCodeAt(index)) % 16;
+        }
+        return colors[hash];
     }
 
     function renderInline(container, source) {
@@ -371,32 +387,81 @@
         if (comment.deleted) {
             leftWrapper.classList.add('comment-item-left-wrapper-deleted');
         } else {
+            var avatarContainer = document.createElement('div');
+            avatarContainer.className = 'comment-item-avatar';
             var avatar = document.createElement('div');
-            avatar.className = 'comment-item-avatar text-avatar';
+            avatar.className = 'avatar avatar-40 photo text-avatar';
+            avatar.style.backgroundColor = commentAvatarColor(comment.authorName);
             var fallbackInitial = (comment.authorName || message('anonymous')).trim().charAt(0).toUpperCase();
             avatar.textContent = fallbackInitial;
+            avatarContainer.appendChild(avatar);
             if (comment.avatarUrl) {
                 try {
                     var avatarUrl = new URL(comment.avatarUrl, window.location.href);
                     if (avatarUrl.protocol === 'http:' || avatarUrl.protocol === 'https:') {
                         var avatarImage = document.createElement('img');
-                        avatarImage.className = 'avatar rounded-circle';
+                        avatarImage.className = 'avatar avatar-40 photo';
                         avatarImage.src = avatarUrl.href;
                         avatarImage.alt = '';
                         avatarImage.loading = 'lazy';
                         avatarImage.referrerPolicy = 'no-referrer';
                         avatarImage.addEventListener('error', function() {
-                            avatar.replaceChildren();
-                            avatar.textContent = fallbackInitial;
-                            avatar.classList.add('text-avatar');
+                            avatarContainer.replaceChildren(avatar);
                         });
-                        avatar.replaceChildren(avatarImage);
+                        avatarContainer.replaceChildren(avatarImage);
                     }
                 } catch (error) {
                     console.warn('Invalid comment avatar URL', error);
                 }
             }
-            leftWrapper.appendChild(avatar);
+            leftWrapper.appendChild(avatarContainer);
+            var upvote = document.createElement('button');
+            upvote.type = 'button';
+            upvote.className = 'comment-upvote btn btn-icon btn-outline-primary btn-sm';
+            upvote.dataset.id = comment.id;
+            upvote.setAttribute('aria-label', 'Upvote');
+            upvote.setAttribute('aria-pressed', comment.upvoted ? 'true' : 'false');
+            if (comment.upvoted) {
+                upvote.classList.add('upvoted');
+                upvote.disabled = true;
+            }
+            var upvoteIcon = document.createElement('span');
+            upvoteIcon.className = 'btn-inner--icon';
+            var caret = document.createElement('i');
+            caret.className = 'fa fa-caret-up';
+            caret.setAttribute('aria-hidden', 'true');
+            upvoteIcon.appendChild(caret);
+            var upvoteText = document.createElement('span');
+            upvoteText.className = 'btn-inner--text';
+            var upvoteNumber = document.createElement('span');
+            upvoteNumber.className = 'comment-upvote-num';
+            upvoteNumber.textContent = String(Number(comment.upvotes) || 0);
+            upvoteText.appendChild(upvoteNumber);
+            upvote.appendChild(upvoteIcon);
+            upvote.appendChild(upvoteText);
+            upvote.addEventListener('click', function() {
+                if (upvote.disabled || upvote.classList.contains('comment-upvoting')) return;
+                upvote.classList.add('comment-upvoting');
+                fetch(commentVoteUrl(state.endpoint, comment.id), {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-Token': state.csrfToken
+                    },
+                    credentials: 'include'
+                }).then(parseResponse).then(function(data) {
+                    upvoteNumber.textContent = String(Number(data.upvotes) || 0);
+                    upvote.classList.remove('comment-upvoting');
+                    upvote.classList.add('upvoted');
+                    upvote.setAttribute('aria-pressed', 'true');
+                    upvote.disabled = true;
+                }).catch(function(error) {
+                    upvote.classList.remove('comment-upvoting');
+                    setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentVoteFailed'), true);
+                    console.error('Argon comment upvote failed', error);
+                });
+            });
+            leftWrapper.appendChild(upvote);
         }
 
         var inner = document.createElement('div');

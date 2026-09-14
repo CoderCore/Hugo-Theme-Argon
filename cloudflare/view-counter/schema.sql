@@ -34,6 +34,17 @@ CREATE INDEX IF NOT EXISTS idx_comments_parent
 CREATE INDEX IF NOT EXISTS idx_comments_github_post
   ON comments(github_id, post_path, id);
 
+-- One immutable upvote per authenticated GitHub user or anonymous browser.
+CREATE TABLE IF NOT EXISTS comment_votes (
+  comment_id INTEGER NOT NULL,
+  voter_key TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (comment_id, voter_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comment_votes_comment
+  ON comment_votes(comment_id);
+
 -- GitHub identity is the only supported login provider.
 CREATE TABLE IF NOT EXISTS auth_users (
   github_id TEXT PRIMARY KEY,

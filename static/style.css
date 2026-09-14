@@ -2480,23 +2480,24 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 	justify-content: center;
 	height: 40px;
 	width: 40px;
-	flex: 0 0 40px;
 	overflow: hidden;
 	border-radius: 50%;
-	background-color: var(--themecolor);
-	color: #fff;
-	font-size: 18px;
-	font-weight: 600;
 }
 .comment-item-avatar .avatar {
 	height: 40px;
 	width: 40px;
 	max-width: none;
 	object-fit: cover;
+	border-radius: 50%;
 }
 .text-avatar {
 	user-select: none;
 	display: inline-flex !important;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-size: 18px;
+	font-weight: 600;
 }
 .comment-item-inner {
 	display: block;

@@ -8,8 +8,10 @@ const AUTH_LOGOUT_PATH = "/api/auth/logout";
 const TOTAL_SLUG = "__site_total__";
 const SESSION_COOKIE = "argon_session";
 const OAUTH_STATE_COOKIE = "argon_oauth_state";
+const VOTE_COOKIE = "argon_vote_id";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const OAUTH_STATE_TTL_SECONDS = 60 * 10;
+const VOTE_COOKIE_TTL_SECONDS = 60 * 60 * 24 * 365;
 const MAX_ID_LENGTH = 512;
 const MAX_BATCH_IDS = 100;
 const MAX_BODY_LENGTH = 20000;
@@ -33,6 +35,8 @@ const SCHEMA_SQL = [
   "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
   "CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_path, created_at DESC, id DESC);",
   "CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);",
+  "CREATE TABLE IF NOT EXISTS comment_votes (comment_id INTEGER NOT NULL, voter_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (comment_id, voter_key));",
+  "CREATE INDEX IF NOT EXISTS idx_comment_votes_comment ON comment_votes(comment_id);",
   "CREATE TABLE IF NOT EXISTS auth_users (github_id TEXT PRIMARY KEY, login TEXT NOT NULL, display_name TEXT, avatar_url TEXT, profile_url TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);",
   "CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, github_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
   "CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires ON auth_sessions(expires_at);",
@@ -266,6 +270,18 @@ function sessionUser(row) {
 
 function allowGuestComments(env) {
   return String(env.COMMENTS_ALLOW_GUESTS || "").toLowerCase() === "true";
+}
+
+async function commentVoter(request, user) {
+  if (user) return { key: `github:${user.githubId}`, setCookie: null };
+  const cookies = parseCookies(request);
+  const token = cookies[VOTE_COOKIE] || randomToken(32);
+  return {
+    key: `cookie:${await sha256(token)}`,
+    setCookie: cookies[VOTE_COOKIE]
+      ? null
+      : cookieHeader(VOTE_COOKIE, token, VOTE_COOKIE_TTL_SECONDS, request, "/", "Lax"),
+  };
 }
 
 async function authenticatedUser(request, env) {
@@ -607,6 +623,8 @@ function commentRow(row) {
     content: deleted ? "" : row.content,
     createdAt: row.created_at,
     updatedAt: deleted ? "" : row.updated_at || "",
+    upvotes: deleted ? 0 : Number(row.upvotes) || 0,
+    upvoted: !deleted && Number(row.upvoted) === 1,
     deleted,
     canEdit: !deleted && Number(row.can_edit) === 1,
     canDelete: !deleted && Number(row.can_delete) === 1,
@@ -621,6 +639,7 @@ async function handleCommentsGet(request, url, env, origin) {
 
   const user = await authenticatedUser(request, env);
   const githubId = user ? user.githubId : "";
+  const voter = await commentVoter(request, user);
   const totalResult = await env.DB.prepare(
     "SELECT COUNT(*) AS total FROM comments WHERE post_path = ?",
   ).bind(postPath).first();
@@ -629,11 +648,13 @@ async function handleCommentsGet(request, url, env, origin) {
   const result = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
+      "(SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id) AS upvotes, " +
+      "CASE WHEN EXISTS (SELECT 1 FROM comment_votes v WHERE v.comment_id = c.id AND v.voter_key = ?) THEN 1 ELSE 0 END AS upvoted, " +
       "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_edit, " +
       "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id " +
       "WHERE c.post_path = ? ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
-  ).bind(githubId, githubId, postPath, limit, offset).all();
+  ).bind(voter.key, githubId, githubId, postPath, limit, offset).all();
 
   return json({
     comments: (result.results || []).map(commentRow),
@@ -641,7 +662,7 @@ async function handleCommentsGet(request, url, env, origin) {
     limit,
     total,
     pages: total === 0 ? 0 : Math.ceil(total / limit),
-  }, 200, origin);
+  }, 200, origin, voter.setCookie ? { "Set-Cookie": voter.setCookie } : undefined);
 }
 
 async function handleCommentsPost(request, env, origin) {
@@ -686,6 +707,8 @@ async function handleCommentsPost(request, env, origin) {
   const row = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
+      "(SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id) AS upvotes, " +
+      "0 AS upvoted, " +
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(id).first();
@@ -723,6 +746,8 @@ async function handleCommentPut(request, commentId, env, origin) {
   const row = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
+      "(SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id) AS upvotes, " +
+      "0 AS upvoted, " +
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(commentId).first();
@@ -740,7 +765,33 @@ async function handleCommentDelete(request, commentId, env, origin) {
       "WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
   ).bind(commentId, ownership.user.githubId).run();
   await pruneCommentTreeIfEmpty(commentId, env);
+  await env.DB.prepare("DELETE FROM comment_votes WHERE comment_id NOT IN (SELECT id FROM comments)").run();
   return json({ deleted: true, id: commentId }, 200, origin);
+}
+
+async function handleCommentUpvote(request, commentId, env, origin) {
+  if (!validMutationContext(request) || !validCsrfToken(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
+  const comment = await env.DB.prepare(
+    "SELECT id FROM comments WHERE id = ? AND deleted_at IS NULL",
+  ).bind(commentId).first();
+  if (!comment) return json({ error: "comment_not_found" }, 404, origin);
+
+  const user = await authenticatedUser(request, env);
+  const voter = await commentVoter(request, user);
+  const rateKey = user ? `user:${user.githubId}` : `ip:${clientKey(request)}`;
+  if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, `vote:${rateKey}`))) {
+    return json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" });
+  }
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO comment_votes (comment_id, voter_key) VALUES (?, ?)",
+  ).bind(commentId, voter.key).run();
+  const total = await env.DB.prepare(
+    "SELECT COUNT(*) AS total FROM comment_votes WHERE comment_id = ?",
+  ).bind(commentId).first();
+  return json({ id: commentId, upvotes: Number(total?.total) || 0, upvoted: true }, 200, origin,
+    voter.setCookie ? { "Set-Cookie": voter.setCookie } : undefined);
 }
 
 async function pruneCommentTreeIfEmpty(commentId, env) {
@@ -814,12 +865,15 @@ export default {
     const commentItemMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/?$/);
     const commentItemId = commentItemMatch ? normalizeCommentId(commentItemMatch[1]) : null;
     const isCommentItemPath = !!commentItemId;
+    const commentVoteMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/upvote\/?$/);
+    const commentVoteId = commentVoteMatch ? normalizeCommentId(commentVoteMatch[1]) : null;
+    const isCommentVotePath = !!commentVoteId;
     const isAuthStartPath = url.pathname === AUTH_START_PATH || url.pathname === `${AUTH_START_PATH}/`;
     const isAuthCallbackPath = url.pathname === AUTH_CALLBACK_PATH || url.pathname === `${AUTH_CALLBACK_PATH}/`;
     const isAuthMePath = url.pathname === AUTH_ME_PATH || url.pathname === `${AUTH_ME_PATH}/`;
     const isAuthLogoutPath = url.pathname === AUTH_LOGOUT_PATH || url.pathname === `${AUTH_LOGOUT_PATH}/`;
     const isAuthPath = isAuthStartPath || isAuthCallbackPath || isAuthMePath || isAuthLogoutPath;
-    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentItemPath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
+    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
     try {
@@ -850,6 +904,8 @@ export default {
         operation = () => handleCommentPut(request, commentItemId, env, origin);
       } else if (request.method === "DELETE" && isCommentItemPath) {
         operation = () => handleCommentDelete(request, commentItemId, env, origin);
+      } else if (request.method === "POST" && isCommentVotePath) {
+        operation = () => handleCommentUpvote(request, commentVoteId, env, origin);
       } else if (request.method === "GET" && isViewsPath) {
         // Validate authentication and query shape before initialization.
         if (url.searchParams.get("all") === "1") {
