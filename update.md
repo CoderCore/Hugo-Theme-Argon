@@ -6,7 +6,9 @@
 - 新增评论黑名单/白名单模式和 GitHub 数字 ID 名单管理；黑名单用户的已有评论对公众隐藏为删除状态，白名单模式只允许名单用户进行评论操作。
 - 发布、回复、编辑、删除、点赞均在 Worker 端重新校验名单策略，不能仅通过绕过前端按钮获得权限。
 - 评论管理 UI 增加策略切换、名单添加/移除、拉黑/解除拉黑和墓碑彻底删除操作，并沿用后台主题色与亮暗模式。
-- 已完成 Worker、后台脚本和评论脚本语法检查，并审查了 OAuth/PKCE、会话 Cookie、CSRF、Origin/Fetch Metadata、管理员授权、名单后端强制校验、Markdown 输出和远程头像 URL；本轮待提交并部署。
+- 已完成 Worker、后台脚本和评论脚本语法检查，并审查了 OAuth/PKCE、会话 Cookie、CSRF、Origin/Fetch Metadata、管理员授权、名单后端强制校验、Markdown 输出和远程头像 URL。
+- 修正名单头像 URL 的协议与长度边界；生产 Wrangler 配置显式关闭 workers.dev 和预览 URL，缩小非生产入口。
+- 主题已推送，Worker 已部署；博客 gitlink 已更新并推送，正式站点正在由 GitHub Pages 发布。
 
 ## 2026-09-14：后台主题模式和主题色同步
 
