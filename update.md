@@ -147,3 +147,4 @@
 - 生产模拟测试通过：`auth/me=200`、CSRF Cookie 下发、缺失/错误 Token=`403`、错误 Content-Type=`403`、有效 Token 但未登录=`401`、非法来源=`403`、预检=`204`、评论读取=`200`、非法 OAuth returnTo=`400`；安全响应头和 `X-CSRF-Token` CORS 白名单存在。
 - 本地 Wrangler 4.105 的旧 workerd 在当前配置启动阶段崩溃，未能完成本地 Worker 运行时测试；Worker `deploy --dry-run` 和生产边界测试通过。后续可升级 Wrangler 后补做本地限流绑定测试。
 - GitHub Client Secret 曾出现在对话中，未自动猜测新值或替换；待用户在 GitHub 生成新 Secret 后再更新 Worker Secret。
+- 为避免浏览器继续使用未携带 CSRF Token 的旧评论脚本，将脚本缓存版本从 `comments-4` 更新为 `comments-5`。
