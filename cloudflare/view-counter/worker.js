@@ -24,15 +24,18 @@ const CSRF_COOKIE = "argon_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
 const GITHUB_REQUEST_TIMEOUT_MS = 10000;
 
-// D1 is the only persistent state used by this Worker. The site-wide total is
-// calculated from article rows; the legacy reserved row is ignored.
+// D1 is the only persistent state used by this Worker. The reserved row is a
+// maintained cache of the site-wide total; it is reconciled once on migration.
 // D1 exec() accepts multiple queries separated by newlines. Keep each query
 // on one line so the API does not split a multiline CREATE statement midway.
 const SCHEMA_SQL = [
   "CREATE TABLE IF NOT EXISTS view_counts (slug TEXT PRIMARY KEY, views INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);",
   "CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at ON view_counts(updated_at);",
-  "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
+  "CREATE TABLE IF NOT EXISTS view_counter_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+  `INSERT OR IGNORE INTO view_counts (slug, views) VALUES ('${TOTAL_SLUG}', 0);`,
+  "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, upvotes INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
   "CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_path, created_at DESC, id DESC);",
+  "CREATE INDEX IF NOT EXISTS idx_comments_post_rank ON comments(post_path, upvotes DESC, created_at DESC, id DESC);",
   "CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);",
   "CREATE TABLE IF NOT EXISTS comment_votes (comment_id INTEGER NOT NULL, voter_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (comment_id, voter_key));",
   "CREATE INDEX IF NOT EXISTS idx_comment_votes_comment ON comment_votes(comment_id);",
@@ -62,9 +65,28 @@ async function ensureSchema(env) {
         ["github_id", "ALTER TABLE comments ADD COLUMN github_id TEXT;"],
         ["updated_at", "ALTER TABLE comments ADD COLUMN updated_at TEXT;"],
         ["deleted_at", "ALTER TABLE comments ADD COLUMN deleted_at TEXT;"],
+        ["upvotes", "ALTER TABLE comments ADD COLUMN upvotes INTEGER NOT NULL DEFAULT 0;"],
       ];
       for (const [name, statement] of migrations) {
         if (!columnNames.has(name)) await database.exec(statement);
+      }
+      if (!columnNames.has("upvotes")) {
+        await database.exec(
+          "UPDATE comments SET upvotes = (SELECT COUNT(*) FROM comment_votes WHERE comment_votes.comment_id = comments.id);",
+        );
+      }
+      const totalCache = await database.prepare(
+        "SELECT value FROM view_counter_meta WHERE key = ?",
+      ).bind("site_total_cache_v1").first();
+      if (!totalCache) {
+        await database.batch([
+          database.prepare(
+            "UPDATE view_counts SET views = COALESCE((SELECT SUM(views) FROM view_counts WHERE slug <> ?), 0), updated_at = CURRENT_TIMESTAMP WHERE slug = ?",
+          ).bind(TOTAL_SLUG, TOTAL_SLUG),
+          database.prepare(
+            "INSERT OR REPLACE INTO view_counter_meta (key, value) VALUES (?, ?)",
+          ).bind("site_total_cache_v1", "ready"),
+        ]);
       }
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_github_post ON comments(github_id, post_path, id);");
       // Older releases used soft deletion. Remove only trees whose every node
@@ -569,32 +591,24 @@ function normalizeBatchBody(body, singleRequest) {
 
 function buildSelect(ids) {
   const placeholders = ids.map(() => "?").join(", ");
-  return `SELECT slug, views FROM view_counts WHERE slug IN (${placeholders}) AND slug <> ?`;
+  return `SELECT slug, views FROM view_counts WHERE slug IN (${placeholders}) OR slug = ?`;
 }
 
 function parseCountRows(result, ids) {
   const counts = Object.fromEntries(ids.map((id) => [id, 0]));
+  let total = 0;
   for (const row of result.results || []) {
     const views = Number(row.views);
     if (!Number.isSafeInteger(views) || views < 0) continue;
-    if (hasOwn(counts, row.slug)) counts[row.slug] = views;
+    if (row.slug === TOTAL_SLUG) total = views;
+    else if (hasOwn(counts, row.slug)) counts[row.slug] = views;
   }
-  return counts;
-}
-
-function parseSiteTotal(result) {
-  const total = Number(result?.total);
-  return Number.isSafeInteger(total) && total >= 0 ? total : 0;
+  return { counts, total };
 }
 
 async function readCounts(env, ids) {
-  const [result, totalResult] = await Promise.all([
-    env.DB.prepare(buildSelect(ids)).bind(...ids, TOTAL_SLUG).all(),
-    env.DB.prepare(
-      "SELECT COALESCE(SUM(views), 0) AS total FROM view_counts WHERE slug <> ?",
-    ).bind(TOTAL_SLUG).first(),
-  ]);
-  return { counts: parseCountRows(result, ids), total: parseSiteTotal(totalResult) };
+  const result = await env.DB.prepare(buildSelect(ids)).bind(...ids, TOTAL_SLUG).all();
+  return parseCountRows(result, ids);
 }
 
 async function writeAndReadCounts(env, ids, increment) {
@@ -606,18 +620,16 @@ async function writeAndReadCounts(env, ids, increment) {
           "ON CONFLICT(slug) DO UPDATE SET views = MIN(?, view_counts.views + 1), updated_at = CURRENT_TIMESTAMP",
       ).bind(increment, MAX_VIEWS),
     );
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO view_counts (slug, views) VALUES (?, 1) " +
+          "ON CONFLICT(slug) DO UPDATE SET views = MIN(?, view_counts.views + 1), updated_at = CURRENT_TIMESTAMP",
+      ).bind(TOTAL_SLUG, MAX_VIEWS),
+    );
   }
   statements.push(env.DB.prepare(buildSelect(ids)).bind(...ids, TOTAL_SLUG));
-  statements.push(
-    env.DB.prepare(
-      "SELECT COALESCE(SUM(views), 0) AS total FROM view_counts WHERE slug <> ?",
-    ).bind(TOTAL_SLUG),
-  );
   const results = await env.DB.batch(statements);
-  return {
-    counts: parseCountRows(results[results.length - 2], ids),
-    total: parseSiteTotal(results[results.length - 1]),
-  };
+  return parseCountRows(results[results.length - 1], ids);
 }
 
 function commentRow(row) {
@@ -649,21 +661,19 @@ async function handleCommentsGet(request, url, env, origin) {
   const user = await authenticatedUser(request, env);
   const githubId = user ? user.githubId : "";
   const voter = await commentVoter(request, user);
-  const totalResult = await env.DB.prepare(
-    "SELECT COUNT(*) AS total FROM comments WHERE post_path = ?",
-  ).bind(postPath).first();
-  const total = Number(totalResult?.total) || 0;
   const offset = (page - 1) * limit;
   const result = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
+      "COUNT(*) OVER() AS total_count, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
-      "(SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id) AS upvotes, " +
+      "c.upvotes AS upvotes, " +
       "CASE WHEN EXISTS (SELECT 1 FROM comment_votes v WHERE v.comment_id = c.id AND v.voter_key = ?) THEN 1 ELSE 0 END AS upvoted, " +
       "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_edit, " +
       "CASE WHEN c.github_id = ? THEN 1 ELSE 0 END AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id " +
       "WHERE c.post_path = ? ORDER BY upvotes DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
   ).bind(voter.key, githubId, githubId, postPath, limit, offset).all();
+  const total = result.results?.length ? Number(result.results[0].total_count) || 0 : 0;
 
   return json({
     comments: (result.results || []).map(commentRow),
@@ -689,6 +699,11 @@ async function handleCommentsPost(request, env, origin) {
     return json({ error: "invalid_parent" }, 400, origin);
   }
 
+  const user = await authenticatedUser(request, env);
+  if (!user && !allowGuestComments(env)) {
+    return json({ error: "auth_required" }, 401, origin);
+  }
+
   if (parentId) {
     const parent = await env.DB.prepare(
       "SELECT id FROM comments WHERE id = ? AND post_path = ?",
@@ -696,10 +711,6 @@ async function handleCommentsPost(request, env, origin) {
     if (!parent) return json({ error: "parent_not_found" }, 400, origin);
   }
 
-  const user = await authenticatedUser(request, env);
-  if (!user && !allowGuestComments(env)) {
-    return json({ error: "auth_required" }, 401, origin);
-  }
   if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, user ? `user:${user.githubId}` : `ip:${clientKey(request)}`))) {
     return json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" });
   }
@@ -716,7 +727,7 @@ async function handleCommentsPost(request, env, origin) {
   const row = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
-      "(SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id) AS upvotes, " +
+      "c.upvotes AS upvotes, " +
       "0 AS upvoted, " +
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
@@ -755,7 +766,7 @@ async function handleCommentPut(request, commentId, env, origin) {
   const row = await env.DB.prepare(
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
-      "(SELECT COUNT(*) FROM comment_votes v WHERE v.comment_id = c.id) AS upvotes, " +
+      "c.upvotes AS upvotes, " +
       "0 AS upvoted, " +
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
@@ -774,7 +785,6 @@ async function handleCommentDelete(request, commentId, env, origin) {
       "WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
   ).bind(commentId, ownership.user.githubId).run();
   await pruneCommentTreeIfEmpty(commentId, env);
-  await env.DB.prepare("DELETE FROM comment_votes WHERE comment_id NOT IN (SELECT id FROM comments)").run();
   return json({ deleted: true, id: commentId }, 200, origin);
 }
 
@@ -782,36 +792,41 @@ async function handleCommentUpvote(request, commentId, env, origin) {
   if (!validMutationContext(request) || !validCsrfToken(request)) {
     return json({ error: "csrf_failed" }, 403, origin);
   }
-  const comment = await env.DB.prepare(
-    "SELECT id FROM comments WHERE id = ? AND deleted_at IS NULL",
-  ).bind(commentId).first();
-  if (!comment) return json({ error: "comment_not_found" }, 404, origin);
-
   const user = await authenticatedUser(request, env);
   if (!user && !allowGuestComments(env)) {
     return json({ error: "auth_required" }, 401, origin);
   }
   const voter = await commentVoter(request, user);
+  const comment = await env.DB.prepare(
+    "SELECT c.id, c.upvotes, EXISTS (SELECT 1 FROM comment_votes v WHERE v.comment_id = c.id AND v.voter_key = ?) AS existing " +
+      "FROM comments c WHERE c.id = ? AND c.deleted_at IS NULL",
+  ).bind(voter.key, commentId).first();
+  if (!comment) return json({ error: "comment_not_found" }, 404, origin);
+
   const rateKey = user ? `user:${user.githubId}` : `ip:${clientKey(request)}`;
   if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, `vote:${rateKey}`))) {
     return json({ error: "rate_limited" }, 429, origin, { "Retry-After": "60" });
   }
-  const existing = await env.DB.prepare(
-    "SELECT 1 FROM comment_votes WHERE comment_id = ? AND voter_key = ?",
-  ).bind(commentId, voter.key).first();
+  const existing = Number(comment.existing) === 1;
+  const delta = existing ? -1 : 1;
+  const statements = [];
   if (existing) {
-    await env.DB.prepare(
+    statements.push(env.DB.prepare(
       "DELETE FROM comment_votes WHERE comment_id = ? AND voter_key = ?",
-    ).bind(commentId, voter.key).run();
+    ).bind(commentId, voter.key));
   } else {
-    await env.DB.prepare(
+    statements.push(env.DB.prepare(
       "INSERT INTO comment_votes (comment_id, voter_key) VALUES (?, ?)",
-    ).bind(commentId, voter.key).run();
+    ).bind(commentId, voter.key));
   }
-  const total = await env.DB.prepare(
-    "SELECT COUNT(*) AS total FROM comment_votes WHERE comment_id = ?",
-  ).bind(commentId).first();
-  return json({ id: commentId, upvotes: Number(total?.total) || 0, upvoted: !existing }, 200, origin,
+  statements.push(env.DB.prepare(
+    "UPDATE comments SET upvotes = MAX(0, upvotes + ?) WHERE id = ? AND deleted_at IS NULL",
+  ).bind(delta, commentId));
+  statements.push(env.DB.prepare("SELECT upvotes FROM comments WHERE id = ?").bind(commentId));
+  const results = await env.DB.batch(statements);
+  const updated = results[results.length - 1]?.results?.[0];
+  const upvotes = Number(updated?.upvotes);
+  return json({ id: commentId, upvotes: Number.isSafeInteger(upvotes) ? upvotes : Math.max(0, Number(comment.upvotes) + delta), upvoted: !existing }, 200, origin,
     voter.setCookie ? { "Set-Cookie": voter.setCookie } : undefined);
 }
 
@@ -821,25 +836,27 @@ async function pruneCommentTreeIfEmpty(commentId, env) {
       "SELECT id, parent_id FROM comments WHERE id = ? " +
       "UNION ALL " +
       "SELECT c.id, c.parent_id FROM comments c JOIN ancestors a ON c.id = a.parent_id" +
-    ") SELECT id FROM ancestors WHERE parent_id IS NULL LIMIT 1",
-  ).bind(commentId).first();
-  if (!root) return;
-  const active = await env.DB.prepare(
-    "WITH RECURSIVE comment_tree(id) AS (" +
-      "SELECT id FROM comments WHERE id = ? " +
+    "), root AS (" +
+      "SELECT id FROM ancestors WHERE parent_id IS NULL LIMIT 1" +
+    "), comment_tree(id) AS (" +
+      "SELECT id FROM comments WHERE id = (SELECT id FROM root) " +
       "UNION ALL " +
       "SELECT c.id FROM comments c JOIN comment_tree p ON c.parent_id = p.id" +
-    ") SELECT SUM(CASE WHEN c.deleted_at IS NULL THEN 1 ELSE 0 END) AS active " +
+    ") SELECT (SELECT id FROM root) AS root_id, " +
+      "SUM(CASE WHEN c.deleted_at IS NULL THEN 1 ELSE 0 END) AS active " +
       "FROM comments c JOIN comment_tree t ON t.id = c.id",
-  ).bind(root.id).first();
-  if (Number(active?.active) !== 0) return;
-  await env.DB.prepare(
+  ).bind(commentId).first();
+  if (!root?.root_id || Number(root.active) !== 0) return;
+  const tree =
     "WITH RECURSIVE comment_tree(id) AS (" +
       "SELECT id FROM comments WHERE id = ? " +
       "UNION ALL " +
       "SELECT c.id FROM comments c JOIN comment_tree p ON c.parent_id = p.id" +
-    ") DELETE FROM comments WHERE id IN (SELECT id FROM comment_tree);",
-  ).bind(root.id).run();
+    ") ";
+  await env.DB.batch([
+    env.DB.prepare(tree + "DELETE FROM comment_votes WHERE comment_id IN (SELECT id FROM comment_tree);").bind(root.root_id),
+    env.DB.prepare(tree + "DELETE FROM comments WHERE id IN (SELECT id FROM comment_tree);").bind(root.root_id),
+  ]);
 }
 
 function singleResponse(id, data, origin) {
@@ -850,19 +867,16 @@ function singleResponse(id, data, origin) {
 async function handleGet(request, url, env, origin) {
   if (url.searchParams.get("all") === "1") {
     if (!authorizedAdmin(request, env)) return json({ error: "unauthorized" }, 401, origin);
-    const [result, totalResult] = await Promise.all([
-      env.DB.prepare(
-        "SELECT slug, views, updated_at FROM view_counts WHERE slug <> ? ORDER BY slug",
-      ).bind(TOTAL_SLUG).all(),
-      env.DB.prepare(
-        "SELECT COALESCE(SUM(views), 0) AS total FROM view_counts WHERE slug <> ?",
-      ).bind(TOTAL_SLUG).first(),
-    ]);
+    const result = await env.DB.prepare(
+      "SELECT slug, views, updated_at FROM view_counts ORDER BY slug",
+    ).all();
     const counts = [];
+    let total = 0;
     for (const row of result.results || []) {
-      counts.push(row);
+      if (row.slug === TOTAL_SLUG) total = Number(row.views) || 0;
+      else counts.push(row);
     }
-    return json({ counts, total: parseSiteTotal(totalResult) }, 200, origin);
+    return json({ counts, total }, 200, origin);
   }
 
   if (!authorizedView(request, env)) return json({ error: "unauthorized" }, 401, origin);
@@ -980,17 +994,37 @@ export default {
 
 async function handlePutBody(id, views, env, origin) {
   if (id === TOTAL_SLUG) return json({ error: "site_total_is_calculated" }, 400, origin);
-  await env.DB.prepare(
-    "INSERT INTO view_counts (slug, views) VALUES (?, ?) " +
-      "ON CONFLICT(slug) DO UPDATE SET views = excluded.views, updated_at = CURRENT_TIMESTAMP",
-  ).bind(id, views).run();
+  const previous = await env.DB.prepare(
+    "SELECT views FROM view_counts WHERE slug = ?",
+  ).bind(id).first();
+  const oldViews = Number(previous?.views) || 0;
+  const delta = views - oldViews;
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO view_counts (slug, views) VALUES (?, ?) " +
+        "ON CONFLICT(slug) DO UPDATE SET views = excluded.views, updated_at = CURRENT_TIMESTAMP",
+    ).bind(id, views),
+    env.DB.prepare(
+      "INSERT INTO view_counts (slug, views) VALUES (?, ?) " +
+        "ON CONFLICT(slug) DO UPDATE SET views = MAX(0, MIN(?, view_counts.views + ?)), updated_at = CURRENT_TIMESTAMP",
+    ).bind(TOTAL_SLUG, 0, MAX_VIEWS, delta),
+  ]);
   const data = await readCounts(env, [id]);
   return singleResponse(id, data, origin);
 }
 
 async function handleDeleteId(id, env, origin) {
   if (id === TOTAL_SLUG) return json({ error: "site_total_is_calculated" }, 400, origin);
-  await env.DB.prepare("DELETE FROM view_counts WHERE slug = ?").bind(id).run();
+  const previous = await env.DB.prepare(
+    "SELECT views FROM view_counts WHERE slug = ?",
+  ).bind(id).first();
+  const oldViews = Number(previous?.views) || 0;
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM view_counts WHERE slug = ?").bind(id),
+    env.DB.prepare(
+      "UPDATE view_counts SET views = MAX(0, views - ?), updated_at = CURRENT_TIMESTAMP WHERE slug = ?",
+    ).bind(oldViews, TOTAL_SLUG),
+  ]);
   const data = await readCounts(env, [id]);
   return singleResponse(id, data, origin);
 }

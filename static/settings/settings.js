@@ -223,7 +223,7 @@
         renderViews();
         byId('auth-badge').textContent = '已连接';
         byId('auth-badge').className = 'badge';
-        setStatus('Worker 已连接；网站总量由 D1 文章记录自动汇总。', 'ok');
+        setStatus('Worker 已连接；网站总量由 D1 文章记录维护缓存。', 'ok');
         showGuide(false);
     }
 
