@@ -14,9 +14,10 @@
     {{- $showReadingtime = false -}}
 {{- end -}}
 {{- $commentsConfigured := false -}}
+{{- $commentEndpoint := "" -}}
 {{- with .Site.Params.comments -}}
     {{- if reflect.IsMap . -}}
-        {{- $commentEndpoint := index . "endpoint" -}}
+        {{- $commentEndpoint = index . "endpoint" -}}
         {{- $commentsConfigured = and (eq (index . "enabled") true) (eq (printf "%T" $commentEndpoint) "string") (ne $commentEndpoint "") -}}
     {{- end -}}
 {{- end -}}
@@ -71,7 +72,7 @@
             <span class="argon-view-count-value"></span>
         </div>
         {{- else if eq $meta "comments" -}}
-        <div class="post-meta-detail post-meta-detail-comments" data-comment-count data-comment-count-id="{{ $.RelPermalink }}"{{ if not $hasCommentCount }} hidden aria-hidden="true"{{ end }}>
+        <div class="post-meta-detail post-meta-detail-comments" data-comment-count data-comment-count-id="{{ $.RelPermalink }}" data-comment-count-endpoint="{{ $commentEndpoint }}"{{ if not $hasCommentCount }} hidden aria-hidden="true"{{ end }}>
             <i class="fa fa-comments-o" aria-hidden="true"></i>
             <span data-comment-count-value>{{ if $hasCommentCount }}{{ printf (T "commentCount") $.Params.commentsCount }}{{ end }}</span>
         </div>

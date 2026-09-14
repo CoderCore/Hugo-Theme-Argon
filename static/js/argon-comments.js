@@ -134,6 +134,76 @@
         }
     }
 
+    function refreshPreviewCommentCounts(root) {
+        root = root && typeof root.querySelectorAll === 'function' ? root : document;
+        var nodes = Array.prototype.filter.call(root.querySelectorAll(
+            '[data-comment-count][data-comment-count-id][data-comment-count-endpoint]'
+        ), function(node) {
+            return !!node.closest('[data-argon-article-preview]') &&
+                node.getAttribute('data-comment-count-loaded') !== 'true' &&
+                node.getAttribute('data-comment-count-loading') !== 'true';
+        });
+        var groups = Object.create(null);
+        nodes.forEach(function(node) {
+            var endpoint = (node.getAttribute('data-comment-count-endpoint') || '').trim();
+            var postPath = node.getAttribute('data-comment-count-id') || '';
+            if (!endpoint || !postPath) return;
+            if (!groups[endpoint]) groups[endpoint] = {nodes: [], ids: []};
+            groups[endpoint].nodes.push(node);
+            if (groups[endpoint].ids.indexOf(postPath) < 0) groups[endpoint].ids.push(postPath);
+            node.setAttribute('data-comment-count-loading', 'true');
+        });
+
+        var requests = Object.keys(groups).map(function(endpoint) {
+            var group = groups[endpoint];
+            var chunks = [];
+            for (var start = 0; start < group.ids.length; start += 100) {
+                chunks.push(group.ids.slice(start, start + 100));
+            }
+            return Promise.all(chunks.map(function(chunk) {
+                var requestUrl = new URL(endpoint.replace(/\/+$/, '') + '/counts', window.location.href);
+                requestUrl.search = '';
+                requestUrl.hash = '';
+                chunk.forEach(function(postPath) { requestUrl.searchParams.append('post', postPath); });
+                return fetch(requestUrl.href, {
+                    headers: {Accept: 'application/json'},
+                    credentials: 'omit'
+                }).then(parseResponse);
+            })).then(function(results) {
+                var values = Object.create(null);
+                results.forEach(function(data) {
+                    if (!data || !data.counts || typeof data.counts !== 'object') return;
+                    Object.keys(data.counts).forEach(function(postPath) {
+                        values[postPath] = data.counts[postPath];
+                    });
+                });
+                group.nodes.forEach(function(node) {
+                    var postPath = node.getAttribute('data-comment-count-id') || '';
+                    if (!Object.prototype.hasOwnProperty.call(values, postPath)) return;
+                    var count = Number(values[postPath]);
+                    if (!Number.isFinite(count) || count < 0) count = 0;
+                    var value = node.querySelector('[data-comment-count-value]');
+                    if (value) value.textContent = message('commentCount', count);
+                    node.hidden = false;
+                    node.setAttribute('aria-hidden', 'false');
+                    node.setAttribute('data-comment-count-loaded', 'true');
+                });
+            }).catch(function(error) {
+                console.warn('Argon preview comment counts failed', error);
+            }).finally(function() {
+                group.nodes.forEach(function(node) {
+                    node.removeAttribute('data-comment-count-loading');
+                });
+            });
+        });
+
+        return Promise.all(requests).then(function() {
+            if (typeof window.argonSyncMetaDividers === 'function') {
+                window.argonSyncMetaDividers(root);
+            }
+        });
+    }
+
     function requestUrl(endpoint, postPath, page) {
         var separator = endpoint.indexOf('?') === -1 ? '?' : '&';
         return endpoint + separator + 'post=' + encodeURIComponent(postPath) +
@@ -797,6 +867,7 @@
 
     function init(root) {
         root = root && typeof root.querySelectorAll === 'function' ? root : document;
+        refreshPreviewCommentCounts(root);
         var sections = root.querySelectorAll('.argon-comments[data-comments-endpoint]');
         Array.prototype.forEach.call(sections, function(section) {
             if (section.getAttribute('data-comments-initialized') === 'true') return;
@@ -948,4 +1019,6 @@
     window.argonCustomComments = window.argonCustomComments || {};
     window.argonCustomComments.init = init;
     window.argonCustomComments.destroy = destroy;
+    window.argonCustomComments.refreshPreviewCommentCounts = refreshPreviewCommentCounts;
+    refreshPreviewCommentCounts(document);
 })(window, document);

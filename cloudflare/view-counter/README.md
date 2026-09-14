@@ -211,6 +211,14 @@ Content-Type: application/json
 GET /api/comments?post=/post/example/&page=1&limit=20
 ```
 
+首页和归档页的文章卡片使用批量接口读取评论数，一次请求最多查询 100 篇文章，避免为每张卡片单独读取 D1：
+
+```http
+GET /api/comments/counts?post=/post/example/&post=/post/another/
+```
+
+返回格式为 `{ "counts": { "/post/example/": 3, "/post/another/": 0 } }`。
+
 列表读取只要求 Origin 在白名单中。发布评论需要会话和 CSRF Token：
 
 ```http

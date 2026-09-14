@@ -5,6 +5,8 @@ document.addEventListener('argon:page-ready', function(event) {
     }
     if (window.argonCustomComments && typeof(window.argonCustomComments.init) == 'function') {
         window.argonCustomComments.init((event.detail && event.detail.root) || document);
+    } else if (window.argonCustomComments && typeof(window.argonCustomComments.refreshPreviewCommentCounts) == 'function') {
+        window.argonCustomComments.refreshPreviewCommentCounts((event.detail && event.detail.root) || document);
     }
 });
 

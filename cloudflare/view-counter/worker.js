@@ -1,6 +1,7 @@
 const VIEWS_PATH = "/api/views";
 const BATCH_PATH = "/api/views/batch";
 const COMMENTS_PATH = "/api/comments";
+const COMMENT_COUNTS_PATH = "/api/comments/counts";
 const AUTH_START_PATH = "/api/auth/github/start";
 const AUTH_CALLBACK_PATH = "/api/auth/github/callback";
 const AUTH_ME_PATH = "/api/auth/me";
@@ -686,6 +687,21 @@ async function handleCommentsGet(request, url, env, origin) {
   }, 200, origin, voter.setCookie ? { "Set-Cookie": voter.setCookie } : undefined);
 }
 
+async function handleCommentCountsGet(url, env, origin) {
+  const posts = uniqueNormalizedIds(url.searchParams.getAll("post"));
+  if (!posts) return json({ error: "invalid_query" }, 400, origin);
+
+  const counts = Object.fromEntries(posts.map((post) => [post, 0]));
+  const placeholders = posts.map(() => "?").join(", ");
+  const result = await env.DB.prepare(
+    `SELECT post_path, COUNT(*) AS total FROM comments WHERE post_path IN (${placeholders}) GROUP BY post_path`,
+  ).bind(...posts).all();
+  for (const row of result.results || []) {
+    if (hasOwn(counts, row.post_path)) counts[row.post_path] = Number(row.total) || 0;
+  }
+  return json({ counts }, 200, origin);
+}
+
 async function handleCommentsPost(request, env, origin) {
   if (!requireJsonContentType(request) || !validMutationContext(request) || !validCsrfToken(request)) {
     return json({ error: "csrf_failed" }, 403, origin);
@@ -902,6 +918,7 @@ export default {
     const isViewsPath = url.pathname === VIEWS_PATH || url.pathname === `${VIEWS_PATH}/`;
     const isBatchPath = url.pathname === BATCH_PATH || url.pathname === `${BATCH_PATH}/`;
     const isCommentsPath = url.pathname === COMMENTS_PATH || url.pathname === `${COMMENTS_PATH}/`;
+    const isCommentCountsPath = url.pathname === COMMENT_COUNTS_PATH || url.pathname === `${COMMENT_COUNTS_PATH}/`;
     const commentItemMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/?$/);
     const commentItemId = commentItemMatch ? normalizeCommentId(commentItemMatch[1]) : null;
     const isCommentItemPath = !!commentItemId;
@@ -913,7 +930,7 @@ export default {
     const isAuthMePath = url.pathname === AUTH_ME_PATH || url.pathname === `${AUTH_ME_PATH}/`;
     const isAuthLogoutPath = url.pathname === AUTH_LOGOUT_PATH || url.pathname === `${AUTH_LOGOUT_PATH}/`;
     const isAuthPath = isAuthStartPath || isAuthCallbackPath || isAuthMePath || isAuthLogoutPath;
-    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
+    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAuthPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
     try {
@@ -938,6 +955,8 @@ export default {
         operation = () => handleAuthLogout(request, env, origin);
       } else if (request.method === "GET" && isCommentsPath) {
         operation = () => handleCommentsGet(request, url, env, origin);
+      } else if (request.method === "GET" && isCommentCountsPath) {
+        operation = () => handleCommentCountsGet(url, env, origin);
       } else if (request.method === "POST" && isCommentsPath) {
         operation = () => handleCommentsPost(request, env, origin);
       } else if (request.method === "PUT" && isCommentItemPath) {
