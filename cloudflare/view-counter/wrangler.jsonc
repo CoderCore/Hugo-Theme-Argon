@@ -14,7 +14,8 @@
   ],
   "vars": {
     "ALLOWED_ORIGINS": "https://fufu.blog,https://www.fufu.blog,https://jiang068.github.io",
-    "COMMENTS_ALLOW_GUESTS": "false"
+    "COMMENTS_ALLOW_GUESTS": "false",
+    "GITHUB_ADMIN_ID": "169352191"
   },
   "ratelimits": [
     {
