@@ -138,7 +138,7 @@ params:
     authEndpoint: "https://comments.example.com/api/auth"
 ```
 
-`VIEW_COUNTER_ADMIN_KEY`、`GITHUB_CLIENT_SECRET` 等后端密钥只能保存在 Worker Secrets，不能写入 Hugo 配置或主题仓库。
+`GITHUB_CLIENT_SECRET` 等后端密钥只能保存在 Worker Secrets，不能写入 Hugo 配置或主题仓库。后台管理员仅通过 Worker 配置的唯一 GitHub 数字 ID 登录。
 
 ## 本地运行示例站
 

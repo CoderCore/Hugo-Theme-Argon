@@ -17,19 +17,12 @@
     <section class="settings-hero">
         <p class="eyebrow">ARGON ADMIN / SIGN IN</p>
         <h1>管理员登录</h1>
-        <p>登录后可在后台页面之间自由切换，不需要重复填写密钥。</p>
+        <p>使用唯一配置的 GitHub 管理员账号登录，登录后可在后台页面之间自由切换。</p>
     </section>
     <section class="panel admin-login-card" aria-labelledby="login-title">
         <div class="panel-heading">
             <div><p class="panel-kicker">SECURE SESSION</p><h2 id="login-title">登录后台</h2></div>
         </div>
-        <form id="admin-login-form">
-            <label for="admin-login-key">管理员密钥</label>
-            <input id="admin-login-key" type="password" autocomplete="current-password" spellcheck="false" placeholder="VIEW_COUNTER_ADMIN_KEY" required>
-            <p class="help">密钥只用于登录验证，不会写入网页、Hugo 配置或浏览器存储。登录后由 Worker 使用 HttpOnly 会话 Cookie 保持登录态。</p>
-            <button id="admin-login-button" class="button button-primary button-wide" type="submit">登录</button>
-        </form>
-        <div class="admin-login-divider"><span>或使用 GitHub</span></div>
         <button id="github-admin-login-button" class="button button-github button-wide" type="button">使用 GitHub 登录</button>
         <p class="help">只有 Worker 中配置的唯一 GitHub 管理员账号可以进入后台；其他 GitHub 账号会被拒绝。</p>
         <p class="message" id="login-message" role="status" aria-live="polite"></p>

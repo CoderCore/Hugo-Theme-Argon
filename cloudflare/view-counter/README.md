@@ -69,7 +69,6 @@ Cloudflare 控制台：**Workers & Pages → D1 → Create database**。
 | `ALLOWED_ORIGINS` | Text | 允许访问 API 的完整 Origin，逗号分隔；不要写路径或末尾 `/` |
 | `COMMENTS_ALLOW_GUESTS` | Text | `false` 时必须 GitHub 登录后才能发表评论 |
 | `VIEW_COUNTER_KEY` | Secret | 主题公开阅读量请求使用的共享密钥 |
-| `VIEW_COUNTER_ADMIN_KEY` | Secret | `/admin/login/` 首次登录使用的密钥 |
 | `GITHUB_CLIENT_ID` | Text | GitHub OAuth App Client ID |
 | `GITHUB_CLIENT_SECRET` | Secret | GitHub OAuth App Client Secret |
 | `GITHUB_REDIRECT_URI` | Text | GitHub OAuth App 中登记的精确回调地址 |
@@ -86,7 +85,7 @@ GITHUB_REDIRECT_URI=https://comments.example.com/api/auth/github/callback
 安全规则：
 
 - 不要在 `hugo.yaml`、浏览器代码、Worker 源码或 Git 中保存 Secret。
-- `VIEW_COUNTER_KEY` 会发送到浏览器，因此它不是严格意义上的后端秘密；真正的管理员密钥必须使用 Secret。
+- `VIEW_COUNTER_KEY` 会发送到浏览器，因此它不是严格意义上的后端秘密；后台权限只由 GitHub OAuth 和唯一的 `GITHUB_ADMIN_ID` 决定。
 - 不要使用 `ALLOWED_ORIGINS=*`。
 - 生产不要加入 `localhost` 或 `127.0.0.1`。
 - 曾经暴露过的 GitHub Client Secret 应立即轮换。
@@ -208,14 +207,9 @@ Content-Type: application/json
 - `PUT /api/views`：设置 `{ "id": "/a/", "views": 100 }`；
 - `DELETE /api/views`：删除文章计数。
 
-管理后台位于主题生成站点的 `/admin/`，包括 `/admin/views/` 阅读量管理和 `/admin/comments/` 评论管理。后台使用公共左栏导航，新增模块只需增加一个页面文件并在 `static/admin/admin.js` 的 `adminModules` 中注册链接。管理员从 `/admin/login/` 登录一次后，Worker 会签发短期 HttpOnly 会话 Cookie；后台页面之间切换不需要重复填写密钥，页面提供退出登录按钮。管理员密钥不会保存到浏览器存储。除密钥登录外，登录页也支持 GitHub 管理员登录；只有 `GITHUB_ADMIN_ID` 对应账号可以进入后台。后台数据页不会一次加载全部记录，而是通过服务端分页接口读取，每页最多 50 条；页面会从站点的 `search.json` 补充文章标题，Worker 只负责返回路径和统计数据。
+管理后台位于主题生成站点的 `/admin/`，包括 `/admin/views/` 阅读量管理和 `/admin/comments/` 评论管理。后台使用公共左栏导航，新增模块只需增加一个页面文件并在 `static/admin/admin.js` 的 `adminModules` 中注册链接。管理员从 `/admin/login/` 使用 GitHub 登录一次后，Worker 会签发短期 HttpOnly 会话 Cookie；后台页面之间切换不需要重复登录，页面提供退出登录按钮。只有 `GITHUB_ADMIN_ID` 对应账号可以进入后台，其他 GitHub 账号会被拒绝。后台数据页不会一次加载全部记录，而是通过服务端分页接口读取，每页最多 50 条；页面会从站点的 `search.json` 补充文章标题，Worker 只负责返回路径和统计数据。
 
 ```http
-POST /api/admin/auth/login
-Content-Type: application/json
-
-{"key":"<VIEW_COUNTER_ADMIN_KEY>"}
-
 GET /api/admin/auth/me
 Cookie: argon_admin_session=<会话 Cookie>
 
@@ -235,7 +229,7 @@ GET /api/admin/comments?page=1&limit=20&post=/post/example/&author=jiang068&stat
 Cookie: argon_admin_session=<会话 Cookie>
 ```
 
-`status` 支持 `active`、`deleted` 和 `all`。评论后台可以编辑或删除任意评论；公开评论接口仍按 GitHub 用户身份限制普通用户只能编辑、删除自己的评论。登录后管理员写操作使用会话 Cookie 和 `X-Admin-CSRF-Token`，仍受 Origin/Fetch Metadata、JSON Content-Type 和限流规则保护。带 `X-View-Counter-Admin-Key` 的旧式管理请求仍兼容，但不应在浏览器长期保存密钥。
+`status` 支持 `active`、`deleted` 和 `all`。评论后台可以编辑或删除任意评论；公开评论接口仍按 GitHub 用户身份限制普通用户只能编辑、删除自己的评论。登录后管理员写操作使用会话 Cookie 和 `X-Admin-CSRF-Token`，仍受 Origin/Fetch Metadata、JSON Content-Type 和限流规则保护。后台不再提供管理员密钥登录或兼容旧式管理员密钥请求。
 
 ### 评论和登录
 
@@ -306,7 +300,6 @@ X-CSRF-Token: <csrfToken>
 
 ```sh
 wrangler secret put VIEW_COUNTER_KEY
-wrangler secret put VIEW_COUNTER_ADMIN_KEY
 wrangler secret put GITHUB_CLIENT_SECRET
 wrangler deploy --keep-vars --domain comments.example.com
 ```
@@ -321,7 +314,7 @@ wrangler deploy --keep-vars --domain comments.example.com
 GITHUB_ADMIN_ID=12345678
 ```
 
-保存变量后重新部署 Worker。之后 `/admin/login/` 的“使用 GitHub 登录”只会给这个数字 ID 签发管理员会话；其他 GitHub 账号即使登录成功，也只能作为普通评论用户，不能进入后台。若暂时不配置该变量，密钥登录仍可用，GitHub 管理员入口会提示未配置。
+保存变量后重新部署 Worker。之后 `/admin/login/` 的“使用 GitHub 登录”只会给这个数字 ID 签发管理员会话；其他 GitHub 账号即使登录成功，也只能作为普通评论用户，不能进入后台。未配置该变量时，后台登录会提示管理员尚未完成配置。
 
 ### 最小检查
 
@@ -341,7 +334,7 @@ curl -i \
 
 | 状态 | 原因 |
 | --- | --- |
-| `401 unauthorized` | 阅读量密钥或管理员密钥错误 |
+| `401 unauthorized` | 阅读量密钥无效，或当前会话不是唯一 GitHub 管理员 |
 | `401 auth_required` | 评论设置为不允许访客评论，当前没有 GitHub 会话 |
 | `403 origin_not_allowed` | Origin 不在白名单；检查协议、端口、路径和末尾 `/` |
 | `403 csrf_failed` | CSRF Token 缺失/错误，或请求来源上下文不合法 |

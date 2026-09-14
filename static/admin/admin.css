@@ -122,8 +122,6 @@ td:first-child { min-width: 240px; font-family: ui-monospace, monospace; font-si
 .admin-login-card { max-width: 520px; }
 .button-wide { width: 100%; margin-top: 12px; }
 .button-github { color: #596579; border-color: #cbd3e1; background: #f6f8fc; }
-.admin-login-divider { display: flex; align-items: center; gap: 12px; margin-top: 25px; color: var(--settings-muted); font-size: .75rem; }
-.admin-login-divider::before, .admin-login-divider::after { flex: 1; height: 1px; background: var(--settings-border); content: ''; }
 
 @media (max-width: 760px) {
     .settings-shell { width: min(100% - 22px, 600px); padding-top: 16px; }

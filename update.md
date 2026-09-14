@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-09-14：后台仅使用 GitHub 管理员身份
+
+- 删除 `VIEW_COUNTER_ADMIN_KEY`、管理员密钥登录接口及其前端表单、CORS 头和部署文档。
+- 管理员会话绑定 `GITHUB_ADMIN_ID`；旧密钥会话不会继续获得后台权限。
+- 保留 `VIEW_COUNTER_KEY`（前端阅读量 API 所需）以及 GitHub OAuth 必需的 `GITHUB_CLIENT_SECRET`。
+
 本文件按时间记录主题仓库的重要改动和验证结果。当前清单见 [`todo.md`](./todo.md)。
 
 ## 2026-09-11～09-12：阅读量基础能力

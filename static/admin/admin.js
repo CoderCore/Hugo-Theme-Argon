@@ -147,20 +147,13 @@
         var returnTo = window.location.href;
         window.location.assign(apiUrl('/api/admin/auth/github/start?returnTo=' + encodeURIComponent(returnTo)));
     }
-    async function login() {
-        var button = byId('admin-login-button'); var key = byId('admin-login-key').value; if (!key) { setMessage('login-message', '请输入管理员密钥。', 'error'); return; }
-        button.disabled = true; setStatus('正在验证管理员密钥…', 'pending');
-        try { var data = await apiRequest('/api/admin/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key: key})}); state.adminCsrf = data.csrfToken || ''; setStatus('登录成功，正在进入后台…', 'ok'); window.location.replace(safeReturnTo()); }
-        catch (error) { setStatus('登录失败', 'error'); setMessage('login-message', error.code === 'unauthorized' ? '管理员密钥不正确。' : '登录失败：' + error.message, 'error'); button.disabled = false; }
-    }
-
     async function logout() { try { await apiRequest('/api/admin/auth/logout', {method: 'POST'}); } catch (error) { if (!isUnauthorized(error)) setStatus('退出登录失败：' + error.message, 'error'); } window.location.replace('/admin/login/'); }
 
     async function ensureSession() { await discoverEndpoint(); var data = await apiRequest('/api/admin/auth/me'); if (!data.authenticated) throw new Error('unauthorized'); state.adminCsrf = data.csrfToken || ''; if (byId('auth-badge')) { byId('auth-badge').textContent = '已登录'; byId('auth-badge').className = 'badge'; } setStatus('管理员已登录。', 'ok'); }
     async function bootstrapProtected() { try { await ensureSession(); var page = document.body.getAttribute('data-admin-page') || 'home'; if (page === 'views' || page === 'comments') { await loadArticleTitles(); if (page === 'views') await loadViews(); else await loadComments(); } } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setStatus('后台连接失败：' + error.message, 'error'); } }
 
     function bindCommon() { if (byId('logout-button')) byId('logout-button').addEventListener('click', logout); }
-    function bootstrapLogin() { renderAdminNav(); var oauthResult = showAdminOAuthResult(); var githubButton = byId('github-admin-login-button'); if (githubButton) githubButton.disabled = true; discoverEndpoint().then(function () { if (githubButton) githubButton.disabled = false; if (!oauthResult) setStatus('请选择一种管理员登录方式。', 'pending'); }).catch(function (error) { setStatus('未发现可用的阅读量 Worker：' + error.message, 'error'); }); byId('admin-login-form').addEventListener('submit', function (event) { event.preventDefault(); login(); }); if (githubButton) githubButton.addEventListener('click', startGithubAdminLogin); }
+    function bootstrapLogin() { renderAdminNav(); var oauthResult = showAdminOAuthResult(); var githubButton = byId('github-admin-login-button'); if (githubButton) githubButton.disabled = true; discoverEndpoint().then(function () { if (githubButton) githubButton.disabled = false; if (!oauthResult) setStatus('请使用唯一的 GitHub 管理员账号登录。', 'pending'); }).catch(function (error) { setStatus('未发现可用的阅读量 Worker：' + error.message, 'error'); }); if (githubButton) githubButton.addEventListener('click', startGithubAdminLogin); }
     function bootstrapAdmin() {
         renderAdminNav(); bindCommon();
         if (byId('reload-views')) byId('reload-views').addEventListener('click', function () { loadViews().catch(function (error) { if (isUnauthorized(error)) redirectToLogin(); else setMessage('views-message', error.message, 'error'); }); });
