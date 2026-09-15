@@ -140,3 +140,10 @@
 
 - 对照原 Argon 评论格式，补回站主评论的“博主”标识和作者 GitHub 主页链接；链接继续限制为 HTTP/HTTPS 并使用新窗口安全属性。
 - Worker 返回 `isAdminAuthor`，前端仅作展示，不参与任何鉴权；重新构建并回归浏览器，评论区域和 GitHub 登录入口正常，控制台无错误。
+
+## 2026-09-15：主题与 Worker 生产发布
+
+- 主题提交 `9c7219c` 已推送到 `jiang068/Hugo-Theme-Argon` 的 `main` 分支。
+- Cloudflare Worker `argon-view-counter` 已部署，生产版本 ID 为 `dc277cdb-6d24-44c2-a999-ed775142afb5`。
+- 通过 `https://blog-view-counter.fufu.blog/api/comments/features` 回归验证，评论能力发现接口返回 200，邮件和 CAPTCHA 仍为关闭占位。
+- 博客 gitlink 尚待更新到主题提交，完成后再由 GitHub Pages 工作流构建博客。
