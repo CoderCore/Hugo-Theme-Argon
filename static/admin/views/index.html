@@ -6,8 +6,8 @@
     <meta name="robots" content="noindex,nofollow,noarchive">
     <meta name="theme-color" content="#5e72e4">
     <title>阅读量管理 · Argon 后台</title>
-    <script>(function(){try{var mode=sessionStorage.getItem('Argon_Enable_Dark_Mode');if(mode==='true')document.documentElement.classList.add('darkmode');}catch(e){}}());</script>
-    <link rel="stylesheet" href="/admin/admin.css?v=admin-6">
+    <script>(function(){try{var r=document.documentElement,m=sessionStorage.getItem('Argon_Enable_Dark_Mode'),a=sessionStorage.getItem('argon_admin_darkmode_auto'),d=a==='alwayson'||(a==='system'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)||(a==='time'&&((new Date()).getHours()<7||(new Date()).getHours()>=22));if(m==='true'||(m!=='false'&&d))r.classList.add('darkmode');var c=localStorage.getItem('argon_custom_theme_color');if(c&&(!window.CSS||!window.CSS.supports||window.CSS.supports('color',c)))r.style.setProperty('--settings-primary',c);}catch(e){}}());</script>
+    <link rel="stylesheet" href="/admin/admin.css?v=admin-7">
 </head>
 <body data-admin-page="views">
 <div class="admin-layout">
@@ -26,6 +26,6 @@
         <footer class="settings-footer"><span>Argon · admin surface</span><a href="https://github.com/jiang068/Hugo-Theme-Argon" target="_blank" rel="noopener">主题文档 ↗</a></footer>
     </main>
 </div>
-<script src="/admin/admin.js?v=admin-6" defer></script>
+<script src="/admin/admin.js?v=admin-7" defer></script>
 </body>
 </html>

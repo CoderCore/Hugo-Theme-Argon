@@ -2,6 +2,9 @@
     'use strict';
 
     var state = {endpoint: '', adminCsrf: '', articleTitles: {}, pageSize: 20, viewsPage: 1, commentsPage: 1, commentsRequest: 0, viewsRequest: 0, commentPolicyMode: 'blacklist'};
+    var ADMIN_SESSION_CACHE_KEY = 'argon_admin_session_cache';
+    var ADMIN_SESSION_CACHE_TTL = 5 * 60 * 1000;
+    var ADMIN_ENDPOINT_CACHE_KEY = 'argon_admin_endpoint';
     var adminModules = [
         {page: 'home', href: '/admin/', icon: '⌂', label: '总览', hint: '后台首页'},
         {page: 'views', href: '/admin/views/', icon: '◷', label: '阅读量管理', hint: '文章统计'},
@@ -11,6 +14,8 @@
     function byId(id) { return document.getElementById(id); }
     function setStatus(text, type) { var el = byId('connection-status'); if (!el) return; el.textContent = text; el.className = 'status status-' + (type || 'pending'); }
     function setMessage(id, text, type) { var el = byId(id); if (!el) return; el.textContent = text || ''; el.className = 'message' + (type ? ' ' + type : ''); }
+    function readSessionValue(key) { try { return sessionStorage.getItem(key) || ''; } catch (error) { return ''; } }
+    function writeSessionValue(key, value) { try { sessionStorage.setItem(key, value); } catch (error) {} }
 
     function validColor(value) { return typeof value === 'string' && value.trim() && (!window.CSS || !window.CSS.supports || window.CSS.supports('color', value.trim())); }
     function applyThemeColor(value) {
@@ -39,15 +44,20 @@
     function syncThemeFromHome(homeDocument) {
         var storedColor = ''; try { storedColor = localStorage.getItem('argon_custom_theme_color') || ''; } catch (error) {}
         var metaColor = homeDocument && homeDocument.querySelector('meta[name="theme-color"]'); applyThemeColor(validColor(storedColor) ? storedColor : (metaColor && metaColor.getAttribute('content')));
+        var autoMeta = homeDocument && homeDocument.querySelector('meta[name="argon-darkmode-autoswitch"]');
+        writeSessionValue('argon_admin_darkmode_auto', autoMeta && autoMeta.getAttribute('content') || 'false');
         var storedMode = sessionStorage.getItem('Argon_Enable_Dark_Mode');
         if (storedMode !== 'true' && storedMode !== 'false') {
-            var autoMeta = homeDocument && homeDocument.querySelector('meta[name="argon-darkmode-autoswitch"]');
             setAdminDarkmode(configuredDarkmode(autoMeta && autoMeta.getAttribute('content')), false);
         }
     }
     function bootstrapTheme() {
         var storedMode = sessionStorage.getItem('Argon_Enable_Dark_Mode');
         if (storedMode === 'true' || storedMode === 'false') setAdminDarkmode(storedMode === 'true', false);
+        else {
+            var cachedAutoMode = readSessionValue('argon_admin_darkmode_auto');
+            if (cachedAutoMode) setAdminDarkmode(configuredDarkmode(cachedAutoMode), false);
+        }
         try { applyThemeColor(localStorage.getItem('argon_custom_theme_color') || ''); } catch (error) {}
         updateThemeToggle();
         var button = byId('admin-theme-toggle'); if (button) button.addEventListener('click', function () { setAdminDarkmode(!document.documentElement.classList.contains('darkmode'), true); });
@@ -76,6 +86,19 @@
     }
 
     async function discoverEndpoint() {
+        var cachedEndpoint = readSessionValue(ADMIN_ENDPOINT_CACHE_KEY);
+        if (cachedEndpoint) {
+            try {
+                var cachedUrl = new URL(cachedEndpoint, window.location.href);
+                cachedUrl.pathname = cachedUrl.pathname.replace(/\/+$/, ''); cachedUrl.search = ''; cachedUrl.hash = '';
+                if (/\/api\/views$/.test(cachedUrl.pathname)) {
+                    state.endpoint = cachedUrl.href;
+                    if (byId('endpoint-label')) byId('endpoint-label').textContent = state.endpoint;
+                    if (byId('origin-label')) byId('origin-label').textContent = window.location.origin;
+                    return;
+                }
+            } catch (error) { writeSessionValue(ADMIN_ENDPOINT_CACHE_KEY, ''); }
+        }
         var response = await fetch(new URL('/', window.location.href).href, {cache: 'no-store'});
         if (!response.ok) throw new Error('站点首页返回 ' + response.status);
         var parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
@@ -85,6 +108,7 @@
         endpoint.pathname = endpoint.pathname.replace(/\/+$/, ''); endpoint.search = ''; endpoint.hash = '';
         if (!/\/api\/views$/.test(endpoint.pathname)) throw new Error('首页没有有效的阅读量 Worker 地址');
         state.endpoint = endpoint.href;
+        writeSessionValue(ADMIN_ENDPOINT_CACHE_KEY, state.endpoint);
         if (byId('endpoint-label')) byId('endpoint-label').textContent = state.endpoint;
         if (byId('origin-label')) byId('origin-label').textContent = window.location.origin;
     }
@@ -109,7 +133,7 @@
     }
 
     function isUnauthorized(error) { return error && (error.status === 401 || error.code === 'unauthorized' || error.message === 'unauthorized'); }
-    function redirectToLogin() { window.location.replace('/admin/login/?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search)); }
+    function redirectToLogin() { writeSessionValue(ADMIN_SESSION_CACHE_KEY, ''); window.location.replace('/admin/login/?returnTo=' + encodeURIComponent(window.location.pathname + window.location.search)); }
 
     async function loadArticleTitles() {
         try {
@@ -215,7 +239,7 @@
         var result = new URLSearchParams(window.location.search).get('argon_admin_auth');
         if (!result) return false;
         var messages = {success: 'GitHub 管理员登录成功，正在进入后台…', forbidden: '这个 GitHub 账号不是已配置的唯一管理员。', cancelled: '已取消 GitHub 登录。', not_configured: '管理员 GitHub 登录尚未完成配置。', error: 'GitHub 登录失败，请稍后重试。'};
-        if (result === 'success') { setStatus(messages.success, 'ok'); window.setTimeout(function () { window.location.replace(safeReturnTo()); }, 80); }
+        if (result === 'success') { writeSessionValue(ADMIN_SESSION_CACHE_KEY, ''); setStatus(messages.success, 'ok'); window.setTimeout(function () { window.location.replace(safeReturnTo()); }, 80); }
         else { setStatus(messages[result] || messages.error, 'error'); setMessage('login-message', messages[result] || messages.error, 'error'); }
         return true;
     }
@@ -226,9 +250,26 @@
         var returnTo = window.location.href;
         window.location.assign(apiUrl('/api/admin/auth/github/start?returnTo=' + encodeURIComponent(returnTo)));
     }
-    async function logout() { try { await apiRequest('/api/admin/auth/logout', {method: 'POST'}); } catch (error) { if (!isUnauthorized(error)) setStatus('退出登录失败：' + error.message, 'error'); } window.location.replace('/admin/login/'); }
+    async function logout() { try { await apiRequest('/api/admin/auth/logout', {method: 'POST'}); } catch (error) { if (!isUnauthorized(error)) setStatus('退出登录失败：' + error.message, 'error'); } writeSessionValue(ADMIN_SESSION_CACHE_KEY, ''); window.location.replace('/admin/login/'); }
 
-    async function ensureSession() { await discoverEndpoint(); var data = await apiRequest('/api/admin/auth/me'); if (!data.authenticated) throw new Error('unauthorized'); state.adminCsrf = data.csrfToken || ''; if (byId('auth-badge')) { byId('auth-badge').textContent = '已登录'; byId('auth-badge').className = 'badge'; } setStatus('管理员已登录。', 'ok'); }
+    function cachedAdminSession() {
+        var raw = readSessionValue(ADMIN_SESSION_CACHE_KEY); if (!raw) return null;
+        try {
+            var cached = JSON.parse(raw);
+            if (!cached || !cached.csrfToken || !cached.savedAt || Date.now() - Number(cached.savedAt) > ADMIN_SESSION_CACHE_TTL) return null;
+            return cached;
+        } catch (error) { return null; }
+    }
+    function markAdminSession(csrfToken) { writeSessionValue(ADMIN_SESSION_CACHE_KEY, JSON.stringify({csrfToken: csrfToken || '', savedAt: Date.now()})); }
+    async function ensureSession() {
+        await discoverEndpoint();
+        var cached = cachedAdminSession();
+        if (cached) { state.adminCsrf = cached.csrfToken; setStatus('管理员已登录。', 'ok'); return; }
+        var data = await apiRequest('/api/admin/auth/me');
+        if (!data.authenticated) throw new Error('unauthorized');
+        state.adminCsrf = data.csrfToken || ''; markAdminSession(state.adminCsrf);
+        if (byId('auth-badge')) { byId('auth-badge').textContent = '已登录'; byId('auth-badge').className = 'badge'; } setStatus('管理员已登录。', 'ok');
+    }
     async function bootstrapProtected() { try { await ensureSession(); var page = document.body.getAttribute('data-admin-page') || 'home'; if (page === 'views' || page === 'comments') { await loadArticleTitles(); if (page === 'views') await loadViews(); else { await loadCommentPolicy(); await loadComments(); } } } catch (error) { if (isUnauthorized(error)) return redirectToLogin(); setStatus('后台连接失败：' + error.message, 'error'); } }
 
     function bindCommon() { if (byId('logout-button')) byId('logout-button').addEventListener('click', logout); }
