@@ -5,6 +5,12 @@
         {{- $banner = . -}}
     {{- end -}}
 {{- end -}}
+{{- $toolbar := dict -}}
+{{- with .Site.Params.toolbar -}}
+    {{- if reflect.IsMap . -}}
+        {{- $toolbar = . -}}
+    {{- end -}}
+{{- end -}}
 {{- $htmlClasses := "" -}}
 {{- if .Site.Params.enableAmoledDark -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "amoled-dark " -}}
@@ -43,6 +49,9 @@
     {{- $htmlClasses = printf "%s%s" $htmlClasses "banner-is-fullscreen " -}}
 {{- else if eq $finalBannerSize "hidden" -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "banner-is-hidden " -}}
+{{- end -}}
+{{- if index $toolbar "blur" -}}
+    {{- $htmlClasses = printf "%s%s" $htmlClasses "toolbar-blur " -}}
 {{- end -}}
 {{- /* --- END: BANNER LOGIC --- */ -}}
 

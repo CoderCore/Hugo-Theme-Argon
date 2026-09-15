@@ -219,47 +219,91 @@ function __(text){
 	return translation[lang][text];
 }
 
-/* 根据滚动高度改变顶栏透明度 */
+/* 根据滚动高度改变顶栏透明度和毛玻璃状态（与原版 Argon 保持一致） */
 !function(){
 	let toolbar = document.getElementById("navbar-main");
 	let $bannerContainer = $("#banner_container");
 	let $content = $("#content");
+	if (!toolbar || !$bannerContainer.length || !$content.length){
+		return;
+	}
 
-	let startTransitionHeight;
-	let endTransitionHeight;
+	let startTransitionHeight = 0;
+	let endTransitionHeight = 0;
+	let animationFrame = 0;
+	let blurEnabled = toolbar.classList.contains("navbar-blur") || document.documentElement.classList.contains("toolbar-blur");
+	let maxOpacity = blurEnabled ? 0.65 : 0.85;
 
-	startTransitionHeight = $bannerContainer.offset().top - 75;
-	endTransitionHeight = $content.offset().top - 75;
+	function updateToolbarTransitionBounds(){
+		let bannerOffset = $bannerContainer.offset();
+		let contentOffset = $content.offset();
+		if (!bannerOffset || !contentOffset){
+			return;
+		}
+		startTransitionHeight = bannerOffset.top - 75;
+		endTransitionHeight = Math.max(contentOffset.top - 75, startTransitionHeight + 1);
+	}
 
-	$(window).resize(function(){
-		startTransitionHeight = $bannerContainer.offset().top - 75;
-		endTransitionHeight = $content.offset().top - 75;
-	});
+	function setToolbarBlur(enabled){
+		if (!blurEnabled){
+			toolbar.style.setProperty('backdrop-filter', 'none');
+			return;
+		}
+		toolbar.style.setProperty('backdrop-filter', enabled ? 'blur(16px)' : 'blur(0px)');
+	}
 
 	function changeToolbarTransparency(){
 		let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+		let transitionRange = Math.max(endTransitionHeight - startTransitionHeight, 1);
+		let progress = (scrollTop - startTransitionHeight) / transitionRange;
+
+		if (document.documentElement.classList.contains("banner-is-hidden")){
+			toolbar.style.setProperty('background-color', 'rgba(var(--toolbar-color), ' + maxOpacity + ')', 'important');
+			toolbar.style.setProperty('box-shadow', '');
+			setToolbarBlur(scrollTop >= 30);
+			toolbar.classList.toggle("navbar-no-blur", scrollTop < 30);
+			toolbar.classList.remove("navbar-ontop");
+			return;
+		}
 		if (scrollTop < startTransitionHeight){
 			toolbar.style.setProperty('background-color', 'rgba(var(--toolbar-color), 0)', 'important');
-			toolbar.style.setProperty('backdrop-filter', 'none');
+			setToolbarBlur(false);
 			toolbar.style.setProperty('box-shadow', 'none');
 			toolbar.classList.add("navbar-ontop");
 			return;
 		}
 		if (scrollTop > endTransitionHeight){
-			toolbar.style.setProperty('background-color', 'rgba(var(--toolbar-color), 0.65)', 'important');
-			toolbar.style.setProperty('backdrop-filter', 'blur(16px)');
+			toolbar.style.setProperty('background-color', 'rgba(var(--toolbar-color), ' + maxOpacity + ')', 'important');
+			setToolbarBlur(true);
 			toolbar.style.setProperty('box-shadow', '');
 			toolbar.classList.remove("navbar-ontop");
 			return;
 		}
-		let transparency = (scrollTop - startTransitionHeight) / (endTransitionHeight - startTransitionHeight) * 0.65;
+
+		let transparency = Math.max(0, Math.min(progress, 1)) * maxOpacity;
 		toolbar.style.setProperty('background-color', 'rgba(var(--toolbar-color), ' + transparency + ')', 'important');
-		toolbar.style.setProperty('backdrop-filter', 'blur(16px)');
+		setToolbarBlur(progress > 0.3);
 		toolbar.style.setProperty('box-shadow', '');
 		toolbar.classList.remove("navbar-ontop");
 	}
+
+	function scheduleToolbarTransparency(){
+		if (animationFrame){
+			return;
+		}
+		animationFrame = window.requestAnimationFrame(function(){
+			animationFrame = 0;
+			changeToolbarTransparency();
+		});
+	}
+
+	updateToolbarTransitionBounds();
 	changeToolbarTransparency();
-	document.addEventListener("scroll", changeToolbarTransparency, {passive: true});
+	$(window).on("resize.argonToolbarTransparency", function(){
+		updateToolbarTransitionBounds();
+		scheduleToolbarTransparency();
+	});
+	document.addEventListener("scroll", scheduleToolbarTransparency, {passive: true});
 }();
 
 /* 左侧栏随页面滚动浮动 */

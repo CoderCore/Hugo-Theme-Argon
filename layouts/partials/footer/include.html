@@ -10,7 +10,7 @@
         {{- $commentsEnabled = eq (index . "enabled") true -}}
     {{- end -}}
 {{- end -}}
-<script defer src="{{ "/argontheme.js" | relURL }}"></script>
+<script defer src="{{ "/argontheme.js" | relURL }}?v=toolbar-blur-1"></script>
 <script defer src="{{ "/js/custom.js" | relURL }}?v=custom-2"></script>
 {{- if $commentsEnabled }}
 <script defer src="{{ "/js/argon-useragent-icons.js" | relURL }}?v=ua-icons-1"></script>
