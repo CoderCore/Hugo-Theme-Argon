@@ -5768,3 +5768,18 @@ html.using-safari .friend-link-description:after {
 		margin-left: auto;
 	}
 }
+
+/* 评论标题行：作者、徽标、环境文字和图标统一按中线对齐。 */
+.comment-name > .comment-author,
+.comment-name > .comment-parent-info,
+.comment-name > .badge,
+.comment-name > .comment-useragent {
+	vertical-align: middle;
+}
+.comment-useragent {
+	line-height: 18px;
+	transform: none;
+}
+.comment-useragent-icon {
+	transform: translateY(1px);
+}
