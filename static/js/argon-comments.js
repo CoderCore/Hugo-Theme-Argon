@@ -877,7 +877,7 @@
             }
             if (!author.childNodes.length) author.textContent = authorText;
             name.appendChild(author);
-            if (comment.isAdminAuthor) {
+            if (comment.isAdminAuthor && !comment.private) {
                 var adminBadge = document.createElement('span');
                 adminBadge.className = 'badge badge-primary badge-admin';
                 adminBadge.textContent = isChinese() ? '博主' : 'Admin';
