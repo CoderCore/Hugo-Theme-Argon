@@ -5,7 +5,7 @@
     --settings-text: #26324d;
     --settings-muted: #71809d;
     --settings-border: #e4e9f3;
-    --settings-primary: #5e72e4;
+    --settings-primary: var(--argon-compiled-theme-color, #5e72e4);
     --settings-primary-dark: color-mix(in srgb, var(--settings-primary) 82%, #000);
     --settings-primary-light: color-mix(in srgb, var(--settings-primary) 68%, #fff);
     --settings-primary-soft: color-mix(in srgb, var(--settings-primary) 10%, #fff);

@@ -35,29 +35,9 @@
         if (persist) sessionStorage.setItem('Argon_Enable_Dark_Mode', enable ? 'true' : 'false');
         updateThemeToggle();
     }
-    function configuredDarkmode(mode) {
-        if (mode === 'alwayson') return true;
-        if (mode === 'system') return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (mode === 'time') { var hour = new Date().getHours(); return hour < 7 || hour >= 22; }
-        return false;
-    }
-    function syncThemeFromHome(homeDocument) {
-        var storedColor = ''; try { storedColor = localStorage.getItem('argon_custom_theme_color') || ''; } catch (error) {}
-        var metaColor = homeDocument && homeDocument.querySelector('meta[name="theme-color"]'); applyThemeColor(validColor(storedColor) ? storedColor : (metaColor && metaColor.getAttribute('content')));
-        var autoMeta = homeDocument && homeDocument.querySelector('meta[name="argon-darkmode-autoswitch"]');
-        writeSessionValue('argon_admin_darkmode_auto', autoMeta && autoMeta.getAttribute('content') || 'false');
-        var storedMode = sessionStorage.getItem('Argon_Enable_Dark_Mode');
-        if (storedMode !== 'true' && storedMode !== 'false') {
-            setAdminDarkmode(configuredDarkmode(autoMeta && autoMeta.getAttribute('content')), false);
-        }
-    }
     function bootstrapTheme() {
         var storedMode = sessionStorage.getItem('Argon_Enable_Dark_Mode');
         if (storedMode === 'true' || storedMode === 'false') setAdminDarkmode(storedMode === 'true', false);
-        else {
-            var cachedAutoMode = readSessionValue('argon_admin_darkmode_auto');
-            if (cachedAutoMode) setAdminDarkmode(configuredDarkmode(cachedAutoMode), false);
-        }
         try { applyThemeColor(localStorage.getItem('argon_custom_theme_color') || ''); } catch (error) {}
         updateThemeToggle();
         var button = byId('admin-theme-toggle'); if (button) button.addEventListener('click', function () { setAdminDarkmode(!document.documentElement.classList.contains('darkmode'), true); });
@@ -102,7 +82,6 @@
         var response = await fetch(new URL('/', window.location.href).href, {cache: 'no-store'});
         if (!response.ok) throw new Error('站点首页返回 ' + response.status);
         var parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
-        syncThemeFromHome(parsed);
         var meta = parsed.querySelector('meta[name="argon-view-counter-endpoint-b64"]');
         var endpoint = new URL(decodeBase64(meta && meta.getAttribute('content')), window.location.href);
         endpoint.pathname = endpoint.pathname.replace(/\/+$/, ''); endpoint.search = ''; endpoint.hash = '';
