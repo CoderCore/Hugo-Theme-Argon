@@ -81,7 +81,8 @@
                 <input type="hidden" name="parentId" value="">
                 <div class="row" style="margin-top: 5px; margin-bottom: 10px;">
                     <div class="col-md-12">
-                        <div class="comment-post-options" data-comments-options>
+                        <div class="comment-post-footer">
+                            <div class="comment-post-options" data-comments-options>
                             <label class="custom-control custom-checkbox comment-post-checkbox" data-comment-option-markdown>
                                 <input class="custom-control-input" type="checkbox" name="useMarkdown" checked>
                                 <span class="custom-control-label">Markdown</span>
@@ -98,11 +99,12 @@
                                 <i class="fa fa-smile-o" aria-hidden="true"></i>
                             </button>
                             <div class="emotion-keyboard card shadow-sm" data-comments-emotion-keyboard hidden></div>
+                            </div>
+                            <button class="btn btn-icon btn-primary comment-btn pull-right mr-0" type="submit">
+                                <span class="btn-inner--icon"><i class="fa fa-send" aria-hidden="true"></i></span>
+                                <span class="btn-inner--text" style="margin-right: 0;">{{ T "commentSubmit" }}</span>
+                            </button>
                         </div>
-                        <button class="btn btn-icon btn-primary comment-btn pull-right mr-0" type="submit">
-                            <span class="btn-inner--icon"><i class="fa fa-send" aria-hidden="true"></i></span>
-                            <span class="btn-inner--text" style="margin-right: 0;">{{ T "commentSubmit" }}</span>
-                        </button>
                     </div>
                 </div>
             </form>

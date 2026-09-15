@@ -5616,3 +5616,155 @@ html.using-safari .friend-link-description:after {
 		max-width: calc(100% - 90px);
 	}
 }
+
+/* Hugo 评论表单：沿用 Argon 的底部布局，选项在左、表情和发送按钮在右。 */
+.comment-post-footer {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	min-height: 48px;
+	position: relative;
+}
+.comment-post-options {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	flex: 1 1 auto;
+	min-width: 0;
+	min-height: 42px;
+	flex-wrap: wrap;
+	gap: 0;
+}
+.comment-post-options .comment-post-checkbox {
+	display: inline-flex;
+	align-items: center;
+	flex: 0 0 auto;
+	height: 30px;
+	margin: 15px 10px 0 0;
+}
+.comment-post-options .comment-post-checkbox .custom-control-label {
+	line-height: 28px;
+}
+.comment-post-options .comment-emotion-button {
+	flex: 0 0 42px;
+	width: 42px;
+	height: 42px;
+	margin: 6px 0 0 auto;
+	padding: 0;
+	border: 0;
+	border-radius: 100px;
+	background: transparent !important;
+	box-shadow: none;
+	color: var(--color-text-deeper);
+	opacity: .8;
+	font-size: 25px;
+	transition: color .25s ease, opacity .25s ease, transform .25s ease;
+}
+.comment-post-options .comment-emotion-button:hover,
+.comment-post-options .comment-emotion-button:focus-visible,
+.comment-post-options .comment-emotion-button.comment-emotion-keyboard-open {
+	color: var(--themecolor);
+	opacity: 1;
+	transform: translateY(-1px);
+}
+.comment-post-footer > .comment-btn {
+	flex: 0 0 auto;
+	float: none !important;
+	margin-top: 5px;
+}
+
+/* 表情键盘避免被视口底部裁切；JS 会根据按钮上下可用空间切换方向。 */
+.comment-post-options .emotion-keyboard {
+	width: min(500px, calc(100vw - 40px));
+	min-width: min(300px, calc(100vw - 40px));
+	height: min(300px, calc(100vh - 32px));
+	max-height: calc(100vh - 32px);
+	color: var(--color-text-deeper);
+	background: var(--color-foreground);
+	border-color: var(--color-border-on-foreground-deeper);
+	right: 0;
+	bottom: -10px;
+	top: auto;
+	z-index: 30;
+	transform: translateY(100%) scale(.9);
+	transform-origin: top right;
+	transition: opacity .25s ease, transform .25s ease;
+}
+.comment-post-options .comment-emotion-button.comment-emotion-keyboard-open + .emotion-keyboard {
+	opacity: 1;
+	transform: translateY(100%) scale(1);
+	pointer-events: auto;
+}
+.comment-post-options .emotion-keyboard.emotion-keyboard-above {
+	top: -10px;
+	bottom: auto;
+	transform: translateY(-100%) scale(.9);
+	transform-origin: bottom right;
+}
+.comment-post-options .comment-emotion-button.comment-emotion-keyboard-open + .emotion-keyboard.emotion-keyboard-above {
+	transform: translateY(-100%) scale(1);
+}
+.comment-post-options .emotion-item {
+	color: var(--color-text-deeper);
+	background: var(--color-border-on-foreground);
+	transition: background-color .25s ease, color .25s ease, transform .25s ease;
+}
+.comment-post-options .emotion-item:hover {
+	color: #fff;
+	background: var(--themecolor);
+}
+
+/* 原版 UA 是内联图标与平台/浏览器文字同排，而不是 Font Awesome 字符。 */
+.comment-useragent {
+	display: inline-flex;
+	align-items: center;
+	gap: 2px;
+	padding-left: 5px;
+	font-size: 14px;
+	font-weight: normal;
+	line-height: 1.25;
+	white-space: nowrap;
+	transform: translateY(-1px);
+}
+.comment-useragent-icon {
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	flex: 0 0 18px;
+	margin: 0 2px 0 5px;
+	vertical-align: middle;
+}
+.comment-useragent-icon:first-child {
+	margin-left: 1px;
+}
+
+/* 原版点赞胶囊的箭头和数字有明确间距。 */
+.comment-upvote {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	padding: 0 6px;
+}
+.comment-upvote .btn-inner--icon,
+.comment-upvote .btn-inner--text,
+.comment-upvote .comment-upvote-num {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.comment-upvote .btn-inner--text {
+	margin-left: 0 !important;
+}
+
+@media screen and (max-width: 575px) {
+	.comment-post-footer {
+		flex-wrap: wrap;
+	}
+	.comment-post-options {
+		flex-basis: 100%;
+	}
+	.comment-post-footer > .comment-btn {
+		margin-left: auto;
+	}
+}

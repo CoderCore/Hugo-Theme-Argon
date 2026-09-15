@@ -334,17 +334,37 @@
         return colors[hash];
     }
 
-    function userAgentIcon(kind) {
-        var icons = {
-            Android: 'fa-android',
-            Chrome: 'fa-chrome',
-            Firefox: 'fa-firefox',
-            Linux: 'fa-linux',
-            macOS: 'fa-apple',
-            Opera: 'fa-opera',
-            Windows: 'fa-windows'
-        };
-        return icons[kind] || 'fa-globe';
+    function createUserAgentIcon(kind) {
+        var value = String(kind || '').toLowerCase();
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('class', 'comment-useragent-icon');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.setAttribute('focusable', 'false');
+
+        function shape(name, attributes) {
+            var node = document.createElementNS('http://www.w3.org/2000/svg', name);
+            Object.keys(attributes).forEach(function(attribute) { node.setAttribute(attribute, attributes[attribute]); });
+            svg.appendChild(node);
+        }
+
+        if (value.indexOf('windows') !== -1) {
+            shape('path', {d: 'M2 4.5 11 3.2v8.4H2V4.5Zm10.2-1.5L22 1.7v9.9h-9.8V3ZM2 12.4h9v8.4L2 19.5v-7.1Zm10.2 0H22v9.9l-9.8-1.4v-8.5Z', fill: '#00adef'});
+        } else if (value.indexOf('mac') !== -1 || value.indexOf('ios') !== -1 || value.indexOf('apple') !== -1) {
+            shape('path', {d: 'M16.8 12.6c0-2 1.6-3 1.7-3.1-.9-1.3-2.3-1.5-2.8-1.5-1.2-.1-2.3.7-2.9.7-.6 0-1.5-.7-2.5-.7-1.3 0-2.6.8-3.3 2-.1.2-1.3 2.2-.3 4.5.5 1.1 1.1 2.2 1.9 3.2.8.9 1.7 1.9 2.8 1.8 1.1 0 1.5-.7 2.8-.7 1.3 0 1.7.7 2.8.7 1.2 0 1.9-.9 2.7-1.9.9-1.1 1.2-2.1 1.2-2.2-.1 0-2.1-.8-2.1-2.8ZM15 6.7c.6-.7 1-1.6.9-2.5-.9 0-1.9.6-2.5 1.3-.5.6-1 1.5-.9 2.4.9.1 1.8-.5 2.5-1.2Z', fill: '#888'});
+        } else if (value.indexOf('chrome') !== -1) {
+            shape('circle', {cx: '12', cy: '12', r: '10', fill: '#f1f1f1'});
+            shape('path', {d: 'M12 12 6.7 2.8A10 10 0 0 1 22 12h-10Z', fill: '#db4437'});
+            shape('path', {d: 'M12 12h10a10 10 0 0 1-14.7 8.8L12 12Z', fill: '#0f9d58'});
+            shape('circle', {cx: '12', cy: '12', r: '4.4', fill: '#4285f4'});
+        } else if (value.indexOf('edge') !== -1) {
+            shape('path', {d: 'M21.3 16.8a8.9 8.9 0 0 1-5.6 2c-4.3 0-7.8-2.9-7.8-6.5 0-1.4.6-2.7 1.6-3.7-3.1.8-5.3 3.6-5.3 6.9 0 4 3.4 7.3 7.7 7.3 4.2 0 7.9-2.5 9.4-6Z', fill: '#0c9'});
+            shape('path', {d: 'M21.8 14.2c-.1-5.2-4.3-9.4-9.5-9.4-4.4 0-8.1 3-9.2 7.1a7.7 7.7 0 0 1 5.6-2.4c3.4 0 5.5 2 6.1 4.7h7Z', fill: '#1683d8'});
+        } else {
+            shape('circle', {cx: '12', cy: '12', r: '9.5', fill: '#8898aa'});
+            shape('circle', {cx: '12', cy: '12', r: '4', fill: '#fff', opacity: '.9'});
+        }
+        return svg;
     }
 
     function appendUserAgent(container, comment) {
@@ -360,10 +380,7 @@
         }
         parts.forEach(function(part, index) {
             if (index) label.appendChild(document.createTextNode(' '));
-            var icon = document.createElement('i');
-            icon.className = 'fa ' + userAgentIcon(part) + ' comment-useragent-icon';
-            icon.setAttribute('aria-hidden', 'true');
-            label.append(icon, document.createTextNode(' ' + part));
+            label.append(createUserAgentIcon(part), document.createTextNode(' ' + part));
         });
         container.appendChild(label);
     }
@@ -669,6 +686,22 @@
         state.emotionKeyboard.hidden = !next;
         state.emotionToggle.classList.toggle('comment-emotion-keyboard-open', next);
         state.emotionToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+        if (next) {
+            positionEmotionKeyboard(state);
+            window.requestAnimationFrame(function() { positionEmotionKeyboard(state); });
+        } else {
+            state.emotionKeyboard.classList.remove('emotion-keyboard-above');
+        }
+    }
+
+    function positionEmotionKeyboard(state) {
+        if (!state || !state.emotionKeyboard || !state.emotionToggle || state.emotionKeyboard.hidden) return;
+        var buttonRect = state.emotionToggle.getBoundingClientRect();
+        var keyboardHeight = Math.min(state.emotionKeyboard.offsetHeight || 300, Math.max(160, window.innerHeight - 32));
+        var roomBelow = window.innerHeight - buttonRect.bottom;
+        var roomAbove = buttonRect.top;
+        var openAbove = roomBelow < keyboardHeight + 16 && roomAbove > roomBelow;
+        state.emotionKeyboard.classList.toggle('emotion-keyboard-above', openAbove);
     }
 
     function showHistory(state, comment) {
@@ -1245,6 +1278,7 @@
                 emotionToggle: section.querySelector('[data-comments-emotion-toggle]'),
                 emotionKeyboard: section.querySelector('[data-comments-emotion-keyboard]'),
                 emotionOutsideHandler: null,
+                emotionViewportHandler: null,
                 page: 1,
                 requestSerial: 0
             };
@@ -1263,7 +1297,10 @@
             state.emotionOutsideHandler = function(event) {
                 if (state.emotionKeyboard && state.emotionToggle && !state.emotionKeyboard.contains(event.target) && !state.emotionToggle.contains(event.target)) toggleEmotionKeyboard(state, false);
             };
+            state.emotionViewportHandler = function() { positionEmotionKeyboard(state); };
             document.addEventListener('click', state.emotionOutsideHandler);
+            window.addEventListener('resize', state.emotionViewportHandler);
+            document.addEventListener('scroll', state.emotionViewportHandler, true);
             state.load = function(page) { return load(page); };
             if (state.authResult) {
                 var cleanUrl = new URL(window.location.href);
@@ -1397,6 +1434,10 @@
             if (root === document || root.contains(section)) {
                 var state = section.__argonCommentsState;
                 if (state && state.emotionOutsideHandler) document.removeEventListener('click', state.emotionOutsideHandler);
+                if (state && state.emotionViewportHandler) {
+                    window.removeEventListener('resize', state.emotionViewportHandler);
+                    document.removeEventListener('scroll', state.emotionViewportHandler, true);
+                }
                 delete section.__argonCommentsState;
                 section.removeAttribute('data-comments-initialized');
                 return false;
