@@ -336,6 +336,22 @@
 
     function createUserAgentIcon(kind) {
         var value = String(kind || '').toLowerCase();
+
+        // 优先使用原 Argon 的完整 SVG，保留原始 viewBox、路径、颜色和内联偏移。
+        var originalMarkup = window.ArgonUserAgentIcons && window.ArgonUserAgentIcons[value];
+        if (originalMarkup) {
+            try {
+                var parsed = new DOMParser().parseFromString(originalMarkup, 'image/svg+xml').documentElement;
+                if (parsed && parsed.nodeName.toLowerCase() === 'svg') {
+                    var originalSvg = document.importNode(parsed, true);
+                    originalSvg.setAttribute('class', 'comment-useragent-icon');
+                    originalSvg.setAttribute('aria-hidden', 'true');
+                    originalSvg.setAttribute('focusable', 'false');
+                    return originalSvg;
+                }
+            } catch (error) {}
+        }
+
         var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'comment-useragent-icon');
         svg.setAttribute('viewBox', '0 0 24 24');
