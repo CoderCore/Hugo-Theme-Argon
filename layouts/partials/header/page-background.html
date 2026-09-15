@@ -1,8 +1,23 @@
+{{- $backgroundBlurEnabled := true -}}
+{{- $backgroundBlurMax := 8 -}}
+{{- with .Site.Params.pageBackgroundBlur -}}
+    {{- if reflect.IsMap . -}}
+        {{- if isset . "enabled" -}}
+            {{- $backgroundBlurEnabled = eq (index . "enabled") true -}}
+        {{- end -}}
+        {{- if isset . "max" -}}
+            {{- $backgroundBlurMax = index . "max" -}}
+        {{- end -}}
+    {{- end -}}
+{{- end -}}
 <style>
     #content {
         --argon-runtime-bg: {{ with .Site.Params.pageBackgroundUrl }}url({{ . | safeCSS }}){{ else }}none{{ end }};
         --argon-runtime-bg-dark: {{ with .Site.Params.pageBackgroundDarkUrl }}url({{ . | safeCSS }}){{ else }}none{{ end }};
         --argon-runtime-bg-opacity: {{ default 1 .Site.Params.pageBackgroundOpacity }};
+        --argon-background-blur-enabled: {{ if $backgroundBlurEnabled }}1{{ else }}0{{ end }};
+        --argon-background-blur-max: {{ $backgroundBlurMax }};
+        --argon-background-blur: 0px;
     }
     #content:before {
         content: '';
@@ -19,10 +34,12 @@
         background-repeat: no-repeat;
         pointer-events: none;
         opacity: var(--argon-runtime-bg-opacity);
+        filter: blur(var(--argon-background-blur));
+        transform: scale(1.04);
         transition: opacity .5s ease;
     }
     html.darkmode #content:before{
-        filter: brightness(0.65);
+        filter: brightness(0.65) blur(var(--argon-background-blur));
         opacity: var(--argon-runtime-bg-opacity);
     }
     #content:after {
@@ -40,6 +57,8 @@
         background-repeat: no-repeat;
         pointer-events: none;
         opacity: 0;
+        filter: blur(var(--argon-background-blur));
+        transform: scale(1.04);
         transition: opacity .5s ease;
     }
     html.darkmode #content:after {

@@ -1,5 +1,11 @@
 # 更新日志
 
+## 2026-09-15：增加页面背景滚动模糊开关
+
+- 新增 `params.pageBackgroundBlur.enabled` 和 `params.pageBackgroundBlur.max` 配置，博客主人可以手动开启、关闭并调整页面背景的最大模糊半径。
+- 页面背景模糊与顶栏毛玻璃效果分离，模糊只作用于背景，不会影响正文内容；示例博客默认启用 `8px`。
+- 更新 `argontheme.js` 的资源版本号，避免生产环境继续使用旧缓存。
+
 ## 2026-09-15：移植顶部滚动毛玻璃效果
 
 - 对照原版 Argon 的 `argontheme.js` 和 `style.css`，恢复顶部导航栏在 Banner 上方保持透明清晰、滚动后逐渐增加主题色背景并启用 `blur(16px)` 的效果。

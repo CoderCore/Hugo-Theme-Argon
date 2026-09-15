@@ -119,6 +119,9 @@ params:
   pageBackgroundUrl: ""
   pageBackgroundDarkUrl: ""
   pageBackgroundOpacity: 1
+  pageBackgroundBlur:
+    enabled: true
+    max: 8
   transparentBanner: true
 
   # 浮动操作按钮

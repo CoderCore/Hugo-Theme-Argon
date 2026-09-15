@@ -231,6 +231,18 @@ function __(text){
 	let startTransitionHeight = 0;
 	let endTransitionHeight = 0;
 	let animationFrame = 0;
+	let backgroundBlurTarget = document.getElementById("content");
+	let backgroundBlurMax = 8;
+	let backgroundBlurEnd = 1;
+	let backgroundBlurEnabled = false;
+	if (backgroundBlurTarget){
+		let backgroundBlurStyle = getComputedStyle(backgroundBlurTarget);
+		backgroundBlurEnabled = backgroundBlurStyle.getPropertyValue("--argon-background-blur-enabled").trim() !== "0";
+		let configuredBlurMax = parseFloat(backgroundBlurStyle.getPropertyValue("--argon-background-blur-max"));
+		if (Number.isFinite(configuredBlurMax)){
+			backgroundBlurMax = Math.max(0, Math.min(configuredBlurMax, 24));
+		}
+	}
 	let blurEnabled = toolbar.classList.contains("navbar-blur") || document.documentElement.classList.contains("toolbar-blur");
 	let maxOpacity = blurEnabled ? 0.65 : 0.85;
 
@@ -242,6 +254,27 @@ function __(text){
 		}
 		startTransitionHeight = bannerOffset.top - 75;
 		endTransitionHeight = Math.max(contentOffset.top - 75, startTransitionHeight + 1);
+		let bannerElement = document.getElementById("banner");
+		if (bannerElement){
+			let bannerOffset = bannerElement.getBoundingClientRect();
+			backgroundBlurEnd = Math.max(bannerOffset.height, 1);
+		} else {
+			backgroundBlurEnd = 360;
+		}
+	}
+
+	function changeBackgroundBlur(){
+		if (!backgroundBlurTarget){
+			return;
+		}
+		if (!backgroundBlurEnabled){
+			backgroundBlurTarget.style.setProperty('--argon-background-blur', '0px');
+			return;
+		}
+		let scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+		let progress = Math.max(0, Math.min(scrollTop / backgroundBlurEnd, 1));
+		let blur = (progress * backgroundBlurMax).toFixed(2) + 'px';
+		backgroundBlurTarget.style.setProperty('--argon-background-blur', blur);
 	}
 
 	function setToolbarBlur(enabled){
@@ -294,11 +327,13 @@ function __(text){
 		animationFrame = window.requestAnimationFrame(function(){
 			animationFrame = 0;
 			changeToolbarTransparency();
+			changeBackgroundBlur();
 		});
 	}
 
 	updateToolbarTransitionBounds();
 	changeToolbarTransparency();
+	changeBackgroundBlur();
 	$(window).on("resize.argonToolbarTransparency", function(){
 		updateToolbarTransitionBounds();
 		scheduleToolbarTransparency();

@@ -64,6 +64,17 @@ params:
 
 `articleMeta` 支持 `time`、`edittime`、`views`、`comments`、`tags`、`categories`、`words` 和 `readingtime`。其中 `comments` 会在文章评论接口返回后更新实时数量；如果评论接口未配置，该项不会显示。
 
+页面背景可以在滚动时逐渐变模糊，和顶栏的毛玻璃效果分别配置：
+
+```yaml
+params:
+  pageBackgroundBlur:
+    enabled: true # 是否启用页面背景滚动模糊
+    max: 8         # 最大模糊半径，单位 px，建议 0～24
+```
+
+`enabled: false` 会关闭页面背景模糊；`max` 越大，滚动到 Banner 结束位置时的背景越模糊。该效果只处理页面背景伪元素，不会改变正文清晰度；顶栏毛玻璃仍由 `toolbar.blur` 单独控制。
+
 `baseURL` 建议保持为空，在部署时指定：
 
 ```sh
