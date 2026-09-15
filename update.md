@@ -147,3 +147,9 @@
 - Cloudflare Worker `argon-view-counter` 已部署，生产版本 ID 为 `dc277cdb-6d24-44c2-a999-ed775142afb5`。
 - 通过 `https://blog-view-counter.fufu.blog/api/comments/features` 回归验证，评论能力发现接口返回 200，邮件和 CAPTCHA 仍为关闭占位。
 - 博客 gitlink 尚待更新到主题提交，完成后再由 GitHub Pages 工作流构建博客。
+
+## 2026-09-15：评论表单视觉与交互微调
+
+- 修正表情键盘的明暗模式文字对比度：亮色模式使用深色正文，暗色模式使用浅色正文。
+- 按原 Argon 的顺序和间距重新对齐 Markdown、匿名、悄悄话、表情按钮；保留窄屏自动换行。
+- 为评论选项勾选框增加背景、边框、焦点光晕和勾选图标的平滑过渡，避免突兀跳变。

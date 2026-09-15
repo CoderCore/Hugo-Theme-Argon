@@ -5533,3 +5533,86 @@ html.using-safari .friend-link-description:after {
 	transform: translateY(100%);
 	pointer-events: auto;
 }
+
+/* Hugo 评论表单：复刻原 Argon 的选项顺序、间距和交互动效。 */
+.comment-post-options {
+	display: inline-flex;
+	align-items: flex-start;
+	flex-wrap: wrap;
+	gap: 0;
+	min-height: 42px;
+	vertical-align: top;
+}
+.comment-post-options .comment-post-checkbox {
+	display: inline-block;
+	flex: 0 0 auto;
+	margin: 15px 10px 0 0;
+	height: 30px;
+}
+.comment-post-options .comment-post-checkbox .custom-control-label {
+	line-height: 28px;
+}
+.comment-post-options .comment-emotion-button {
+	flex: 0 0 42px;
+	width: 42px;
+	height: 42px;
+	margin: 6px 10px 0 0;
+	padding: 0;
+	border: 0;
+	border-radius: 100px;
+	background: transparent !important;
+	box-shadow: none;
+	color: var(--color-text-deeper);
+	opacity: .8;
+	font-size: 25px;
+	transition: color .25s ease, opacity .25s ease, transform .25s ease;
+}
+.comment-post-options .comment-emotion-button:hover,
+.comment-post-options .comment-emotion-button:focus-visible,
+.comment-post-options .comment-emotion-button.comment-emotion-keyboard-open {
+	color: var(--themecolor);
+	opacity: 1;
+	transform: translateY(-1px);
+}
+
+/* Bootstrap 的勾选框保留 Argon 外观，但让勾选和按压过程更柔和。 */
+.comment-post-options .comment-post-checkbox .custom-control-label::before,
+.comment-post-options .comment-post-checkbox .custom-control-label::after {
+	transition: background-color .22s ease, border-color .22s ease,
+		box-shadow .22s ease, opacity .22s ease, transform .22s cubic-bezier(.2, .8, .2, 1);
+}
+.comment-post-options .comment-post-checkbox .custom-control-label::after {
+	opacity: 0;
+	transform: scale(.55);
+	transform-origin: center;
+}
+.comment-post-options .comment-post-checkbox .custom-control-input:checked ~ .custom-control-label::after,
+.comment-post-options .comment-post-checkbox .custom-control-input:indeterminate ~ .custom-control-label::after {
+	opacity: 1;
+	transform: scale(1);
+}
+.comment-post-options .comment-post-checkbox .custom-control-input:focus ~ .custom-control-label::before {
+	box-shadow: 0 0 0 .2rem rgba(var(--themecolor-rgbstr), .2);
+}
+
+/* 表情键盘的文字必须使用正文色，避免明亮模式白字、暗色模式黑字。 */
+.comment-post-options .emotion-keyboard {
+	color: var(--color-text-deeper);
+	background: var(--color-foreground);
+	border-color: var(--color-border-on-foreground-deeper);
+}
+.comment-post-options .emotion-item {
+	color: var(--color-text-deeper);
+	background: var(--color-border-on-foreground);
+	transition: background-color .25s ease, color .25s ease, transform .25s ease;
+}
+.comment-post-options .emotion-item:hover {
+	color: #fff;
+	background: var(--themecolor);
+}
+
+@media screen and (max-width: 575px) {
+	.comment-post-options {
+		max-width: calc(100% - 90px);
+	}
+}
