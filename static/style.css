@@ -5773,29 +5773,23 @@ html.using-safari .friend-link-description:after {
 .comment-item-title {
 	align-items: initial;
 	gap: 0;
+	min-height: 0;
 	margin-bottom: 3px;
 }
 .comment-name {
-	line-height: normal;
+	line-height: inherit;
 }
 .comment-useragent {
 	display: inline-block;
 	font-weight: normal;
 	padding-left: 4px;
 	font-size: 14px;
-	line-height: normal;
-	white-space: nowrap;
 	transform: translateY(-1px);
 }
-.comment-useragent-icon {
-	display: inline-block;
-	width: 18px;
+.comment-useragent > svg {
 	height: 18px;
-	flex: none;
-	margin: 0 1px 0 4px;
-	vertical-align: baseline;
+	width: 18px;
 	transform: translateY(-2px);
-}
-.comment-useragent-icon:first-child {
 	margin-left: 4px;
+	margin-right: 1px;
 }

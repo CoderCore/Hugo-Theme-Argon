@@ -344,9 +344,6 @@
                 var parsed = new DOMParser().parseFromString(originalMarkup, 'image/svg+xml').documentElement;
                 if (parsed && parsed.nodeName.toLowerCase() === 'svg') {
                     var originalSvg = document.importNode(parsed, true);
-                    originalSvg.setAttribute('class', 'comment-useragent-icon');
-                    originalSvg.setAttribute('aria-hidden', 'true');
-                    originalSvg.setAttribute('focusable', 'false');
                     return originalSvg;
                 }
             } catch (error) {}

@@ -175,3 +175,8 @@
 
 - 直接采用参考源码中的 Windows、Edge、Android、Chrome 和 Linux SVG，不再使用简化重绘图标。
 - 保留原 SVG 的 `viewBox`、路径、渐变、颜色与内联变换；未知环境继续使用安全的本地回退图标。
+
+## 2026-09-15：移除环境图标的额外覆盖
+
+- 原版 SVG 不添加自定义 class，恢复为直接子元素结构。
+- 恢复原版 `.comment-useragent > svg` 选择器，移除额外的 class 偏移和垂直对齐覆盖。
