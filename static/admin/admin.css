@@ -138,6 +138,7 @@ td:first-child { min-width: 240px; font-family: ui-monospace, monospace; font-si
 .admin-status-active { color: #18794e; font-weight: 700; }
 .admin-status-deleted { color: #a94242; font-weight: 700; }
 .admin-status-blocked { color: var(--settings-danger); font-weight: 700; }
+.admin-private-badge { display: inline-flex; align-items: center; margin-right: 7px; padding: 2px 6px; color: var(--settings-primary-dark); border: 1px solid color-mix(in srgb, var(--settings-primary) 36%, var(--settings-border)); border-radius: 5px; background: var(--settings-primary-soft); font-size: .7rem; font-weight: 750; line-height: 1.2; white-space: nowrap; }
 .action-button.purge { color: var(--settings-danger); border-color: var(--settings-danger-border); background: var(--settings-danger-bg); }
 .action-button.unblock { color: var(--settings-success); }
 .panel-policy { margin-bottom: 22px; }

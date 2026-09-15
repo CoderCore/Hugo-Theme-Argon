@@ -1122,6 +1122,13 @@ async function handleCommentsGet(request, url, env, origin) {
   if (!postPath || !page || !limit) return json({ error: "invalid_query" }, 400, origin);
 
   const user = await authenticatedUser(request, env);
+  // The admin login uses its own session cookie. When the site owner is
+  // browsing the public comment view, honor that verified admin session so
+  // private comments remain readable to the owner without exposing them to
+  // ordinary visitors.
+  const admin = parseCookies(request)[ADMIN_SESSION_COOKIE]
+    ? await authorizedAdmin(request, env)
+    : false;
   const access = await commentAccess(env, user);
   const githubId = user ? user.githubId : "";
   const viewerCanComment = !!user && access.allowed;
@@ -1162,6 +1169,7 @@ async function handleCommentsGet(request, url, env, origin) {
 
   return json({
     comments: (result.results || []).map((row) => commentRow(row, {
+      admin,
       adminGithubId: env.GITHUB_ADMIN_ID,
       viewerAllowed: viewerCanComment,
       viewerBlocked: access.blocked,

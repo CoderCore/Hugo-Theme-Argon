@@ -164,6 +164,7 @@
             if (comment.githubId) { var github = document.createElement('small'); github.className = 'admin-comment-github'; github.textContent = 'GitHub ID: ' + comment.githubId; content.appendChild(github); }
             var path = document.createElement('td'); path.className = 'admin-path-cell'; path.textContent = comment.postPath || '—';
             var status = document.createElement('td'); status.textContent = comment.deleted ? '已删除' : (comment.blocked ? '已拉黑' : '有效'); status.className = comment.deleted ? 'admin-status-deleted' : (comment.blocked ? 'admin-status-blocked' : 'admin-status-active');
+            if (comment.private) { var privateBadge = document.createElement('span'); privateBadge.className = 'admin-private-badge'; privateBadge.textContent = '悄悄话'; status.insertBefore(privateBadge, status.firstChild); }
             var time = document.createElement('td'); time.textContent = formatTime(comment.updatedAt || comment.createdAt);
             var actions = document.createElement('td'); var wrap = document.createElement('div'); wrap.className = 'actions';
             if (!comment.deleted) {
