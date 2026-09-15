@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS comments (
   parent_id INTEGER,
   author_name TEXT NOT NULL,
   content TEXT NOT NULL,
+  use_markdown INTEGER NOT NULL DEFAULT 1,
+  anonymous_display INTEGER NOT NULL DEFAULT 0,
+  is_private INTEGER NOT NULL DEFAULT 0,
+  private_owner_github_id TEXT,
+  user_agent TEXT,
+  mail_notice INTEGER NOT NULL DEFAULT 0,
+  upvotes INTEGER NOT NULL DEFAULT 0,
+  pinned INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   github_id TEXT,
   updated_at TEXT,
@@ -41,6 +49,23 @@ CREATE INDEX IF NOT EXISTS idx_comments_github_post
 
 CREATE INDEX IF NOT EXISTS idx_comments_admin_created
   ON comments(deleted_at, created_at DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_comments_private_owner
+  ON comments(private_owner_github_id, post_path, created_at DESC);
+
+-- One row per saved version. The current version remains in comments.content;
+-- this table stores the previous text before each edit.
+CREATE TABLE IF NOT EXISTS comment_edit_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  comment_id INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  use_markdown INTEGER NOT NULL DEFAULT 1,
+  edited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editor_github_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_comment_edit_history_comment
+  ON comment_edit_history(comment_id, edited_at DESC, id DESC);
 
 -- One immutable upvote per authenticated GitHub user or anonymous browser.
 CREATE TABLE IF NOT EXISTS comment_votes (

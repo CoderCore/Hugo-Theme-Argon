@@ -3,6 +3,18 @@
 
     var activeSections = [];
     var pageSize = 20;
+    var emotionGroups = [
+        {name: '颜文字', items: ['|´・ω・)ノ', 'ヾ(≧∇≦*)ゝ', '(☆ω☆)', '（╯‵□′）╯︵┴─┴', '￣﹃￣', '(/ω\\＼)', '∠( ᐛ 」∠)＿', '(๑•̀ㅁ•́ฅ)', '→_→', '୧(๑•̀⌄•́๑)૭', '٩(ˊᗜˋ*)و', '(ノ°ο°)ノ', '(´இ皿இ｀)', '⌇●﹏●⌇', '(ฅ´ω`ฅ)', '(╯°A°)╯︵○○○', 'φ(￣∇￣o)', 'ヾ(´･ ･｀｡)ノ"', '( ง ᵒ̌皿ᵒ̌)ง⁼³₌₃', '(ó﹏ò｡)', 'Σ(っ °Д °;)っ', '( ,,´･ω･)ﾉ"(´っω･｀｡)', '╮(╯▽╰)╭', 'o(*////▽////*)q', '＞﹏＜', '( ๑´•ω•) "(ㆆᴗㆆ)']},
+        {name: 'Emoji', items: ['😂', '😀', '😅', '😊', '🙂', '🙃', '😌', '😍', '😘', '😜', '😝', '😏', '😒', '🙄', '😳', '😡', '😔', '😫', '😱', '😭', '💩', '👻', '🙌', '🖕', '👍', '👫', '👬', '👭', '🌚', '🌝', '🙈', '💊', '😶', '🙏', '🍦', '🍉', '😣']},
+        {name: '小恐龙', stickers: 'dinosaur', count: 16},
+        {name: '花!', stickers: 'flower', count: 14, description: 'Source: github.com/k4yt3x/flowerhd'}
+    ];
+    var stickerSources = Object.create(null);
+    emotionGroups.forEach(function(group) {
+        if (!group.stickers) return;
+        var names = group.stickers === 'dinosaur' ? ['shy', 'daze', 'sweat', 'proud', 'powerless', 'pouting', 'eating', 'ok', 'doubt', 'depressed', 'close-eyes', 'sleeping', 'puzzled', 'agree', 'crazy', 'angry'] : ['flower', 'grass', 'leaf', 'star', 'sun', 'moon', 'water', 'heihei', 'lemon', 'birthday', 'sea', 'vegetable', 'tile', 'utf'];
+        for (var index = 1; index <= group.count; index += 1) stickerSources[group.stickers + '-' + names[index - 1]] = '/stickers/' + group.stickers + '/' + index + '.jpg';
+    });
 
     function isChinese() {
         return (document.documentElement.lang || '').toLowerCase().indexOf('zh') === 0;
@@ -43,7 +55,15 @@
              commentVoteFailed: '点赞失败，请稍后重试。',
              commentDeletedLabel: '评论已删除',
              commentBlocked: '你的账号已被加入评论黑名单。',
-             commentWhitelistRequired: '当前仅允许评论白名单中的 GitHub 用户操作。'
+             commentWhitelistRequired: '当前仅允许评论白名单中的 GitHub 用户操作。',
+             commentPrivate: '悄悄话',
+             commentPrivateHidden: '该评论为悄悄话',
+             commentAnonymous: '匿名显示',
+             commentHistory: '编辑记录',
+             commentHistoryTitle: '评论 #%s 的编辑记录',
+             commentHistoryEmpty: '暂无编辑记录。',
+             commentPrivateParent: '悄悄话只能回复自己的私密评论。',
+             commentExpand: '展开'
         } : {
             loading: 'Loading comments…',
             empty: 'No comments yet. Be the first to comment.',
@@ -78,7 +98,15 @@
              commentVoteFailed: 'Could not upvote the comment. Please try again.',
              commentDeletedLabel: 'Comment deleted',
              commentBlocked: 'Your account is blocked from comment actions.',
-             commentWhitelistRequired: 'Only GitHub users on the comment whitelist may perform comment actions.'
+             commentWhitelistRequired: 'Only GitHub users on the comment whitelist may perform comment actions.',
+             commentPrivate: 'Private',
+             commentPrivateHidden: 'This is a private comment',
+             commentAnonymous: 'Post anonymously',
+             commentHistory: 'Edit history',
+             commentHistoryTitle: 'Edit history for comment #%s',
+             commentHistoryEmpty: 'No edit history.',
+             commentPrivateParent: 'Private comments can only be replied to by their owner.',
+             commentExpand: 'Show more'
         };
         var replacement = value === undefined || value === null ? '' : value;
         return (messages[name] || name).replace('%s', replacement);
@@ -306,11 +334,46 @@
         return colors[hash];
     }
 
+    function userAgentIcon(kind) {
+        var icons = {
+            Android: 'fa-android',
+            Chrome: 'fa-chrome',
+            Firefox: 'fa-firefox',
+            Linux: 'fa-linux',
+            macOS: 'fa-apple',
+            Opera: 'fa-opera',
+            Windows: 'fa-windows'
+        };
+        return icons[kind] || 'fa-globe';
+    }
+
+    function appendUserAgent(container, comment) {
+        if (!container || !comment || !comment.userAgent) return;
+        var label = document.createElement('span');
+        label.className = 'comment-useragent';
+        label.title = comment.userAgent;
+        var parts = [comment.userAgentPlatform, comment.userAgentBrowser].filter(Boolean);
+        if (!parts.length) {
+            label.textContent = comment.userAgent;
+            container.appendChild(label);
+            return;
+        }
+        parts.forEach(function(part, index) {
+            if (index) label.appendChild(document.createTextNode(' '));
+            var icon = document.createElement('i');
+            icon.className = 'fa ' + userAgentIcon(part) + ' comment-useragent-icon';
+            icon.setAttribute('aria-hidden', 'true');
+            label.append(icon, document.createTextNode(' ' + part));
+        });
+        container.appendChild(label);
+    }
+
     function renderInline(container, source) {
         var index = 0;
         var textStart = 0;
         var patterns = [
             {regex: /^`([^`]+)`/, tag: 'code'},
+            {regex: /^:([a-z][a-z0-9-]+):/, sticker: true},
             {regex: /^!\[([^\]]*)\]\(([^\s)]+)(?:\s+["']([^"']*)["'])?\)/, image: true},
             {regex: /^\[([^\]]+)\]\(([^\s)]+)(?:\s+["']([^"']*)["'])?\)/, link: true},
             {regex: /^\*\*([\s\S]+?)\*\*/, tag: 'strong'},
@@ -331,15 +394,43 @@
                 var match = source.slice(index).match(pattern.regex);
                 if (!match) continue;
                 flushText(index);
-                if (pattern.image) {
+                if (pattern.sticker) {
+                    var stickerUrl = stickerSources[match[1]];
+                    if (stickerUrl) {
+                        var sticker = document.createElement('img');
+                        sticker.className = 'comment-sticker';
+                        sticker.src = stickerUrl;
+                        sticker.alt = ':' + match[1] + ':';
+                        sticker.loading = 'lazy';
+                        sticker.draggable = false;
+                        container.appendChild(sticker);
+                    } else {
+                        container.appendChild(document.createTextNode(match[0]));
+                    }
+                } else if (pattern.image) {
                     var imageUrl = safeUrl(match[2]);
-                    if (imageUrl) {
-                        var image = document.createElement('img');
-                        image.className = 'comment-markdown-image';
-                        image.src = imageUrl;
-                        image.alt = match[1] || '';
-                        if (match[3]) image.title = match[3];
-                        container.appendChild(image);
+                    if (/^https?:/i.test(imageUrl)) {
+                        var imageLink = document.createElement('a');
+                        imageLink.className = 'comment-image';
+                        imageLink.href = imageUrl;
+                        imageLink.target = '_blank';
+                        imageLink.rel = 'nofollow noopener noreferrer';
+                        imageLink.title = match[3] || match[1] || '查看图片';
+                        var imageIcon = document.createElement('i');
+                        imageIcon.className = 'fa fa-image';
+                        imageIcon.setAttribute('aria-hidden', 'true');
+                        imageLink.append(imageIcon, document.createTextNode(' 查看图片'));
+                        var preview = document.createElement('img');
+                        preview.className = 'comment-image-preview';
+                        preview.alt = match[1] || '';
+                        preview.setAttribute('data-src', imageUrl);
+                        preview.loading = 'lazy';
+                        preview.draggable = false;
+                        var previewMask = document.createElement('i');
+                        previewMask.className = 'comment-image-preview-mask';
+                        previewMask.setAttribute('aria-hidden', 'true');
+                        imageLink.append(preview, previewMask);
+                        container.appendChild(imageLink);
                     } else {
                         container.appendChild(document.createTextNode(match[0]));
                     }
@@ -475,6 +566,142 @@
         renderLines(container, lines);
     }
 
+    function renderCommentContent(container, comment) {
+        container.replaceChildren();
+        if (comment && comment.useMarkdown !== false) {
+            renderMarkdown(container, comment.content || '');
+            return;
+        }
+        var plain = String(comment && comment.content || '').replace(/\r\n?/g, '\n').split('\n');
+        plain.forEach(function(line, index) {
+            if (index) container.appendChild(document.createElement('br'));
+            var cursor = 0;
+            line.replace(/:([a-z][a-z0-9-]+):/g, function(full, code, offset) {
+                if (!stickerSources[code]) return full;
+                if (offset > cursor) container.appendChild(document.createTextNode(line.slice(cursor, offset)));
+                var sticker = document.createElement('img');
+                sticker.className = 'comment-sticker'; sticker.src = stickerSources[code]; sticker.alt = full; sticker.loading = 'lazy'; sticker.draggable = false;
+                container.appendChild(sticker); cursor = offset + full.length; return full;
+            });
+            if (cursor < line.length) container.appendChild(document.createTextNode(line.slice(cursor)));
+        });
+    }
+
+    function emotionItems(group) {
+        if (group.items) return group.items.map(function(text) { return {text: text}; });
+        var names = group.stickers === 'dinosaur' ? ['shy', 'daze', 'sweat', 'proud', 'powerless', 'pouting', 'eating', 'ok', 'doubt', 'depressed', 'close-eyes', 'sleeping', 'puzzled', 'agree', 'crazy', 'angry'] : ['flower', 'grass', 'leaf', 'star', 'sun', 'moon', 'water', 'heihei', 'lemon', 'birthday', 'sea', 'vegetable', 'tile', 'utf'];
+        return names.slice(0, group.count).map(function(name) { return {code: group.stickers + '-' + name, src: stickerSources[group.stickers + '-' + name]}; });
+    }
+
+    function buildEmotionKeyboard(state) {
+        var keyboard = state.emotionKeyboard;
+        if (!keyboard || keyboard.dataset.ready === 'true') return;
+        var content = document.createElement('div');
+        content.className = 'emotion-keyboard-content';
+        var bar = document.createElement('div');
+        bar.className = 'emotion-keyboard-bar';
+        emotionGroups.forEach(function(group, groupIndex) {
+            var panel = document.createElement('div');
+            panel.className = 'emotion-group';
+            panel.dataset.index = String(groupIndex);
+            if (groupIndex) panel.hidden = true;
+            emotionItems(group).forEach(function(item) {
+                var button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'emotion-item' + (item.code ? ' emotion-item-sticker' : '');
+                if (item.code) {
+                    button.dataset.code = item.code;
+                    button.title = ':' + item.code + ':';
+                    var image = document.createElement('img');
+                    image.src = item.src;
+                    image.alt = ':' + item.code + ':';
+                    image.loading = 'lazy';
+                    image.draggable = false;
+                    button.appendChild(image);
+                } else {
+                    button.dataset.text = item.text;
+                    button.textContent = item.text;
+                }
+                panel.appendChild(button);
+            });
+            if (group.description) {
+                var description = document.createElement('div');
+                description.className = 'emotion-group-description';
+                description.textContent = group.description;
+                panel.appendChild(description);
+            }
+            content.appendChild(panel);
+            var tab = document.createElement('button');
+            tab.type = 'button';
+            tab.className = 'emotion-group-name' + (groupIndex ? '' : ' active');
+            tab.textContent = group.name;
+            tab.dataset.index = String(groupIndex);
+            tab.addEventListener('click', function() {
+                Array.prototype.forEach.call(content.querySelectorAll('.emotion-group'), function(node) { node.hidden = node.dataset.index !== tab.dataset.index; });
+                Array.prototype.forEach.call(bar.querySelectorAll('.emotion-group-name'), function(node) { node.classList.toggle('active', node === tab); });
+            });
+            bar.appendChild(tab);
+        });
+        keyboard.replaceChildren(content, bar);
+        keyboard.dataset.ready = 'true';
+        keyboard.addEventListener('click', function(event) {
+            var item = event.target.closest('.emotion-item');
+            if (!item) return;
+            var insertion = item.dataset.code ? ':' + item.dataset.code + ':' : item.dataset.text || '';
+            insertAtCursor(state.form.elements.content, insertion);
+            state.form.elements.content.focus();
+            toggleEmotionKeyboard(state, false);
+        });
+    }
+
+    function insertAtCursor(textarea, value) {
+        if (!textarea) return;
+        var start = Number.isInteger(textarea.selectionStart) ? textarea.selectionStart : textarea.value.length;
+        var end = Number.isInteger(textarea.selectionEnd) ? textarea.selectionEnd : start;
+        textarea.value = textarea.value.slice(0, start) + value + textarea.value.slice(end);
+        textarea.selectionStart = textarea.selectionEnd = start + value.length;
+        textarea.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+
+    function toggleEmotionKeyboard(state, open) {
+        if (!state.emotionKeyboard || !state.emotionToggle) return;
+        var next = open === undefined ? state.emotionKeyboard.hidden : !!open;
+        state.emotionKeyboard.hidden = !next;
+        state.emotionToggle.classList.toggle('comment-emotion-keyboard-open', next);
+        state.emotionToggle.setAttribute('aria-expanded', next ? 'true' : 'false');
+    }
+
+    function showHistory(state, comment) {
+        if (!comment || !comment.canHistory) return;
+        fetch(commentItemUrl(state.endpoint, comment.id) + '/history', {headers: {Accept: 'application/json'}, credentials: 'include'})
+            .then(parseResponse).then(function(data) {
+                var modal = document.createElement('div');
+                modal.className = 'argon-comment-history-modal';
+                var dialog = document.createElement('div');
+                dialog.className = 'argon-comment-history-dialog card shadow-sm';
+                var title = document.createElement('h3');
+                title.textContent = message('commentHistoryTitle', comment.id);
+                var close = document.createElement('button');
+                close.type = 'button'; close.className = 'btn btn-sm btn-outline-primary'; close.textContent = message('commentCancel');
+                close.addEventListener('click', function() { modal.remove(); });
+                dialog.appendChild(title); dialog.appendChild(close);
+                (data.versions || []).forEach(function(version, index) {
+                    var entry = document.createElement('article');
+                    entry.className = 'comment-edit-history-item';
+                    var heading = document.createElement('strong');
+                    heading.textContent = version.current ? '当前版本' : ('版本 ' + (index + 1));
+                    var time = document.createElement('time');
+                    time.textContent = formatTime(version.editedAt, state.timeZone);
+                    var body = document.createElement('div');
+                    renderCommentContent(body, {content: version.content, useMarkdown: version.useMarkdown});
+                    entry.append(heading, time, body); dialog.appendChild(entry);
+                });
+                if (!data.versions || !data.versions.length) { var empty = document.createElement('p'); empty.textContent = message('commentHistoryEmpty'); dialog.appendChild(empty); }
+                modal.appendChild(dialog); document.body.appendChild(modal);
+                modal.addEventListener('click', function(event) { if (event.target === modal) modal.remove(); });
+            }).catch(function(error) { setStatus(state.section, message('commentEditFailed'), true); console.error('Argon comment history failed', error); });
+    }
+
     function makeComment(comment, depth, parent, state, onReply) {
         var item = document.createElement('li');
         item.className = 'comment-item';
@@ -561,6 +788,10 @@
                     upvote.setAttribute('aria-pressed', data.upvoted === true ? 'true' : 'false');
                 }).catch(function(error) {
                     upvote.classList.remove('comment-upvoting');
+                    if (error.status === 401 && error.message === 'auth_required') {
+                        showLoginRequiredToast(message('commentLoginToVote'), message('commentLoginToVoteTitle'));
+                        return;
+                    }
                     setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentVoteFailed'), true);
                     console.error('Argon comment upvote failed', error);
                 });
@@ -582,8 +813,30 @@
             name.className = 'comment-name';
             var author = document.createElement('div');
             author.className = 'comment-author';
-            author.textContent = comment.authorName || message('anonymous');
+            var authorText = comment.authorName || message('anonymous');
+            if (comment.profileUrl) {
+                try {
+                    var profileUrl = new URL(comment.profileUrl, window.location.href);
+                    if (profileUrl.protocol === 'http:' || profileUrl.protocol === 'https:') {
+                        var authorLink = document.createElement('a');
+                        authorLink.href = profileUrl.href;
+                        authorLink.target = '_blank';
+                        authorLink.rel = 'nofollow noopener noreferrer';
+                        authorLink.textContent = authorText;
+                        author.appendChild(authorLink);
+                    }
+                } catch (error) {
+                    console.warn('Invalid comment profile URL', error);
+                }
+            }
+            if (!author.childNodes.length) author.textContent = authorText;
             name.appendChild(author);
+            if (comment.isAdminAuthor) {
+                var adminBadge = document.createElement('span');
+                adminBadge.className = 'badge badge-primary badge-admin';
+                adminBadge.textContent = isChinese() ? '博主' : 'Admin';
+                name.appendChild(adminBadge);
+            }
             if (parent) {
                 var parentInfo = document.createElement('div');
                 parentInfo.className = 'comment-parent-info';
@@ -595,6 +848,28 @@
                 name.appendChild(parentInfo);
             }
             title.appendChild(name);
+            if (comment.pinned) {
+                var pinnedBadge = document.createElement('span');
+                pinnedBadge.className = 'badge badge-danger badge-pinned';
+                var pinIcon = document.createElement('i');
+                pinIcon.className = 'fa fa-thumb-tack';
+                pinIcon.setAttribute('aria-hidden', 'true');
+                pinnedBadge.append(pinIcon, document.createTextNode(' 置顶'));
+                name.appendChild(pinnedBadge);
+            }
+            if (comment.private) {
+                var privateBadge = document.createElement('span');
+                privateBadge.className = 'badge badge-private-comment';
+                privateBadge.textContent = message('commentPrivate');
+                name.appendChild(privateBadge);
+            }
+            if (comment.anonymous) {
+                var anonymousBadge = document.createElement('span');
+                anonymousBadge.className = 'badge badge-anonymous-comment';
+                anonymousBadge.textContent = message('commentAnonymous');
+                name.appendChild(anonymousBadge);
+            }
+            appendUserAgent(name, comment);
         }
         var info = document.createElement('div');
         info.className = 'comment-info text-muted';
@@ -618,13 +893,14 @@
             text.classList.add('comment-item-deleted');
             text.hidden = true;
         } else {
-            renderMarkdown(text, comment.content || '');
+            if (comment.privateHidden) text.classList.add('comment-private-hidden');
+            renderCommentContent(text, comment);
         }
 
         var operations = document.createElement('div');
         operations.className = 'comment-operations';
         operations.hidden = !state.user || !state.commentAllowed;
-        if (state.user && state.commentAllowed && !comment.deleted) {
+        if (state.user && state.commentAllowed && comment.canReply) {
             var reply = document.createElement('button');
             reply.type = 'button';
             reply.className = 'btn btn-sm btn-outline-primary';
@@ -653,6 +929,14 @@
             });
             operations.appendChild(remove);
         }
+        if (!comment.deleted && comment.canHistory && state.user) {
+            var history = document.createElement('button');
+            history.type = 'button';
+            history.className = 'btn btn-sm btn-outline-primary comment-history';
+            history.textContent = message('commentHistory');
+            history.addEventListener('click', function() { showHistory(state, comment); });
+            operations.appendChild(history);
+        }
 
         inner.appendChild(title);
         if (!comment.deleted) inner.appendChild(text);
@@ -672,6 +956,21 @@
         textarea.maxLength = 5000;
         textarea.required = true;
         textarea.value = comment.content || '';
+        var markdownToggle = null;
+        if (state.allowMarkdown) {
+            var markdownLabel = document.createElement('label');
+            markdownLabel.className = 'custom-control custom-checkbox comment-post-checkbox';
+            markdownToggle = document.createElement('input');
+            markdownToggle.type = 'checkbox';
+            markdownToggle.checked = comment.useMarkdown !== false;
+            markdownToggle.className = 'custom-control-input';
+            markdownToggle.name = 'useMarkdown';
+            var markdownText = document.createElement('span');
+            markdownText.className = 'custom-control-label';
+            markdownText.textContent = 'Markdown';
+            markdownLabel.append(markdownToggle, markdownText);
+            form.appendChild(markdownLabel);
+        }
         var controls = document.createElement('div');
         controls.className = 'comment-edit-actions';
         var save = document.createElement('button');
@@ -714,7 +1013,7 @@
                     'X-CSRF-Token': state.csrfToken
                 },
                 credentials: 'include',
-                body: JSON.stringify({content: content})
+                    body: JSON.stringify({content: content, useMarkdown: markdownToggle ? markdownToggle.checked : comment.useMarkdown !== false})
             }).then(parseResponse).then(function() {
                 return state.load(state.page);
             }).catch(function(error) {
@@ -761,6 +1060,29 @@
             if (button) button.disabled = false;
             setStatus(state.section, error.status === 429 ? message('sendFailed') : message('commentDeleteFailed'), true);
             console.error('Argon comment delete failed', error);
+        });
+    }
+
+    function foldLongComments(section) {
+        Array.prototype.forEach.call(section.querySelectorAll('.comment-item-inner'), function(inner) {
+            if (inner.classList.contains('comment-unfolded') || inner.classList.contains('comment-folded')) return;
+            if (inner.scrollHeight <= 800) return;
+            inner.classList.add('comment-folded');
+            var toggle = document.createElement('div');
+            toggle.className = 'show-full-comment';
+            var button = document.createElement('button');
+            button.type = 'button';
+            var icon = document.createElement('i');
+            icon.className = 'fa fa-angle-down';
+            icon.setAttribute('aria-hidden', 'true');
+            button.append(icon, document.createTextNode(' ' + message('commentExpand')));
+            toggle.appendChild(button);
+            button.addEventListener('click', function() {
+                inner.classList.remove('comment-folded');
+                inner.classList.add('comment-unfolded');
+                toggle.remove();
+            });
+            inner.appendChild(toggle);
         });
     }
 
@@ -818,6 +1140,10 @@
                 appendComment(comment, commentDepth(comment, byId), byId[comment.parentId] || null, list);
             }
         });
+
+        var fold = function() { if (section.isConnected) foldLongComments(section); };
+        if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(fold); else window.setTimeout(fold, 0);
+        window.setTimeout(fold, 500);
 
         setStatus(section, comments.length ? '' : message('empty'), false);
         if (typeof window.argonRenderMath === 'function') {
@@ -900,6 +1226,9 @@
                 authEndpoint: (section.getAttribute('data-comments-auth-endpoint') || '').trim(),
                 postPath: postPath,
                 allowGuests: section.getAttribute('data-comments-allow-guests') === 'true',
+                allowMarkdown: section.getAttribute('data-comments-allow-markdown') !== 'false',
+                allowPrivate: section.getAttribute('data-comments-allow-private') === 'true',
+                allowAnonymous: section.getAttribute('data-comments-allow-anonymous') !== 'false',
                 user: null,
                 commentAllowed: false,
                 commentBlocked: false,
@@ -913,9 +1242,28 @@
                 replyText: section.querySelector('[data-comments-reply-text]'),
                 replyPreview: section.querySelector('[data-comments-reply-preview]'),
                 cancelReply: section.querySelector('[data-comments-cancel]'),
+                emotionToggle: section.querySelector('[data-comments-emotion-toggle]'),
+                emotionKeyboard: section.querySelector('[data-comments-emotion-keyboard]'),
+                emotionOutsideHandler: null,
                 page: 1,
                 requestSerial: 0
             };
+            section.__argonCommentsState = state;
+            var markdownOption = section.querySelector('[data-comment-option-markdown]');
+            var anonymousOption = section.querySelector('[data-comment-option-anonymous]');
+            var privateOption = section.querySelector('[data-comment-option-private]');
+            if (markdownOption) markdownOption.hidden = !state.allowMarkdown;
+            if (anonymousOption) anonymousOption.hidden = !state.allowAnonymous;
+            if (privateOption) privateOption.hidden = !state.allowPrivate;
+            buildEmotionKeyboard(state);
+            if (state.emotionToggle) {
+                state.emotionToggle.addEventListener('click', function() { toggleEmotionKeyboard(state); });
+                state.emotionToggle.setAttribute('aria-expanded', 'false');
+            }
+            state.emotionOutsideHandler = function(event) {
+                if (state.emotionKeyboard && state.emotionToggle && !state.emotionKeyboard.contains(event.target) && !state.emotionToggle.contains(event.target)) toggleEmotionKeyboard(state, false);
+            };
+            document.addEventListener('click', state.emotionOutsideHandler);
             state.load = function(page) { return load(page); };
             if (state.authResult) {
                 var cleanUrl = new URL(window.location.href);
@@ -973,10 +1321,15 @@
                     return;
                 }
                 var submit = form.querySelector('[type="submit"]');
-                var payload = {
+            var payload = {
                     postPath: postPath,
                     content: form.elements.content.value,
-                    parentId: form.elements.parentId.value || null
+                    parentId: form.elements.parentId.value || null,
+                    useMarkdown: !form.querySelector('[name="useMarkdown"]') || form.querySelector('[name="useMarkdown"]').checked,
+                    anonymousDisplay: !!(form.querySelector('[name="anonymousDisplay"]') && form.querySelector('[name="anonymousDisplay"]').checked),
+                    private: !!(form.querySelector('[name="private"]') && form.querySelector('[name="private"]').checked),
+                    // Reserved for the future mail provider integration.
+                    mailNotice: false
                 };
                 if (submit) submit.disabled = true;
                 setStatus(section, message('sending'), false);
@@ -1016,6 +1369,10 @@
                         setAuthStatus(state, message('commentWhitelistRequired'), true);
                         return;
                     }
+                    if (error.status === 403 && error.message === 'private_parent_forbidden') {
+                        setStatus(section, message('commentPrivateParent'), true);
+                        return;
+                    }
                     setStatus(section, message('sendFailed'), true);
                     console.error('Argon comment submit failed', error);
                 }).finally(function() {
@@ -1038,6 +1395,9 @@
         root = root && typeof root.querySelectorAll === 'function' ? root : document;
         activeSections = activeSections.filter(function(section) {
             if (root === document || root.contains(section)) {
+                var state = section.__argonCommentsState;
+                if (state && state.emotionOutsideHandler) document.removeEventListener('click', state.emotionOutsideHandler);
+                delete section.__argonCommentsState;
                 section.removeAttribute('data-comments-initialized');
                 return false;
             }

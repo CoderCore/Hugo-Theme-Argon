@@ -2,6 +2,7 @@ const VIEWS_PATH = "/api/views";
 const BATCH_PATH = "/api/views/batch";
 const COMMENTS_PATH = "/api/comments";
 const COMMENT_COUNTS_PATH = "/api/comments/counts";
+const COMMENT_FEATURES_PATH = "/api/comments/features";
 const AUTH_START_PATH = "/api/auth/github/start";
 const AUTH_CALLBACK_PATH = "/api/auth/github/callback";
 const AUTH_ME_PATH = "/api/auth/me";
@@ -41,6 +42,7 @@ const CSRF_COOKIE = "argon_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
 const GITHUB_REQUEST_TIMEOUT_MS = 10000;
 const COMMENT_POLICY_META_KEY = "comment_policy_mode_v1";
+const MAX_COMMENT_USER_AGENT_LENGTH = 512;
 
 // D1 is the only persistent state used by this Worker. The reserved row is a
 // maintained cache of the site-wide total; it is reconciled once on migration.
@@ -51,11 +53,13 @@ const SCHEMA_SQL = [
   "CREATE INDEX IF NOT EXISTS idx_view_counts_updated_at ON view_counts(updated_at);",
   "CREATE TABLE IF NOT EXISTS view_counter_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
   `INSERT OR IGNORE INTO view_counts (slug, views) VALUES ('${TOTAL_SLUG}', 0);`,
-  "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, upvotes INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
+  "CREATE TABLE IF NOT EXISTS comments (id INTEGER PRIMARY KEY AUTOINCREMENT, post_path TEXT NOT NULL, parent_id INTEGER, author_name TEXT NOT NULL, content TEXT NOT NULL, use_markdown INTEGER NOT NULL DEFAULT 1, anonymous_display INTEGER NOT NULL DEFAULT 0, is_private INTEGER NOT NULL DEFAULT 0, private_owner_github_id TEXT, user_agent TEXT, mail_notice INTEGER NOT NULL DEFAULT 0, upvotes INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, github_id TEXT, updated_at TEXT, deleted_at TEXT);",
   "CREATE INDEX IF NOT EXISTS idx_comments_post_created ON comments(post_path, created_at DESC, id DESC);",
   "CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id);",
   "CREATE TABLE IF NOT EXISTS comment_votes (comment_id INTEGER NOT NULL, voter_key TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (comment_id, voter_key));",
   "CREATE INDEX IF NOT EXISTS idx_comment_votes_comment ON comment_votes(comment_id);",
+  "CREATE TABLE IF NOT EXISTS comment_edit_history (id INTEGER PRIMARY KEY AUTOINCREMENT, comment_id INTEGER NOT NULL, content TEXT NOT NULL, use_markdown INTEGER NOT NULL DEFAULT 1, edited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, editor_github_id TEXT);",
+  "CREATE INDEX IF NOT EXISTS idx_comment_edit_history_comment ON comment_edit_history(comment_id, edited_at DESC, id DESC);",
   "CREATE TABLE IF NOT EXISTS auth_users (github_id TEXT PRIMARY KEY, login TEXT NOT NULL, display_name TEXT, avatar_url TEXT, profile_url TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);",
   "CREATE TABLE IF NOT EXISTS comment_policy_entries (github_id TEXT PRIMARY KEY, login TEXT, display_name TEXT, avatar_url TEXT, created_at INTEGER NOT NULL);",
   "CREATE TABLE IF NOT EXISTS auth_sessions (token_hash TEXT PRIMARY KEY, github_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);",
@@ -86,6 +90,13 @@ async function ensureSchema(env) {
         ["updated_at", "ALTER TABLE comments ADD COLUMN updated_at TEXT;"],
         ["deleted_at", "ALTER TABLE comments ADD COLUMN deleted_at TEXT;"],
         ["upvotes", "ALTER TABLE comments ADD COLUMN upvotes INTEGER NOT NULL DEFAULT 0;"],
+        ["use_markdown", "ALTER TABLE comments ADD COLUMN use_markdown INTEGER NOT NULL DEFAULT 1;"],
+        ["anonymous_display", "ALTER TABLE comments ADD COLUMN anonymous_display INTEGER NOT NULL DEFAULT 0;"],
+        ["is_private", "ALTER TABLE comments ADD COLUMN is_private INTEGER NOT NULL DEFAULT 0;"],
+        ["private_owner_github_id", "ALTER TABLE comments ADD COLUMN private_owner_github_id TEXT;"],
+        ["user_agent", "ALTER TABLE comments ADD COLUMN user_agent TEXT;"],
+        ["mail_notice", "ALTER TABLE comments ADD COLUMN mail_notice INTEGER NOT NULL DEFAULT 0;"],
+        ["pinned", "ALTER TABLE comments ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;"],
       ];
       for (const [name, statement] of migrations) {
         if (!columnNames.has(name)) await database.exec(statement);
@@ -118,6 +129,9 @@ async function ensureSchema(env) {
       }
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_github_post ON comments(github_id, post_path, id);");
       await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_admin_created ON comments(deleted_at, created_at DESC, id DESC);");
+      await database.exec("CREATE INDEX IF NOT EXISTS idx_comments_private_owner ON comments(private_owner_github_id, post_path, created_at DESC);");
+      await database.exec("CREATE TABLE IF NOT EXISTS comment_edit_history (id INTEGER PRIMARY KEY AUTOINCREMENT, comment_id INTEGER NOT NULL, content TEXT NOT NULL, use_markdown INTEGER NOT NULL DEFAULT 1, edited_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, editor_github_id TEXT);");
+      await database.exec("CREATE INDEX IF NOT EXISTS idx_comment_edit_history_comment ON comment_edit_history(comment_id, edited_at DESC, id DESC);");
       await database.exec("CREATE TABLE IF NOT EXISTS admin_sessions (token_hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);");
       const adminColumns = await database.prepare("PRAGMA table_info(admin_sessions)").all();
       const adminColumnNames = new Set((adminColumns.results || []).map((column) => column.name));
@@ -724,17 +738,18 @@ async function handleAdminCommentsGet(request, url, env, origin) {
   }
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const result = await env.DB.prepare(
-    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, c.github_id, " +
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.use_markdown, c.anonymous_display, " +
+      "c.is_private, c.private_owner_github_id, c.user_agent, c.mail_notice, c.pinned, c.created_at, c.github_id, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, " +
       "u.profile_url AS profile_url, c.upvotes AS upvotes, 0 AS upvoted, " +
       "CASE WHEN p.github_id IS NULL THEN 0 ELSE 1 END AS blocked, " +
       "1 AS can_edit, 1 AS can_delete FROM comments c " +
       "LEFT JOIN auth_users u ON u.github_id = c.github_id " +
       "LEFT JOIN comment_policy_entries p ON p.github_id = c.github_id " +
-      `${where} ORDER BY c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
+      `${where} ORDER BY c.pinned DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?`,
   ).bind(...values, pagination.limit + 1, pagination.offset).all();
   return json(
-    adminPageResponse((result.results || []).map((row) => commentRow(row, { admin: true })), pagination.page, pagination.limit, "comments"),
+    adminPageResponse((result.results || []).map((row) => commentRow(row, { admin: true, adminGithubId: env.GITHUB_ADMIN_ID })), pagination.page, pagination.limit, "comments"),
     200,
     origin,
   );
@@ -843,9 +858,29 @@ async function handleAdminCommentPurge(request, commentId, env, origin) {
   await env.DB.batch([
     env.DB.prepare("UPDATE comments SET parent_id = ? WHERE parent_id = ?").bind(row.parent_id, commentId),
     env.DB.prepare("DELETE FROM comment_votes WHERE comment_id = ?").bind(commentId),
+    env.DB.prepare("DELETE FROM comment_edit_history WHERE comment_id = ?").bind(commentId),
     env.DB.prepare("DELETE FROM comments WHERE id = ? AND deleted_at IS NOT NULL").bind(commentId),
   ]);
   return json({ purged: true, id: commentId, reparentedReplies: Number(children?.total) || 0 }, 200, origin);
+}
+
+async function handleAdminCommentPin(request, commentId, env, origin) {
+  if (!(await authorizedAdmin(request, env))) return json({ error: "unauthorized" }, 401, origin);
+  if (!requireJsonContentType(request) || !validAdminMutation(request)) {
+    return json({ error: "csrf_failed" }, 403, origin);
+  }
+  const body = await readBody(request);
+  const pinned = normalizeBoolean(body && body.pinned, false);
+  const row = await env.DB.prepare(
+    "SELECT id, parent_id, is_private, deleted_at FROM comments WHERE id = ?",
+  ).bind(commentId).first();
+  if (!row) return json({ error: "comment_not_found" }, 404, origin);
+  if (row.parent_id !== null || Number(row.is_private) === 1) {
+    return json({ error: "comment_not_pinnable" }, 400, origin);
+  }
+  if (row.deleted_at) return json({ error: "comment_not_pinnable" }, 400, origin);
+  await env.DB.prepare("UPDATE comments SET pinned = ? WHERE id = ? AND parent_id IS NULL AND deleted_at IS NULL").bind(pinned ? 1 : 0, commentId).run();
+  return json({ id: commentId, pinned }, 200, origin);
 }
 
 async function readBody(request) {
@@ -923,6 +958,29 @@ function normalizeCommentContent(value) {
   if (typeof value !== "string") return null;
   const content = value.trim();
   return content && content.length <= MAX_COMMENT_CONTENT_LENGTH ? content : null;
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (value === true || value === 1 || value === "1" || value === "true") return true;
+  if (value === false || value === 0 || value === "0" || value === "false") return false;
+  return fallback;
+}
+
+function normalizeUserAgent(value) {
+  if (typeof value !== "string") return "";
+  const source = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim();
+  if (!source) return "";
+  const platform = /android/i.test(source) ? "Android" : /iphone|ipad|ios/i.test(source) ? "iOS" : /macintosh|mac os/i.test(source) ? "macOS" : /windows/i.test(source) ? "Windows" : /linux/i.test(source) ? "Linux" : "Other";
+  const browser = /edg\//i.test(source) ? "Edge" : /opr\//i.test(source) ? "Opera" : /firefox\//i.test(source) ? "Firefox" : /chrome\//i.test(source) ? "Chrome" : /safari\//i.test(source) ? "Safari" : "Other";
+  return `${platform} · ${browser}`.slice(0, MAX_COMMENT_USER_AGENT_LENGTH);
+}
+
+function splitUserAgentLabel(value) {
+  const parts = String(value || "").split(" · ");
+  return {
+    platform: parts[0] || "",
+    browser: parts.slice(1).join(" · ") || "",
+  };
 }
 
 function normalizeParentId(value) {
@@ -1009,29 +1067,50 @@ async function writeAndReadCounts(env, ids, increment) {
 
 function commentRow(row, options = {}) {
   const admin = options.admin === true;
+  const adminGithubId = normalizeGithubId(options.adminGithubId);
   const blocked = Number(row.blocked) === 1;
   const softDeleted = !!row.deleted_at;
-  const hidden = !admin && (softDeleted || blocked);
+  const viewerGithubId = normalizeGithubId(options.viewerGithubId);
+  const privateComment = Number(row.is_private) === 1;
+  const privateVisible = admin || !privateComment || (!!viewerGithubId && viewerGithubId === normalizeGithubId(row.private_owner_github_id));
+  const hidden = !admin && (softDeleted || blocked || !privateVisible);
   const deleted = softDeleted || (!admin && blocked);
+  const privateHidden = !admin && privateComment && !privateVisible && !softDeleted && !blocked;
+  const anonymous = Number(row.anonymous_display) === 1;
+  const displayName = anonymous && !admin ? "匿名" : row.author_name;
   const viewerAllowed = options.viewerAllowed !== false;
   const viewerBlocked = options.viewerBlocked === true;
+  const userAgent = hidden ? "" : String(row.user_agent || "").slice(0, MAX_COMMENT_USER_AGENT_LENGTH);
+  const userAgentLabel = splitUserAgentLabel(userAgent);
   return {
     id: Number(row.id),
     postPath: row.post_path,
     parentId: row.parent_id === null ? null : Number(row.parent_id),
     githubId: normalizeGithubId(row.github_id),
-    authorName: hidden ? "评论已删除" : row.author_name,
-    avatarUrl: hidden ? "" : row.avatar_url || "",
-    profileUrl: hidden ? "" : row.profile_url || "",
-    content: hidden ? "" : row.content,
+    isAdminAuthor: !!adminGithubId && normalizeGithubId(row.github_id) === adminGithubId,
+    authorName: hidden ? (privateHidden ? "悄悄话" : "评论已删除") : displayName,
+    avatarUrl: hidden || (anonymous && !admin) ? "" : row.avatar_url || "",
+    profileUrl: hidden || (anonymous && !admin) ? "" : row.profile_url || "",
+    content: hidden ? (privateHidden ? "该评论为悄悄话" : "") : row.content,
     createdAt: row.created_at,
     updatedAt: hidden ? "" : row.updated_at || "",
     upvotes: hidden ? 0 : Number(row.upvotes) || 0,
     upvoted: !hidden && Number(row.upvoted) === 1,
     deleted,
     blocked,
-    canEdit: !deleted && viewerAllowed && !viewerBlocked && Number(row.can_edit) === 1,
-    canDelete: !deleted && viewerAllowed && !viewerBlocked && Number(row.can_delete) === 1,
+    private: privateComment,
+    privateHidden,
+    anonymous,
+    useMarkdown: Number(row.use_markdown) !== 0,
+    userAgent,
+    userAgentPlatform: userAgentLabel.platform,
+    userAgentBrowser: userAgentLabel.browser,
+    pinned: !hidden && Number(row.pinned) === 1,
+    canReply: !deleted && !privateHidden && viewerAllowed && !viewerBlocked,
+    canEdit: !deleted && !privateHidden && viewerAllowed && !viewerBlocked && Number(row.can_edit) === 1,
+    canDelete: !deleted && !privateHidden && viewerAllowed && !viewerBlocked && Number(row.can_delete) === 1,
+    canHistory: !privateHidden && !!row.updated_at && (admin || (!!viewerGithubId && viewerGithubId === normalizeGithubId(row.github_id))),
+    canPin: admin && !softDeleted && !blocked && !privateComment && row.parent_id === null,
     canPurge: admin && !!row.deleted_at,
   };
 }
@@ -1049,29 +1128,49 @@ async function handleCommentsGet(request, url, env, origin) {
   const voter = await commentVoter(request, user);
   const offset = (page - 1) * limit;
   const result = await env.DB.prepare(
-    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, c.github_id, " +
-      "COUNT(*) OVER() AS total_count, " +
+    "WITH RECURSIVE root_ranked AS (" +
+      "SELECT c.id, ROW_NUMBER() OVER (ORDER BY c.pinned DESC, c.upvotes DESC, c.created_at DESC, c.id DESC) AS root_position, " +
+      "COUNT(*) OVER() AS root_total FROM comments c WHERE c.post_path = ? AND c.parent_id IS NULL" +
+    "), page_roots AS (" +
+      "SELECT id, root_position, root_total FROM root_ranked WHERE root_position > ? AND root_position <= ?" +
+    "), comment_tree(id, root_id, depth, order_path) AS (" +
+      "SELECT id, id, 0, printf('%020d', root_position) FROM page_roots " +
+      "UNION ALL " +
+      "SELECT c.id, t.root_id, t.depth + 1, t.order_path || '.' || printf('%020d', c.id) " +
+      "FROM comments c JOIN comment_tree t ON c.parent_id = t.id" +
+    "), all_total AS (" +
+      "SELECT COUNT(*) AS total_count FROM comments WHERE post_path = ?" +
+    ") " +
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.use_markdown, c.anonymous_display, " +
+      "c.is_private, c.private_owner_github_id, c.user_agent, c.mail_notice, c.pinned, c.created_at, c.github_id, " +
+      "all_total.total_count AS total_count, page_roots.root_total AS root_total, comment_tree.depth AS tree_depth, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
       "c.upvotes AS upvotes, " +
       "CASE WHEN EXISTS (SELECT 1 FROM comment_votes v WHERE v.comment_id = c.id AND v.voter_key = ?) THEN 1 ELSE 0 END AS upvoted, " +
       "CASE WHEN ? = 1 AND c.github_id = ? THEN 1 ELSE 0 END AS can_edit, " +
       "CASE WHEN ? = 1 AND c.github_id = ? THEN 1 ELSE 0 END AS can_delete, " +
       "CASE WHEN p.github_id IS NULL THEN 0 ELSE 1 END AS blocked " +
-      "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id " +
+      "FROM comment_tree JOIN comments c ON c.id = comment_tree.id " +
+      "JOIN page_roots ON page_roots.id = comment_tree.root_id CROSS JOIN all_total " +
+      "LEFT JOIN auth_users u ON u.github_id = c.github_id " +
       "LEFT JOIN comment_policy_entries p ON p.github_id = c.github_id " +
-      "WHERE c.post_path = ? ORDER BY upvotes DESC, c.created_at DESC, c.id DESC LIMIT ? OFFSET ?",
-  ).bind(voter.key, viewerCanComment ? 1 : 0, githubId, viewerCanComment ? 1 : 0, githubId, postPath, limit, offset).all();
-  const total = result.results?.length ? Number(result.results[0].total_count) || 0 : 0;
+      "ORDER BY comment_tree.order_path",
+  ).bind(postPath, offset, offset + limit, postPath, voter.key, viewerCanComment ? 1 : 0, githubId, viewerCanComment ? 1 : 0, githubId).all();
+  const firstRow = result.results?.[0];
+  const total = firstRow ? Number(firstRow.total_count) || 0 : 0;
+  const rootTotal = firstRow ? Number(firstRow.root_total) || 0 : 0;
 
   return json({
     comments: (result.results || []).map((row) => commentRow(row, {
+      adminGithubId: env.GITHUB_ADMIN_ID,
       viewerAllowed: viewerCanComment,
       viewerBlocked: access.blocked,
     })),
     page,
     limit,
     total,
-    pages: total === 0 ? 0 : Math.ceil(total / limit),
+    // Pagination is by root comment so every returned reply has its parent.
+    pages: rootTotal === 0 ? 0 : Math.ceil(rootTotal / limit),
   }, 200, origin, voter.setCookie ? { "Set-Cookie": voter.setCookie } : undefined);
 }
 
@@ -1090,6 +1189,20 @@ async function handleCommentCountsGet(url, env, origin) {
   return json({ counts }, 200, origin);
 }
 
+// Reserved integration surface. Mail delivery and CAPTCHA verification are
+// intentionally disabled until their external providers are configured.
+function handleCommentFeaturesGet(origin) {
+  return json({
+    markdown: true,
+    emotionKeyboard: true,
+    anonymousDisplay: true,
+    privateComments: true,
+    commentPinning: true,
+    mailNotice: { enabled: false, endpoint: null },
+    captcha: { enabled: false, endpoint: null },
+  }, 200, origin);
+}
+
 async function handleCommentsPost(request, env, origin) {
   if (!requireJsonContentType(request) || !validMutationContext(request) || !validCsrfToken(request)) {
     return json({ error: "csrf_failed" }, 403, origin);
@@ -1098,6 +1211,10 @@ async function handleCommentsPost(request, env, origin) {
   const postPath = normalizePostPath(body && (body.postPath || body.post));
   const content = normalizeCommentContent(body && body.content);
   const parentId = normalizeParentId(body && body.parentId);
+  const useMarkdown = normalizeBoolean(body && body.useMarkdown, true);
+  const anonymousDisplay = normalizeBoolean(body && body.anonymousDisplay, false);
+  const requestedPrivate = normalizeBoolean(body && body.private, false);
+  const mailNotice = normalizeBoolean(body && body.mailNotice, false);
   if (!postPath || !content) {
     return json({ error: "invalid_comment" }, 400, origin);
   }
@@ -1112,12 +1229,19 @@ async function handleCommentsPost(request, env, origin) {
     if (access.blocked) return json({ error: "user_blocked" }, 403, origin);
     return json({ error: "auth_required" }, 401, origin);
   }
+  if (requestedPrivate && !user) {
+    return json({ error: "auth_required" }, 401, origin);
+  }
 
   if (parentId) {
     const parent = await env.DB.prepare(
-      "SELECT id FROM comments WHERE id = ? AND post_path = ?",
+      "SELECT id, is_private, private_owner_github_id FROM comments WHERE id = ? AND post_path = ?",
     ).bind(parentId, postPath).first();
     if (!parent) return json({ error: "parent_not_found" }, 400, origin);
+    if (Number(parent.is_private) === 1 &&
+        (!user || normalizeGithubId(parent.private_owner_github_id) !== normalizeGithubId(user.githubId))) {
+      return json({ error: "private_parent_forbidden" }, 403, origin);
+    }
   }
 
   if (!(await enforceRateLimit(env.COMMENT_RATE_LIMITER, user ? `user:${user.githubId}` : `ip:${clientKey(request)}`))) {
@@ -1128,20 +1252,35 @@ async function handleCommentsPost(request, env, origin) {
     : normalizeCommentName(body && (body.authorName || body.name));
   if (!authorName) return json({ error: "invalid_comment" }, 400, origin);
 
+  let privateOwnerGithubId = requestedPrivate && user ? normalizeGithubId(user.githubId) : null;
+  if (parentId) {
+    const parent = await env.DB.prepare(
+      "SELECT is_private, private_owner_github_id FROM comments WHERE id = ? AND post_path = ?",
+    ).bind(parentId, postPath).first();
+    if (Number(parent?.is_private) === 1) {
+      privateOwnerGithubId = normalizeGithubId(parent.private_owner_github_id) || normalizeGithubId(user?.githubId) || null;
+    }
+  }
+  const userAgent = normalizeUserAgent(request.headers.get("User-Agent"));
+
   const result = await env.DB.prepare(
-    "INSERT INTO comments (post_path, parent_id, author_name, content, github_id) VALUES (?, ?, ?, ?, ?)",
-  ).bind(postPath, parentId, authorName, content, user ? user.githubId : null).run();
+    "INSERT INTO comments (post_path, parent_id, author_name, content, use_markdown, anonymous_display, is_private, private_owner_github_id, user_agent, mail_notice, github_id) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  ).bind(postPath, parentId, authorName, content, useMarkdown ? 1 : 0, anonymousDisplay ? 1 : 0,
+    !!privateOwnerGithubId ? 1 : 0, privateOwnerGithubId, userAgent, mailNotice ? 1 : 0,
+    user ? user.githubId : null).run();
   const id = Number(result.meta?.last_row_id);
   if (!Number.isSafeInteger(id) || id < 1) return json({ error: "insert_failed" }, 500, origin);
   const row = await env.DB.prepare(
-    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, c.github_id, " +
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.use_markdown, c.anonymous_display, " +
+      "c.is_private, c.private_owner_github_id, c.user_agent, c.mail_notice, c.pinned, c.created_at, c.github_id, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
       "c.upvotes AS upvotes, " +
       "0 AS upvoted, " +
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(id).first();
-  return json({ comment: row ? commentRow(row) : null }, 201, origin);
+  return json({ comment: row ? commentRow(row, { adminGithubId: env.GITHUB_ADMIN_ID }) : null }, 201, origin);
 }
 
 async function findOwnedComment(request, commentId, env, origin) {
@@ -1153,7 +1292,7 @@ async function findOwnedComment(request, commentId, env, origin) {
     if (!access.allowed) return { response: json({ error: access.blocked ? "user_blocked" : "whitelist_required" }, 403, origin) };
   }
   const row = await env.DB.prepare(
-    "SELECT id, post_path, github_id, deleted_at FROM comments WHERE id = ?",
+    "SELECT id, post_path, github_id, deleted_at, content, use_markdown FROM comments WHERE id = ?",
   ).bind(commentId).first();
   if (!row || row.deleted_at) return { response: json({ error: "comment_not_found" }, 404, origin) };
   if (!admin && String(row.github_id || "") !== user.githubId) {
@@ -1176,24 +1315,60 @@ async function handleCommentPut(request, commentId, env, origin) {
   if (!content) return json({ error: "invalid_comment" }, 400, origin);
   const ownership = await findOwnedComment(request, commentId, env, origin);
   if (ownership.response) return ownership.response;
-  if (ownership.admin) {
-    await env.DB.prepare(
-      "UPDATE comments SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL",
-    ).bind(content, commentId).run();
-  } else {
-    await env.DB.prepare(
-      "UPDATE comments SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND github_id = ? AND deleted_at IS NULL",
-    ).bind(content, commentId, ownership.user.githubId).run();
-  }
+  const useMarkdown = normalizeBoolean(body && body.useMarkdown, Number(ownership.row.use_markdown) !== 0);
+  const editorGithubId = ownership.admin ? normalizeGithubId(env.GITHUB_ADMIN_ID) : ownership.user.githubId;
+  const updateAllowed = ownership.admin
+    ? "id = ? AND deleted_at IS NULL"
+    : "id = ? AND github_id = ? AND deleted_at IS NULL";
+  const updateValues = ownership.admin ? [commentId] : [commentId, ownership.user.githubId];
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO comment_edit_history (comment_id, content, use_markdown, edited_at, editor_github_id) VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?)",
+    ).bind(commentId, ownership.row.content, Number(ownership.row.use_markdown) !== 0 ? 1 : 0, editorGithubId),
+    env.DB.prepare(
+      `UPDATE comments SET content = ?, use_markdown = ?, updated_at = CURRENT_TIMESTAMP WHERE ${updateAllowed}`,
+    ).bind(content, useMarkdown ? 1 : 0, ...updateValues),
+  ]);
   const row = await env.DB.prepare(
-    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.created_at, c.github_id, " +
+    "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.use_markdown, c.anonymous_display, " +
+      "c.is_private, c.private_owner_github_id, c.user_agent, c.mail_notice, c.pinned, c.created_at, c.github_id, " +
       "c.updated_at, c.deleted_at, u.avatar_url AS avatar_url, u.profile_url AS profile_url, " +
       "c.upvotes AS upvotes, " +
       "0 AS upvoted, " +
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(commentId).first();
-  return json({ comment: row ? commentRow(row) : null }, 200, origin);
+  return json({ comment: row ? commentRow(row, { adminGithubId: env.GITHUB_ADMIN_ID }) : null }, 200, origin);
+}
+
+async function handleCommentHistoryGet(request, commentId, env, origin) {
+  const admin = await authorizedAdmin(request, env);
+  const user = admin ? null : await authenticatedUser(request, env);
+  if (!admin && !user) return json({ error: "auth_required" }, 401, origin);
+  const comment = await env.DB.prepare(
+    "SELECT id, github_id, content, use_markdown, created_at, updated_at FROM comments WHERE id = ?",
+  ).bind(commentId).first();
+  if (!comment) return json({ error: "comment_not_found" }, 404, origin);
+  if (!admin && String(comment.github_id || "") !== user.githubId) {
+    return json({ error: "comment_forbidden" }, 403, origin);
+  }
+  const result = await env.DB.prepare(
+    "SELECT id, content, use_markdown, edited_at, editor_github_id FROM comment_edit_history WHERE comment_id = ? ORDER BY edited_at ASC, id ASC",
+  ).bind(commentId).all();
+  const versions = [{
+    id: 0,
+    content: comment.content,
+    useMarkdown: Number(comment.use_markdown) !== 0,
+    editedAt: comment.updated_at || comment.created_at,
+    current: true,
+  }, ...(result.results || []).map((row) => ({
+    id: Number(row.id),
+    content: row.content,
+    useMarkdown: Number(row.use_markdown) !== 0,
+    editedAt: row.edited_at,
+    current: false,
+  }))];
+  return json({ id: commentId, versions }, 200, origin);
 }
 
 async function handleCommentDelete(request, commentId, env, origin) {
@@ -1224,9 +1399,12 @@ async function handleCommentUpvote(request, commentId, env, origin) {
     return json({ error: "csrf_failed" }, 403, origin);
   }
   const user = await authenticatedUser(request, env);
+  // Upvotes are deliberately account-bound. Guests may see the same button
+  // and the public count, but a direct API call must not bypass the UI and
+  // create anonymous votes, even when guest comments are enabled.
+  if (!user) return json({ error: "auth_required" }, 401, origin);
   const access = await commentAccess(env, user);
   if (!access.allowed) {
-    if (!user && access.mode === "whitelist") return json({ error: "whitelist_required" }, 403, origin);
     if (access.blocked) return json({ error: "user_blocked" }, 403, origin);
     return json({ error: "auth_required" }, 401, origin);
   }
@@ -1289,6 +1467,7 @@ async function pruneCommentTreeIfEmpty(commentId, env) {
     ") ";
   await env.DB.batch([
     env.DB.prepare(tree + "DELETE FROM comment_votes WHERE comment_id IN (SELECT id FROM comment_tree);").bind(root.root_id),
+    env.DB.prepare(tree + "DELETE FROM comment_edit_history WHERE comment_id IN (SELECT id FROM comment_tree);").bind(root.root_id),
     env.DB.prepare(tree + "DELETE FROM comments WHERE id IN (SELECT id FROM comment_tree);").bind(root.root_id),
   ]);
 }
@@ -1335,12 +1514,19 @@ export default {
     const isBatchPath = url.pathname === BATCH_PATH || url.pathname === `${BATCH_PATH}/`;
     const isCommentsPath = url.pathname === COMMENTS_PATH || url.pathname === `${COMMENTS_PATH}/`;
     const isCommentCountsPath = url.pathname === COMMENT_COUNTS_PATH || url.pathname === `${COMMENT_COUNTS_PATH}/`;
+    const isCommentFeaturesPath = url.pathname === COMMENT_FEATURES_PATH || url.pathname === `${COMMENT_FEATURES_PATH}/`;
     const commentItemMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/?$/);
     const commentItemId = commentItemMatch ? normalizeCommentId(commentItemMatch[1]) : null;
     const isCommentItemPath = !!commentItemId;
+    const commentHistoryMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/history\/?$/);
+    const commentHistoryId = commentHistoryMatch ? normalizeCommentId(commentHistoryMatch[1]) : null;
+    const isCommentHistoryPath = !!commentHistoryId;
     const adminCommentItemMatch = url.pathname.match(/^\/api\/admin\/comments\/([1-9]\d*)\/?$/);
     const adminCommentItemId = adminCommentItemMatch ? normalizeCommentId(adminCommentItemMatch[1]) : null;
     const isAdminCommentItemPath = !!adminCommentItemId;
+    const adminCommentPinMatch = url.pathname.match(/^\/api\/admin\/comments\/([1-9]\d*)\/pin\/?$/);
+    const adminCommentPinId = adminCommentPinMatch ? normalizeCommentId(adminCommentPinMatch[1]) : null;
+    const isAdminCommentPinPath = !!adminCommentPinId;
     const commentVoteMatch = url.pathname.match(/^\/api\/comments\/([1-9]\d*)\/upvote\/?$/);
     const commentVoteId = commentVoteMatch ? normalizeCommentId(commentVoteMatch[1]) : null;
     const isCommentVotePath = !!commentVoteId;
@@ -1361,7 +1547,7 @@ export default {
     const policyEntryId = policyEntryMatch ? normalizeGithubId(policyEntryMatch[1]) : null;
     const isAdminPolicyEntryPath = !!policyEntryId;
     const isAdminAuthPath = isAdminAuthStartPath || isAdminMePath || isAdminLogoutPath;
-    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentItemPath && !isCommentVotePath && !isAdminCommentItemPath && !isAuthPath && !isAdminAuthPath && !isAdminStatusPath && !isAdminViewsPath && !isAdminCommentsPath && !isAdminCommentPolicyPath && !isAdminCommentPolicyEntriesPath && !isAdminPolicyEntryPath) return json({ error: "not_found" }, 404, origin);
+    if (!isViewsPath && !isBatchPath && !isCommentsPath && !isCommentCountsPath && !isCommentFeaturesPath && !isCommentItemPath && !isCommentHistoryPath && !isCommentVotePath && !isAdminCommentItemPath && !isAdminCommentPinPath && !isAuthPath && !isAdminAuthPath && !isAdminStatusPath && !isAdminViewsPath && !isAdminCommentsPath && !isAdminCommentPolicyPath && !isAdminCommentPolicyEntriesPath && !isAdminPolicyEntryPath) return json({ error: "not_found" }, 404, origin);
     if (!env.DB) return json({ error: "database_not_configured" }, 503, origin);
 
     try {
@@ -1411,10 +1597,16 @@ export default {
         operation = () => handleAdminCommentPolicyEntryDelete(request, policyEntryId, env, origin);
       } else if (request.method === "DELETE" && isAdminCommentItemPath) {
         operation = () => handleAdminCommentPurge(request, adminCommentItemId, env, origin);
+      } else if (request.method === "POST" && isAdminCommentPinPath) {
+        operation = () => handleAdminCommentPin(request, adminCommentPinId, env, origin);
       } else if (request.method === "GET" && isCommentsPath) {
         operation = () => handleCommentsGet(request, url, env, origin);
       } else if (request.method === "GET" && isCommentCountsPath) {
         operation = () => handleCommentCountsGet(url, env, origin);
+      } else if (request.method === "GET" && isCommentFeaturesPath) {
+        operation = () => handleCommentFeaturesGet(origin);
+      } else if (request.method === "GET" && isCommentHistoryPath) {
+        operation = () => handleCommentHistoryGet(request, commentHistoryId, env, origin);
       } else if (request.method === "POST" && isCommentsPath) {
         operation = () => handleCommentsPost(request, env, origin);
       } else if (request.method === "PUT" && isCommentItemPath) {

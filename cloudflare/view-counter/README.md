@@ -4,6 +4,7 @@
 
 - 文章阅读量和站点总阅读量；
 - 评论列表、回复、分页和安全 Markdown；
+- Argon 风格表情/颜文字键盘、Markdown 开关、匿名显示、悄悄话和编辑历史；
 - GitHub OAuth 登录、全站会话和退出登录；
 - CSRF、Origin/Fetch Metadata、JSON Content-Type 和 Cloudflare Rate Limiting。
 
@@ -141,6 +142,9 @@ params:
   comments:
     enabled: true
     allowGuests: false
+    allowMarkdown: true
+    allowAnonymous: true
+    allowPrivate: true
     timeZone: "Asia/Shanghai"
     endpoint: "https://comments.example.com/api/comments"
     authEndpoint: "https://comments.example.com/api/auth"
@@ -311,6 +315,42 @@ X-CSRF-Token: <csrfToken>
 - 编辑只允许评论所属 GitHub 用户操作；删除按“保留仍有内容的回复树、全树删除后再物理清理”的规则执行。
 - OAuth 每客户端每分钟 10 次，评论每用户/客户端每分钟 5 次。
 - 评论 Markdown 在主题端安全渲染，不执行 JavaScript 或不可信 HTML。
+
+评论扩展字段：
+
+```json
+{
+  "postPath": "/post/example/",
+  "content": "支持 **安全 Markdown** :dinosaur-shy:",
+  "parentId": null,
+  "useMarkdown": true,
+  "anonymousDisplay": false,
+  "private": false,
+  "mailNotice": false
+}
+```
+
+`useMarkdown`、`anonymousDisplay` 和 `private` 由 Worker 校验并保存，不能只靠前端隐藏或修改。悄悄话只允许作者和管理员读取正文；私密回复会继承原私密线程并校验线程所有者。编辑前的版本写入 `comment_edit_history`，评论作者和管理员可通过 `GET /api/comments/{id}/history` 查看。表情贴纸使用主题自带的 `/stickers/` 静态资源，正文只把白名单代码转换为图片，不执行 HTML 或 JavaScript。
+
+管理员评论页还支持根评论置顶：
+
+```http
+POST /api/admin/comments/{id}/pin
+Content-Type: application/json
+X-Admin-CSRF-Token: <adminCsrfToken>
+
+{"pinned":true}
+```
+
+公开评论按置顶、点赞数和时间排序；取消置顶将恢复普通排序。长评论会按 Argon 样式折叠，Markdown 图片使用安全预览，不会执行评论中的脚本或原始 HTML。点赞必须使用 GitHub 登录会话，访客只读取数量。
+
+邮件提醒和 CAPTCHA 当前只保留能力发现接口：
+
+```http
+GET /api/comments/features
+```
+
+返回 `mailNotice.enabled: false` 和 `captcha.enabled: false`。后续接入服务时，应在 Worker 内增加验证/投递实现，不要把密钥放入 Hugo 或浏览器脚本。
 
 ## 部署和验证
 

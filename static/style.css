@@ -2580,9 +2580,127 @@ html.darkmode .has-thumbnail .related-post-title.clamp {
 	margin-bottom: 0;
 }
 .argon-comments .comment-item-text {
-	white-space: pre-wrap;
-	overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
+.comment-private-hidden {
+    color: var(--text-muted, #8898aa);
+    font-style: italic;
+}
+.badge-anonymous-comment {
+    color: var(--themecolor);
+    background: rgba(var(--themecolor-rgbstr), .12);
+    margin-left: 5px;
+}
+.comment-post-options {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: relative;
+    min-height: 38px;
+}
+.comment-post-options .comment-post-checkbox {
+    display: inline-flex;
+    align-items: center;
+    margin: 4px 4px 4px 0;
+    height: 30px;
+}
+.comment-post-options .comment-post-checkbox[hidden],
+.comment-post-options .emotion-keyboard[hidden] {
+    display: none !important;
+}
+.comment-emotion-button {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: inherit;
+    background: transparent;
+    font-size: 22px;
+    opacity: .8;
+}
+.comment-emotion-button:hover,
+.comment-emotion-button.comment-emotion-keyboard-open {
+    color: var(--themecolor);
+    opacity: 1;
+}
+.emotion-keyboard {
+    max-width: min(500px, calc(100vw - 40px));
+    min-width: min(300px, calc(100vw - 40px));
+    display: flex;
+    height: 300px;
+    flex-direction: column;
+    overflow: hidden;
+    position: absolute;
+    z-index: 20;
+    right: 0;
+    bottom: -10px;
+    transform: translateY(100%);
+    color: var(--color-foreground);
+    background: var(--color-foreground);
+}
+.emotion-keyboard-content { flex: 1; overflow-y: auto; }
+.emotion-group { padding: 15px; padding-bottom: 10px; }
+.emotion-item {
+    display: inline-block;
+    border: 0;
+    background: var(--color-border-on-foreground);
+    color: inherit;
+    border-radius: 5px;
+    user-select: none;
+    margin-right: 10px;
+    margin-bottom: 10px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all .3s ease;
+}
+.emotion-item-sticker { padding: 2px; background: rgba(126,126,126,.15); }
+.emotion-item > img { max-height: 60px; border-radius: 3px; display: block; }
+.emotion-item:hover { background: var(--themecolor); color: #fff; }
+.emotion-keyboard-bar {
+    overflow-x: auto;
+    white-space: nowrap;
+    box-shadow: 0 .125rem .25rem rgba(0,0,0,.06);
+}
+.emotion-group-name {
+    display: inline-block;
+    padding: 10px 20px;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+    position: relative;
+}
+.emotion-group-name:hover { background: var(--color-border-on-foreground); }
+.emotion-group-name.active:after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: var(--themecolor);
+}
+.argon-comment-history-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0,0,0,.45);
+}
+.argon-comment-history-dialog {
+    width: min(720px, 100%);
+    max-height: min(80vh, 720px);
+    overflow: auto;
+    padding: 24px;
+}
+.argon-comment-history-dialog h3 { margin: 0 0 20px; }
+.argon-comment-history-dialog > .btn { float: right; margin-top: -52px; }
+.comment-edit-history-item { border-bottom: 1px solid var(--color-border-on-foreground); padding: 0 4px 18px; margin-bottom: 18px; }
+.comment-edit-history-item time { display: block; opacity: .65; font-size: .85em; margin: 6px 0 10px; }
 .argon-comments-authbar {
 	display: flex;
 	align-items: center;
@@ -2611,6 +2729,16 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	flex: 1;
 	font-weight: bold;
 	line-height: 1.25;
+}
+.comment-useragent-item,
+.comment-useragent {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+}
+.comment-useragent-icon {
+	font-size: 0.9em;
+	opacity: 0.9;
 }
 .comment-author, .comment-parent-info{
 	display: inline-block;
@@ -2688,11 +2816,17 @@ html.darkmode .argon-comments-authbar .btn-outline-primary {
 	}
 }
 .comment-useragent {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
 	font-weight: normal;
 	padding-left: 4px;
 	font-size: 14px;
 	transform: translateY(-1px);
+}
+.comment-useragent-icon {
+	font-size: 0.9em;
+	opacity: 0.9;
 }
 .comment-useragent > svg {
 	height: 18px;
@@ -5388,4 +5522,14 @@ html.using-safari #blog_setting_card_radius_to_default:before {
 }
 html.using-safari .friend-link-description:after {
 	display: none;
+}
+
+/* Hugo 评论表情键盘：覆盖原版仅绑定 #comment_emotion_btn 的显示规则。 */
+.comment-post-options .emotion-keyboard[hidden] {
+	display: none !important;
+}
+.comment-post-options .comment-emotion-button.comment-emotion-keyboard-open + .emotion-keyboard {
+	opacity: 1;
+	transform: translateY(100%);
+	pointer-events: auto;
 }

@@ -6,6 +6,9 @@
 {{- $allowGuests := false -}}
 {{- $authEndpoint := "" -}}
 {{- $timeZone := "UTC" -}}
+{{- $allowMarkdown := true -}}
+{{- $allowPrivate := true -}}
+{{- $allowAnonymous := true -}}
 {{- with .Site.Params.comments -}}
     {{- if reflect.IsMap . -}}
         {{- with (index . "timeZone") -}}
@@ -20,6 +23,9 @@
         {{- with (index . "authEndpoint") -}}
             {{- if eq (printf "%T" .) "string" -}}{{- $authEndpoint = . -}}{{- end -}}
         {{- end -}}
+        {{- with (index . "allowMarkdown") -}}{{- $allowMarkdown = ne . false -}}{{- end -}}
+        {{- with (index . "allowPrivate") -}}{{- $allowPrivate = eq . true -}}{{- end -}}
+        {{- with (index . "allowAnonymous") -}}{{- $allowAnonymous = ne . false -}}{{- end -}}
     {{- end -}}
 {{- end -}}
 {{- if and $pageEnabled $enabled -}}
@@ -31,7 +37,7 @@
         {{- end -}}
     {{- end -}}
 {{- end -}}
-<div class="argon-comments" data-comments-endpoint="{{ $endpoint }}" data-comments-auth-endpoint="{{ $authEndpoint }}" data-comments-allow-guests="{{ $allowGuests }}" data-comments-time-zone="{{ $timeZone }}" data-comments-post-path="{{ .RelPermalink }}">
+<div class="argon-comments" data-comments-endpoint="{{ $endpoint }}" data-comments-auth-endpoint="{{ $authEndpoint }}" data-comments-allow-guests="{{ $allowGuests }}" data-comments-allow-markdown="{{ $allowMarkdown }}" data-comments-allow-private="{{ $allowPrivate }}" data-comments-allow-anonymous="{{ $allowAnonymous }}" data-comments-time-zone="{{ $timeZone }}" data-comments-post-path="{{ .RelPermalink }}">
     <section id="comments" class="comments-area card shadow-sm" aria-label="{{ T "comments" }}">
         <div class="card-body">
             <h2 class="comments-title"><i class="fa fa-comments" aria-hidden="true"></i>{{ T "comments" }}</h2>
@@ -75,6 +81,24 @@
                 <input type="hidden" name="parentId" value="">
                 <div class="row" style="margin-top: 5px; margin-bottom: 10px;">
                     <div class="col-md-12">
+                        <div class="comment-post-options" data-comments-options>
+                            <label class="custom-control custom-checkbox comment-post-checkbox" data-comment-option-markdown>
+                                <input class="custom-control-input" type="checkbox" name="useMarkdown" checked>
+                                <span class="custom-control-label">Markdown</span>
+                            </label>
+                            <label class="custom-control custom-checkbox comment-post-checkbox" data-comment-option-anonymous>
+                                <input class="custom-control-input" type="checkbox" name="anonymousDisplay">
+                                <span class="custom-control-label">匿名显示</span>
+                            </label>
+                            <label class="custom-control custom-checkbox comment-post-checkbox" data-comment-option-private title="评论仅自己和博主可见">
+                                <input class="custom-control-input" type="checkbox" name="private">
+                                <span class="custom-control-label">悄悄话</span>
+                            </label>
+                            <button class="btn btn-icon comment-emotion-button" type="button" data-comments-emotion-toggle aria-label="表情" title="表情">
+                                <i class="fa fa-smile-o" aria-hidden="true"></i>
+                            </button>
+                            <div class="emotion-keyboard card shadow-sm" data-comments-emotion-keyboard hidden></div>
+                        </div>
                         <button class="btn btn-icon btn-primary comment-btn pull-right mr-0" type="submit">
                             <span class="btn-inner--icon"><i class="fa fa-send" aria-hidden="true"></i></span>
                             <span class="btn-inner--text" style="margin-right: 0;">{{ T "commentSubmit" }}</span>

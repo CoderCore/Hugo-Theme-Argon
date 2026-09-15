@@ -117,6 +117,9 @@ params:
   comments:
     enabled: true
     allowGuests: false
+    allowMarkdown: true
+    allowPrivate: true
+    allowAnonymous: true
     timeZone: "Asia/Shanghai"
     endpoint: "http://127.0.0.1:8787/api/comments"
 
