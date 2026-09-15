@@ -1086,8 +1086,11 @@ function commentRow(row, options = {}) {
     id: Number(row.id),
     postPath: row.post_path,
     parentId: row.parent_id === null ? null : Number(row.parent_id),
-    githubId: normalizeGithubId(row.github_id),
-    isAdminAuthor: !!adminGithubId && normalizeGithubId(row.github_id) === adminGithubId,
+    // Do not leak the author's identity through a private/deleted projection.
+    // The actual author metadata is only returned to an administrator or the
+    // owner who passed the privateVisible check above.
+    githubId: hidden ? "" : normalizeGithubId(row.github_id),
+    isAdminAuthor: !hidden && !!adminGithubId && normalizeGithubId(row.github_id) === adminGithubId,
     authorName: hidden ? (privateHidden ? "悄悄话" : "评论已删除") : displayName,
     avatarUrl: hidden || (anonymous && !admin) ? "" : row.avatar_url || "",
     profileUrl: hidden || (anonymous && !admin) ? "" : row.profile_url || "",
@@ -1137,7 +1140,8 @@ async function handleCommentsGet(request, url, env, origin) {
   const result = await env.DB.prepare(
     "WITH RECURSIVE root_ranked AS (" +
       "SELECT c.id, ROW_NUMBER() OVER (ORDER BY c.pinned DESC, c.upvotes DESC, c.created_at DESC, c.id DESC) AS root_position, " +
-      "COUNT(*) OVER() AS root_total FROM comments c WHERE c.post_path = ? AND c.parent_id IS NULL" +
+      "COUNT(*) OVER() AS root_total FROM comments c WHERE c.post_path = ? AND c.parent_id IS NULL " +
+      "AND (? = 1 OR c.is_private = 0 OR c.private_owner_github_id = ?)" +
     "), page_roots AS (" +
       "SELECT id, root_position, root_total FROM root_ranked WHERE root_position > ? AND root_position <= ?" +
     "), comment_tree(id, root_id, depth, order_path) AS (" +
@@ -1146,7 +1150,8 @@ async function handleCommentsGet(request, url, env, origin) {
       "SELECT c.id, t.root_id, t.depth + 1, t.order_path || '.' || printf('%020d', c.id) " +
       "FROM comments c JOIN comment_tree t ON c.parent_id = t.id" +
     "), all_total AS (" +
-      "SELECT COUNT(*) AS total_count FROM comments WHERE post_path = ?" +
+      "SELECT COUNT(*) AS total_count FROM comments WHERE post_path = ? " +
+      "AND (? = 1 OR is_private = 0 OR private_owner_github_id = ?)" +
     ") " +
     "SELECT c.id, c.post_path, c.parent_id, c.author_name, c.content, c.use_markdown, c.anonymous_display, " +
       "c.is_private, c.private_owner_github_id, c.user_agent, c.mail_notice, c.pinned, c.created_at, c.github_id, " +
@@ -1161,8 +1166,15 @@ async function handleCommentsGet(request, url, env, origin) {
       "JOIN page_roots ON page_roots.id = comment_tree.root_id CROSS JOIN all_total " +
       "LEFT JOIN auth_users u ON u.github_id = c.github_id " +
       "LEFT JOIN comment_policy_entries p ON p.github_id = c.github_id " +
+      "WHERE (? = 1 OR c.is_private = 0 OR c.private_owner_github_id = ?) " +
       "ORDER BY comment_tree.order_path",
-  ).bind(postPath, offset, offset + limit, postPath, voter.key, viewerCanComment ? 1 : 0, githubId, viewerCanComment ? 1 : 0, githubId).all();
+  ).bind(
+    postPath, admin ? 1 : 0, githubId, offset, offset + limit,
+    postPath, admin ? 1 : 0, githubId,
+    voter.key, viewerCanComment ? 1 : 0, githubId,
+    viewerCanComment ? 1 : 0, githubId,
+    admin ? 1 : 0, githubId,
+  ).all();
   const firstRow = result.results?.[0];
   const total = firstRow ? Number(firstRow.total_count) || 0 : 0;
   const rootTotal = firstRow ? Number(firstRow.root_total) || 0 : 0;
@@ -1288,7 +1300,12 @@ async function handleCommentsPost(request, env, origin) {
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(id).first();
-  return json({ comment: row ? commentRow(row, { adminGithubId: env.GITHUB_ADMIN_ID }) : null }, 201, origin);
+  return json({ comment: row ? commentRow(row, {
+    adminGithubId: env.GITHUB_ADMIN_ID,
+    viewerGithubId: user ? user.githubId : "",
+    viewerAllowed: access.allowed,
+    viewerBlocked: access.blocked,
+  }) : null }, 201, origin);
 }
 
 async function findOwnedComment(request, commentId, env, origin) {
@@ -1346,7 +1363,13 @@ async function handleCommentPut(request, commentId, env, origin) {
       "1 AS can_edit, 1 AS can_delete " +
       "FROM comments c LEFT JOIN auth_users u ON u.github_id = c.github_id WHERE c.id = ?",
   ).bind(commentId).first();
-  return json({ comment: row ? commentRow(row, { adminGithubId: env.GITHUB_ADMIN_ID }) : null }, 200, origin);
+  return json({ comment: row ? commentRow(row, {
+    admin: ownership.admin,
+    adminGithubId: env.GITHUB_ADMIN_ID,
+    viewerGithubId: ownership.user ? ownership.user.githubId : "",
+    viewerAllowed: true,
+    viewerBlocked: false,
+  }) : null }, 200, origin);
 }
 
 async function handleCommentHistoryGet(request, commentId, env, origin) {

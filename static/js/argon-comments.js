@@ -877,7 +877,7 @@
             }
             if (!author.childNodes.length) author.textContent = authorText;
             name.appendChild(author);
-            if (comment.isAdminAuthor && !comment.private) {
+            if (comment.isAdminAuthor) {
                 var adminBadge = document.createElement('span');
                 adminBadge.className = 'badge badge-primary badge-admin';
                 adminBadge.textContent = isChinese() ? '博主' : 'Admin';
@@ -1141,7 +1141,13 @@
         if (!list || !pagination) return;
 
         list.replaceChildren();
-        var comments = Array.isArray(data.comments) ? data.comments : [];
+        // A private comment that is not visible to this viewer must not leave
+        // a placeholder card in the public thread, matching Argon's original
+        // behavior. Keep this client-side guard even though the Worker also
+        // filters these rows in SQL.
+        var comments = (Array.isArray(data.comments) ? data.comments : []).filter(function(comment) {
+            return !comment || comment.privateHidden !== true;
+        });
         updateCommentCount(state.postPath, data.total);
         var byId = Object.create(null);
         var childrenByParent = Object.create(null);
