@@ -5769,17 +5769,33 @@ html.using-safari .friend-link-description:after {
 	}
 }
 
-/* 评论标题行：作者、徽标、环境文字和图标统一按中线对齐。 */
-.comment-name > .comment-author,
-.comment-name > .comment-parent-info,
-.comment-name > .badge,
-.comment-name > .comment-useragent {
-	vertical-align: middle;
+/* 评论标题行沿用原 Argon：行内元素按文字基线排列。 */
+.comment-item-title {
+	align-items: initial;
+	gap: 0;
+	margin-bottom: 3px;
+}
+.comment-name {
+	line-height: normal;
 }
 .comment-useragent {
-	line-height: 18px;
-	transform: none;
+	display: inline-block;
+	font-weight: normal;
+	padding-left: 4px;
+	font-size: 14px;
+	line-height: normal;
+	white-space: nowrap;
+	transform: translateY(-1px);
 }
 .comment-useragent-icon {
-	transform: translateY(1px);
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	flex: none;
+	margin: 0 1px 0 4px;
+	vertical-align: baseline;
+	transform: translateY(-2px);
+}
+.comment-useragent-icon:first-child {
+	margin-left: 4px;
 }
