@@ -5796,5 +5796,5 @@ html.using-safari .friend-link-description:after {
 
 /* 博主徽标保留原字体，仅收紧上下和左右留白。 */
 .comment-item-title .badge-admin {
-	padding: 2px 3px;
+	padding: 3px;
 }
