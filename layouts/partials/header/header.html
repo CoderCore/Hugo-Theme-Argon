@@ -1,4 +1,5 @@
 {{- $toolbar := dict -}}
+{{- $site := .Site -}}
 {{- with .Site.Params.toolbar -}}
     {{- if reflect.IsMap . -}}
         {{- $toolbar = . -}}
@@ -47,17 +48,32 @@
                     {{- if reflect.IsSlice . }}
                     <ul class='navbar-nav navbar-nav-hover align-items-lg-center'>
                         {{- range . }}
-                        <li class='nav-item{{ if .children }} dropdown{{ end }}'>
-                            <a href='{{ if .children }}#{{ else }}{{ .url | relURL }}{{ end }}' class='nav-link' {{ if .children }}onclick='return false;' data-toggle='dropdown'{{ end }}>
-                                <i class='ni ni-book-bookmark d-lg-none'></i>
+                        {{- $dyn := .dynamic -}} {{- /* 可选 "categories" / "tags"：子项由站点分类/标签自动生成 */ -}}
+                        {{- $dynTax := dict -}}
+                        {{- if eq $dyn "categories" -}}
+                            {{- $dynTax = $site.Taxonomies.categories -}}
+                        {{- end -}}
+                        {{- if eq $dyn "tags" -}}
+                            {{- $dynTax = $site.Taxonomies.tags -}}
+                        {{- end -}}
+                        {{- $isDropdown := or (and $dyn (ne (len $dynTax) 0)) .children -}}
+                        <li class='nav-item{{ if $isDropdown }} dropdown{{ end }}'>
+                            <a href='{{ if $dyn }}{{ $dyn | relLangURL }}{{ else if .children }}#{{ else }}{{ .url | relURL }}{{ end }}' class='nav-link' {{ if and .children (not $dyn) }}onclick='return false;' data-toggle='dropdown'{{ end }}>
+                                {{- if .icon }}<i class="{{ .icon }}"></i>{{ else }}<i class='ni ni-book-bookmark d-lg-none'></i>{{ end -}}
                                 <span class='nav-link-inner--text'>{{ .name }}</span>
                             </a>
-                            {{- if .children }}
+                            {{- if $isDropdown }}
                             <div class="dropdown-menu">
+                                {{- if $dyn }}
+                                {{- range $name, $pages := $dynTax }}
+                                <a href='{{ printf "%s/" $dyn | relURL }}{{ $name | urlize }}' class='dropdown-item'>{{ $name }} <span class="tag-num">({{ len $pages }})</span></a>
+                                {{- else }}
                                 {{- range .children }}
                                 <a href='{{ .url | relURL }}' class='dropdown-item'>{{ .name }}</a>
                                 {{- end }}
+                                {{- end }}
                             </div>
+                            {{- end }}
                             {{- end }}
                         </li>
                         {{- end }}

@@ -40,10 +40,7 @@
 {{- end -}}
 
 {{- /* --- START: BANNER LOGIC --- */ -}}
-{{- $finalBannerSize := "full" -}} {{- /* Default for all pages is 'full' */ -}}
-{{- if .IsHome -}}
-    {{- $finalBannerSize = index $banner "size" | default "full" -}} {{- /* On homepage, use config */ -}}
-{{- end -}}
+{{- $finalBannerSize := index $banner "size" | default "full" -}} {{- /* 'full' / 'mini' / 'fullscreen' / 'hidden'，全站生效 */ -}}
 
 {{- if eq $finalBannerSize "fullscreen" -}}
     {{- $htmlClasses = printf "%s%s" $htmlClasses "banner-is-fullscreen " -}}

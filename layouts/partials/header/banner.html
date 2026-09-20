@@ -9,10 +9,7 @@
 {{- $bannerSubtitle := index $banner "subtitle" -}}
 
 {{- /* --- START: BANNER LOGIC --- */ -}}
-{{- $bannerSize := "full" -}} {{- /* Default for all pages is 'full' */ -}}
-{{- if .IsHome -}}
-    {{- $bannerSize = index $banner "size" | default "full" -}} {{- /* On homepage, use config */ -}}
-{{- end -}}
+{{- $bannerSize := index $banner "size" | default "full" -}} {{- /* 'full' / 'mini' / 'fullscreen' / 'hidden'，全站生效 */ -}}
 {{- /* --- END: BANNER LOGIC --- */ -}}
 
 <section id="banner" class="banner section section-lg section-shaped banner-size-{{ $bannerSize }}">

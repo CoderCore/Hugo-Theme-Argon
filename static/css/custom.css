@@ -24,6 +24,19 @@
     margin-top: 80px !important;
 }
 
+/* params.transparentBanner: 透明 banner，衬页面背景图（对齐 WP 版 imling.cn 效果） */
+html.argon-yaml-transparent-banner #banner,
+html.argon-yaml-transparent-banner #banner .shape {
+    background: transparent !important;
+}
+
+/* 顶栏下拉菜单悬停展开（动态分类/标签菜单依赖此项，点击仍跳转总览页） */
+@media (min-width: 992px) {
+    .navbar-nav-hover .nav-item.dropdown:hover > .dropdown-menu {
+        display: block;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
         scroll-behavior: auto !important;
