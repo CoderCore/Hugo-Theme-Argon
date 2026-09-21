@@ -127,3 +127,10 @@ html.argon-yaml-transparent-banner #banner .shape {
         transform: translateX(-50%) translateY(-5px);
     }
 }
+
+/* 文章正文图片居中显示 */
+#post_content img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
