@@ -63,7 +63,7 @@
             <i class="fa fa-bookmark-o" aria-hidden="true"></i>
             {{- range $idx, $cat := $.Params.categories }}
                 {{- if gt $idx 0 }} , {{ end -}}
-                <a href="{{ (printf "categories/%s/" ($cat | urlize)) | relURL }}" class="post-meta-detail-category">{{ $cat }}</a>
+                <span class="post-meta-detail-category">{{ $cat }}</span>
             {{- end }}
         </div>
         {{- else if or (eq $meta "views") (eq $meta "read") -}}
