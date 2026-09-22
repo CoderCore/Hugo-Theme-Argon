@@ -1612,6 +1612,58 @@ function initArgonThemeColorPicker(root){
 		localStorage.removeItem("argon_custom_theme_color");
 	});
 	pickerElement.setAttribute('data-argon-pickr-initialized', 'true');
+
+	// 夜间模式颜色选择器（独立于日间；改的是 html.darkmode 作用域，默认 #BABABA）
+	let darkPickerElement = root.querySelector('#theme-color-picker-darkmode');
+	if (darkPickerElement && typeof(window.Pickr) == 'function'){
+		if (darkPickerElement.getAttribute('data-argon-pickr-initialized') != 'true'){
+			let darkDefault = localStorage["argon_custom_theme_color_darkmode"] == undefined ? '#BABABA' : localStorage["argon_custom_theme_color_darkmode"];
+			let darkColorPicker = new Pickr({
+				el: darkPickerElement,
+				container: 'body',
+				theme: 'monolith',
+				closeOnScroll: false,
+				appClass: 'theme-color-picker-box',
+				useAsButton: false,
+				padding: 8,
+				inline: false,
+				autoReposition: true,
+				sliders: 'h',
+				disabled: false,
+				lockOpacity: true,
+				outputPrecision: 0,
+				comparison: false,
+				default: darkDefault,
+				swatches: ['#e9e9e9', '#bababa', '#92a1f4', '#8a98eb', '#2196f3', '#ff9700', '#009688', '#e91e63', '#5e72e4', '#607d8b'],
+				defaultRepresentation: 'HEX',
+				components: {
+					palette: true,
+					preview: true,
+					opacity: false,
+					hue: true,
+					interaction: { hex: true, rgba: true, input: true, cancel: true, save: true }
+				},
+				strings: {
+					save: __('确定'),
+					cancel: __('恢复博客默认')
+				}
+			});
+			darkColorPicker.on('change', instance => {
+				applyDarkmodeThemeColor(pickrObjectToHEX(instance), true);
+			});
+			darkColorPicker.on('save', (color, instance) => {
+				applyDarkmodeThemeColor(pickrObjectToHEX(instance._color), true);
+				darkColorPicker.hide();
+			});
+			darkColorPicker.on('cancel', instance => {
+				darkColorPicker.hide();
+				darkColorPicker.setColor('#BABABA');
+				applyDarkmodeThemeColor('#BABABA', false);
+				localStorage.removeItem("argon_custom_theme_color_darkmode");
+			});
+			darkPickerElement.setAttribute('data-argon-pickr-initialized', 'true');
+		}
+	}
 }
 }
 initArgonThemeColorPicker();
@@ -1669,6 +1721,46 @@ function updateThemeColor(color, save){
 }
 if (localStorage["argon_custom_theme_color"] != undefined){
 	updateThemeColor(localStorage["argon_custom_theme_color"], false);
+}
+/* 夜间模式独立主题色：写入 html.darkmode 作用域样式（默认 #BABABA），与日间互不影响 */
+function applyDarkmodeThemeColor(color, save){
+	let themecolor = color;
+	let themecolor_rgbstr = hex2str(themecolor);
+	let RGB = hex2rgb(themecolor);
+	let HSL = rgb2hsl(RGB['R'], RGB['G'], RGB['B']);
+	let RGB_dark0 = hsl2rgb(HSL['h'], HSL['s'], Math.max(HSL['l'] - 0.025, 0));
+	let RGB_dark = hsl2rgb(HSL['h'], HSL['s'], Math.max(HSL['l'] - 0.05, 0));
+	let RGB_dark2 = hsl2rgb(HSL['h'], HSL['s'], Math.max(HSL['l'] - 0.1, 0));
+	let RGB_dark3 = hsl2rgb(HSL['h'], HSL['s'], Math.max(HSL['l'] - 0.15, 0));
+	let RGB_light = hsl2rgb(HSL['h'], HSL['s'], Math.min(HSL['l'] + 0.1, 1));
+	let css = 'html.darkmode{' +
+		'--themecolor:' + themecolor + '!important;' +
+		'--themecolor-R:' + RGB['R'] + '!important;' +
+		'--themecolor-G:' + RGB['G'] + '!important;' +
+		'--themecolor-B:' + RGB['B'] + '!important;' +
+		'--themecolor-H:' + Math.round(HSL['h'] * 360) + '!important;' +
+		'--themecolor-S:' + Math.round(HSL['s'] * 100) + '!important;' +
+		'--themecolor-L:' + Math.round(HSL['l'] * 100) + '!important;' +
+		'--themecolor-rgbstr:' + themecolor_rgbstr + '!important;' +
+		'--themecolor-dark0:' + rgb2hex(RGB_dark0['R'], RGB_dark0['G'], RGB_dark0['B']) + '!important;' +
+		'--themecolor-dark:' + rgb2hex(RGB_dark['R'], RGB_dark['G'], RGB_dark['B']) + '!important;' +
+		'--themecolor-dark2:' + rgb2hex(RGB_dark2['R'], RGB_dark2['G'], RGB_dark2['B']) + '!important;' +
+		'--themecolor-dark3:' + rgb2hex(RGB_dark3['R'], RGB_dark3['G'], RGB_dark3['B']) + '!important;' +
+		'--themecolor-light:' + rgb2hex(RGB_light['R'], RGB_light['G'], RGB_light['B']) + '!important;' +
+		'}';
+	let styleEl = document.getElementById('argon-darkmode-themecolor');
+	if (!styleEl){
+		styleEl = document.createElement('style');
+		styleEl.id = 'argon-darkmode-themecolor';
+		document.head.appendChild(styleEl);
+	}
+	styleEl.textContent = css;
+	if (save){
+		localStorage["argon_custom_theme_color_darkmode"] = themecolor;
+	}
+}
+if (localStorage["argon_custom_theme_color_darkmode"] != undefined){
+	applyDarkmodeThemeColor(localStorage["argon_custom_theme_color_darkmode"], false);
 }
 
 var argonBannerModulePromise = null;

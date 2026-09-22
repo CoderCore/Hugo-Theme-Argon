@@ -196,9 +196,23 @@ html.immersion-color.darkmode body {
 	--font: "Open Sans", -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica,
 		Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", SimSun, sans-serif;
 }
-html.themecolor-toodark.darkmode {
-	--themecolor: #5e72e4 !important;
-	--themecolor-light: #8a98eb !important;
+/* 深色模式独立主题色（#bababa）：覆盖亮色模式下选定的 --themecolor，
+   夜间模式统一使用 #bababa 作为强调色。
+   用 !important 是为了压过 JS(updateThemeColor) 写进 <html> 的内联值。 */
+html.darkmode {
+	--themecolor: #bababa !important;
+	--themecolor-R: 186 !important;
+	--themecolor-G: 186 !important;
+	--themecolor-B: 186 !important;
+	--themecolor-H: 0 !important;
+	--themecolor-S: 0 !important;
+	--themecolor-L: 73 !important;
+	--themecolor-rgbstr: 186, 186, 186 !important;
+	--themecolor-dark0: #b4b4b4 !important;
+	--themecolor-dark: #adadad !important;
+	--themecolor-dark2: #a0a0a0 !important;
+	--themecolor-dark3: #949494 !important;
+	--themecolor-light: #d3d3d3 !important;
 }
 
 body {
