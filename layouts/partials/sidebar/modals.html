@@ -9,7 +9,7 @@
             </div>
             <div class="modal-body">
                 {{- range $name, $taxonomy := .Site.Taxonomies.categories }}
-                <a href="{{ "categories/" | relURL }}{{ $name | urlize }}" class="badge badge-secondary tag">{{ $name }} <span class="tag-num">({{ len $taxonomy }})</span></a>
+                <a href="{{ (printf "categories/%s/" ($name | urlize)) | relURL }}" class="badge badge-secondary tag">{{ $name }} <span class="tag-num">({{ len $taxonomy }})</span></a>
                 {{- end }}
             </div>
         </div>
@@ -26,7 +26,7 @@
             </div>
             <div class="modal-body">
                 {{- range $name, $taxonomy := .Site.Taxonomies.tags }}
-                <a href="{{ "tags/" | relURL }}{{ $name | urlize }}" class="badge badge-secondary tag">{{ $name }} <span class="tag-num">({{ len $taxonomy }})</span></a>
+                <a href="{{ (printf "tags/%s/" ($name | urlize)) | relURL }}" class="badge badge-secondary tag">{{ $name }} <span class="tag-num">({{ len $taxonomy }})</span></a>
                 {{- end }}
             </div>
         </div>

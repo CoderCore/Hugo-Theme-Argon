@@ -3,7 +3,7 @@
 {{- if le $speedCn 0 }}{{ $speedCn = 300 }}{{ end -}}
 {{- if le $speedEn 0 }}{{ $speedEn = 160 }}{{ end -}}
 
-{{- $languageCode := lower .Site.LanguageCode -}}
+{{- $languageCode := lower .Site.Language.Locale -}}
 {{- $speed := $speedEn -}}
 {{- if strings.HasPrefix $languageCode "zh" -}}
     {{- $speed = $speedCn -}}

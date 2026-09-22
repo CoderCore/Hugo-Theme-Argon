@@ -185,6 +185,59 @@
         pageView.replaceChildren(fragment);
     }
 
+    /*
+     * copyPageView() inserts CLONED nodes, and cloned <script> elements are
+     * inert: the browser never executes them. Re-execute every executable
+     * script of the swapped view in DOM order — external scripts are awaited
+     * sequentially so that an inline script that follows an external one
+     * (e.g. pannellum.min.js then pannellum.viewer(...)) still sees the
+     * library loaded.
+     */
+    function execViewScripts() {
+        var staleScripts = pageView.querySelectorAll('script');
+        var chain = Promise.resolve();
+        Array.prototype.forEach.call(staleScripts, function(stale) {
+            var type = (stale.getAttribute('type') || '').toLowerCase();
+            if (type === 'module' ||
+                type.indexOf('ld+json') !== -1 ||
+                type.indexOf('json') !== -1 ||
+                type.indexOf('template') !== -1) {
+                return; // data-only or module script: leave as-is
+            }
+            var src = stale.getAttribute('src');
+            chain = chain.then(function() {
+                if (src) {
+                    return new Promise(function(resolve) {
+                        var live = document.createElement('script');
+                        live.setAttribute('src', src);
+                        if (type) {
+                            live.setAttribute('type', type);
+                        }
+                        live.addEventListener('load', resolve, {once: true});
+                        live.addEventListener('error', resolve, {once: true});
+                        document.head.appendChild(live);
+                    }).then(function() {
+                        stale.remove();
+                    });
+                }
+                if (stale.textContent.trim()) {
+                    var inline = document.createElement('script');
+                    if (type) {
+                        inline.setAttribute('type', type);
+                    }
+                    inline.textContent = stale.textContent;
+                    document.head.appendChild(inline); // executes synchronously
+                    inline.remove();
+                    stale.remove();
+                } else {
+                    stale.remove();
+                }
+                return undefined;
+            });
+        });
+        return chain;
+    }
+
     function replaceMeta(nextDocument, selector) {
         var current = document.head.querySelector(selector);
         var next = nextDocument.head.querySelector(selector);
@@ -285,6 +338,7 @@
         var update = function() {
             syncPageChrome(page.document);
             copyPageView(page.view);
+            execViewScripts();
             syncCommentButton(page.view);
             if (typeof(window.argonInitPage) === 'function') {
                 window.argonInitPage(pageView);

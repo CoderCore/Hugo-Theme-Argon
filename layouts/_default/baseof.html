@@ -53,7 +53,7 @@
 {{- /* --- END: BANNER LOGIC --- */ -}}
 
 {{- $htmlClasses = printf "%s%s%s" $htmlClasses "article-header-style-" (default "default" .Site.Params.articleHeaderStyle) -}}
-<html lang="{{ .Site.LanguageCode }}" class="{{ $htmlClasses }}">
+<html lang="{{ .Site.Language.Locale }}" class="{{ $htmlClasses }}">
 <head>
     {{- partial "head/head.html" . -}}
     {{- block "head" . -}}{{ end }}

@@ -63,7 +63,7 @@
             <i class="fa fa-bookmark-o" aria-hidden="true"></i>
             {{- range $idx, $cat := $.Params.categories }}
                 {{- if gt $idx 0 }} , {{ end -}}
-                <a href="{{ "categories/" | relURL }}{{ $cat | urlize }}" class="post-meta-detail-category">{{ $cat }}</a>
+                <a href="{{ (printf "categories/%s/" ($cat | urlize)) | relURL }}" class="post-meta-detail-category">{{ $cat }}</a>
             {{- end }}
         </div>
         {{- else if or (eq $meta "views") (eq $meta "read") -}}
@@ -81,7 +81,7 @@
             <i class="fa fa-tags" aria-hidden="true"></i>
             {{- range $idx, $tag := $.Params.tags }}
                 {{- if gt $idx 0 }} , {{ end -}}
-                <a href="{{ "/tags/" | relLangURL }}{{ $tag | urlize }}" class="post-meta-detail-tag">{{ $tag }}</a>
+                <a href="{{ (printf "/tags/%s/" ($tag | urlize)) | relLangURL }}" class="post-meta-detail-tag">{{ $tag }}</a>
             {{- end }}
         </div>
         {{- else if eq $meta "words" -}}

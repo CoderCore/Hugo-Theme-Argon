@@ -58,7 +58,7 @@
                         {{- end -}}
                         {{- $isDropdown := or (and $dyn (ne (len $dynTax) 0)) .children -}}
                         <li class='nav-item{{ if $isDropdown }} dropdown{{ end }}'>
-                            <a href='{{ if $dyn }}{{ $dyn | relLangURL }}{{ else if .children }}#{{ else }}{{ .url | relURL }}{{ end }}' class='nav-link' {{ if and .children (not $dyn) }}onclick='return false;' data-toggle='dropdown'{{ end }}>
+                            <a href='{{ if $dyn }}{{ printf "%s/" $dyn | relLangURL }}{{ else if .children }}#{{ else }}{{ .url | relURL }}{{ end }}' class='nav-link' {{ if and .children (not $dyn) }}onclick='return false;' data-toggle='dropdown'{{ end }}>
                                 {{- if .icon }}<i class="{{ .icon }}"></i>{{ else }}<i class='ni ni-book-bookmark d-lg-none'></i>{{ end -}}
                                 <span class='nav-link-inner--text'>{{ .name }}</span>
                             </a>
@@ -66,7 +66,7 @@
                             <div class="dropdown-menu">
                                 {{- if $dyn }}
                                 {{- range $name, $pages := $dynTax }}
-                                <a href='{{ printf "%s/" $dyn | relURL }}{{ $name | urlize }}' class='dropdown-item'>{{ $name }} <span class="tag-num">({{ len $pages }})</span></a>
+                                <a href='{{ (printf "%s/%s/" $dyn ($name | urlize)) | relURL }}' class='dropdown-item'>{{ $name }} <span class="tag-num">({{ len $pages }})</span></a>
                                 {{- else }}
                                 {{- range .children }}
                                 <a href='{{ .url | relURL }}' class='dropdown-item'>{{ .name }}</a>

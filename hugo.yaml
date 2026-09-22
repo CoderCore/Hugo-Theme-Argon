@@ -1,7 +1,7 @@
 # Example configuration for Argon Hugo theme
 
 baseURL: ""
-languageCode: "zh-cn"
+locale: "zh-cn"
 title: "My Hugo Site"
 theme: "Hugo-Theme-Argon"
 enableRobotsTXT: true
